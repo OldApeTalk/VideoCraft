@@ -123,6 +123,6 @@ entry.pack(pady=5)
 
 tk.Button(root, text="Process with Custom Limit", command=custom_process).pack(pady=10)
 tk.Button(root, text="Process English (60 chars)", command=lambda: select_file_and_process(60, is_chinese=False)).pack(pady=10)
-tk.Button(root, text="Process Chinese (30 chars)", command=lambda: select_file_and_process(30, is_chinese=True)).pack(pady=10)
+tk.Button(root, text="Process Chinese (20 chars)", command=lambda: select_file_and_process(20, is_chinese=True)).pack(pady=10)
 
 root.mainloop()

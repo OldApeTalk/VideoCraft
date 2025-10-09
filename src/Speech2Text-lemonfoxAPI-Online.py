@@ -122,8 +122,11 @@ for code in un_languages + other_languages:
 KEY_FILE = "lemonfox.key"
 
 def select_mp3_file():
-    """选择MP3文件"""
-    file_path = filedialog.askopenfilename(title="Select MP3 File", filetypes=[("MP3 Files", "*.mp3")])
+    """选择音频/视频文件"""
+    file_path = filedialog.askopenfilename(
+        title="Select Audio/Video File",
+        filetypes=[("Audio/Video Files", "*.mp3;*.mp4"), ("MP3 Files", "*.mp3"), ("MP4 Files", "*.mp4")]
+    )
     if file_path:
         entry_mp3_path.delete(0, tk.END)
         entry_mp3_path.insert(0, file_path)
@@ -299,7 +302,12 @@ def transcribe_audio():
         # 调用LemonFox API
         url = "https://api.lemonfox.ai/v1/audio/transcriptions"
         headers = {"Authorization": f"Bearer {api_key}"}
-        files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), "audio/mpeg")}
+        file_ext = os.path.splitext(mp3_path)[1].lower()
+        if file_ext == ".mp4":
+            mime_type = "video/mp4"
+        else:
+            mime_type = "audio/mpeg"
+        files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
         data = {"response_format": "srt"}
         if api_lang:
             data["language"] = api_lang
