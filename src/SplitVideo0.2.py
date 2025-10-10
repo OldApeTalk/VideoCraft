@@ -1,17 +1,10 @@
 import os
 import re
-from tkinter import Tk, filedialog
+import tkinter as tk
+from tkinter import filedialog, messagebox
 import ffmpeg
 import subprocess
 import json
-
-def select_file(title, filetypes):
-    """选择文件通用函数"""
-    root = Tk()
-    root.withdraw()
-    file_path = filedialog.askopenfilename(title=title, filetypes=filetypes)
-    root.destroy()
-    return file_path
 
 def parse_timestamps_and_titles(file_path):
     """解析时间戳和标题"""
@@ -75,7 +68,7 @@ def get_closest_keyframe(video_path, target_time):
         print(f"警告：无法获取关键帧，使用原时间。错误：{e}")
         return target_time
 
-def split_video(video_path, segments, output_dir):
+def split_video(video_path, segments, output_dir, status_var=None):
     """根据时间戳切分视频 - 快速拷贝模式"""
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -93,7 +86,10 @@ def split_video(video_path, segments, output_dir):
         safe_title = re.sub(r'[<>:"/\\|?*]', '', title)
         output_file = os.path.join(output_dir, f"{i:03d}_{safe_title}.mp4")
 
-        print(f"正在切分：{start_time} - {title} (从关键帧 {start_seconds}s 开始)")
+        msg = f"正在切分：{start_time} - {title} (从关键帧 {start_seconds}s 开始)"
+        print(msg)
+        if status_var is not None:
+            status_var.set(msg)
         try:
             stream = ffmpeg.input(video_path, ss=start_seconds)
             if duration:
@@ -117,36 +113,77 @@ def split_video(video_path, segments, output_dir):
         except ffmpeg.Error as e:
             print(f"错误：切分失败 - {title}，原因：{e.stderr.decode()}")
 
-def main():
-    # 选择视频文件
-    video_path = select_file("选择视频文件", [("Video files", "*.mp4 *.mkv *.avi"), ("All files", "*.*")])
-    if not video_path:
-        print("未选择视频文件，程序退出。")
-        return
+class SplitVideoApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("视频分段切割工具")
+        master.geometry("650x300")
+        master.resizable(False, False)
 
-    # 选择描述文件
-    desc_path = select_file("选择时间戳描述文件", [("Text files", "*.txt"), ("All files", "*.*")])
-    if not desc_path:
-        print("未选择描述文件，程序退出。")
-        return
+        # 视频文件
+        tk.Label(master, text="选择视频文件:").grid(row=0, column=0, padx=10, pady=15, sticky="e")
+        self.video_path_var = tk.StringVar()
+        tk.Entry(master, textvariable=self.video_path_var, width=60).grid(row=0, column=1, sticky="w")
+        tk.Button(master, text="浏览", command=self.select_video).grid(row=0, column=2, padx=10)
 
-    # 选择输出目录
-    root = Tk()
-    root.withdraw()
-    output_dir = filedialog.askdirectory(title="选择输出目录")
-    root.destroy()
-    if not output_dir:
-        print("未选择输出目录，程序退出。")
-        return
+        # 分段描述文件
+        tk.Label(master, text="分段描述文件:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        self.desc_path_var = tk.StringVar()
+        tk.Entry(master, textvariable=self.desc_path_var, width=60).grid(row=1, column=1, sticky="w")
+        tk.Button(master, text="浏览", command=self.select_desc).grid(row=1, column=2, padx=10)
 
-    # 解析时间戳和标题
-    segments = parse_timestamps_and_titles(desc_path)
-    if not segments:
-        print("未找到有效的时间戳和标题，程序退出。")
-        return
+        # 输出目录
+        tk.Label(master, text="输出目录:").grid(row=2, column=0, padx=10, pady=10, sticky="e")
+        self.output_dir_var = tk.StringVar()
+        tk.Entry(master, textvariable=self.output_dir_var, width=60).grid(row=2, column=1, sticky="w")
+        tk.Button(master, text="浏览", command=self.select_output_dir).grid(row=2, column=2, padx=10)
 
-    # 切分视频
-    split_video(video_path, segments, output_dir)
+        # 状态栏
+        self.status_var = tk.StringVar()
+        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=4, column=0, columnspan=3, pady=10)
+
+        # 开始切割按钮
+        tk.Button(master, text="开始切割", command=self.start_split, width=20).grid(row=3, column=1, pady=20)
+
+    def select_video(self):
+        path = filedialog.askopenfilename(title="选择视频文件", filetypes=[("Video files", "*.mp4 *.mkv *.avi"), ("All files", "*.*")])
+        if path:
+            self.video_path_var.set(path)
+
+    def select_desc(self):
+        path = filedialog.askopenfilename(title="选择分段描述文件", filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        if path:
+            self.desc_path_var.set(path)
+
+    def select_output_dir(self):
+        path = filedialog.askdirectory(title="选择输出目录")
+        if path:
+            self.output_dir_var.set(path)
+
+    def start_split(self):
+        video_path = self.video_path_var.get()
+        desc_path = self.desc_path_var.get()
+        output_dir = self.output_dir_var.get()
+        if not video_path or not os.path.exists(video_path):
+            messagebox.showerror("错误", "请选择有效的视频文件")
+            return
+        if not desc_path or not os.path.exists(desc_path):
+            messagebox.showerror("错误", "请选择有效的分段描述文件")
+            return
+        if not output_dir:
+            messagebox.showerror("错误", "请选择输出目录")
+            return
+        segments = parse_timestamps_and_titles(desc_path)
+        if not segments:
+            messagebox.showerror("错误", "未找到有效的时间戳和标题")
+            return
+        self.status_var.set("开始切割...")
+        self.master.update()
+        split_video(video_path, segments, output_dir, self.status_var)
+        self.status_var.set("全部切割完成！")
+        messagebox.showinfo("完成", "视频分割已全部完成！")
 
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    app = SplitVideoApp(root)
+    root.mainloop()
