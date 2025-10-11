@@ -332,59 +332,6 @@ def transcribe_audio():
         log_text.insert(tk.END, f"错误：{str(e)}\n")
         messagebox.showerror("Error", f"发生错误：{str(e)}")
 
-def split_srt():
-    """独立拆分选择的SRT文件"""
-    srt_path = entry_srt_path.get()
-
-    if not srt_path or not os.path.exists(srt_path):
-        messagebox.showerror("Error", "请选择有效的SRT文件。")
-        return
-
-    # 选择保存路径
-    default_split_srt = os.path.splitext(srt_path)[0] + "_split.srt"
-    split_srt_path = filedialog.asksaveasfilename(title="Save Split SRT File", defaultextension=".srt", initialfile=os.path.basename(default_split_srt), initialdir=os.path.dirname(srt_path))
-    if not split_srt_path:
-        split_srt_path = default_split_srt
-
-    try:
-        log_text.insert(tk.END, "开始拆分SRT文件...\n")
-        root.update()
-
-        # 读取SRT内容
-        with open(srt_path, "r", encoding="utf-8") as f:
-            srt_content = f.read()
-
-        # 解析并拆分
-        segments = parse_srt(srt_content)
-        log_text.insert(tk.END, f"Parsed {len(segments)} segments from SRT.\n")
-        root.update()
-        new_srt = ""
-        new_index = 1
-        for _, start, end, text in segments:
-            if len(text) <= 60:
-                wrapped_text = "\n".join(textwrap.wrap(text, width=60))
-                start_ts = format_timestamp(start)
-                end_ts = format_timestamp(end)
-                new_srt += f"{new_index}\n{start_ts} --> {end_ts}\n{wrapped_text}\n\n"
-                new_index += 1
-            else:
-                sub_segments = split_long_segment(start, end, text)
-                for sub_start, sub_end, sub_text in sub_segments:
-                    wrapped_text = "\n".join(textwrap.wrap(sub_text, width=60))
-                    start_ts = format_timestamp(sub_start)
-                    end_ts = format_timestamp(sub_end)
-                    new_srt += f"{new_index}\n{start_ts} --> {end_ts}\n{wrapped_text}\n\n"
-                    new_index += 1
-
-        with open(split_srt_path, "w", encoding="utf-8", newline='') as f:
-            f.write(new_srt)
-
-        log_text.insert(tk.END, f"拆分后SRT文件已生成：{split_srt_path}\n")
-        messagebox.showinfo("成功", f"拆分后SRT文件已生成：{split_srt_path}")
-
-    except Exception as e:
-        log_text.insert(tk.END, f"错误：{str(e)}\n")
-        messagebox.showerror("Error", f"发生错误：{str(e)}")
 
 # 创建GUI窗口
 root = tk.Tk()
@@ -435,18 +382,6 @@ combo_menu.pack(fill=tk.X, padx=10)
 # 转录按钮（仅生成原始SRT）
 button_transcribe = tk.Button(root, text="转录为原始SRT", command=transcribe_audio)
 button_transcribe.pack(pady=10)
-
-# SRT文件选择（用于拆分）
-# label_srt = tk.Label(root, text="SRT 文件 (用于拆分):")
-# label_srt.pack(pady=5)
-# entry_srt_path = tk.Entry(root, width=60)
-# entry_srt_path.pack()
-# button_select_srt = tk.Button(root, text="浏览", command=select_srt_file)
-# button_select_srt.pack(pady=5)
-
-# 拆分按钮
-# button_split = tk.Button(root, text="拆分短字幕 (每块最多60字符)", command=split_srt)
-# button_split.pack(pady=10)
 
 # 日志显示
 label_log = tk.Label(root, text="日志:")

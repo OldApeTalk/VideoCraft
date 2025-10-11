@@ -21,6 +21,7 @@
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinter import colorchooser
 import os
 import subprocess
 
@@ -59,6 +60,19 @@ def escape_ffmpeg_path(path):
     abs_path = abs_path.replace("\\", "/")
     abs_path = abs_path.replace(":", "\\:")
     return abs_path
+
+
+
+def hex_color_to_drawtext(color):
+    color = color.lstrip('#')
+    if len(color) != 6:
+        color = "FFFFFF"
+    return f"#{color}"
+
+def choose_watermark_color():
+    color = colorchooser.askcolor(title="选择水印颜色")
+    if color and color[1]:
+        watermark_color_var.set(color[1])
 
 def merge_videos():
     video_path = entry_video.get()
@@ -105,9 +119,27 @@ def merge_videos():
         f"Bold=0,Alignment=2,MarginV={marginv2}"
     )
 
+    # 水印参数
+    watermark_text = watermark_text_var.get()
+    watermark_alpha = watermark_alpha_var.get()  # 0-100
+    watermark_color = watermark_color_var.get()  # "#RRGGBB"
+    watermark_ff_color = hex_color_to_drawtext(watermark_color)
+    alpha_value = round((100 - watermark_alpha) / 100, 2)  # 0=不透明, 1=全透明
+
+    # 水印drawtext滤镜
+    # 右上角：x=w-tw-30, y=30
+    watermark_filter = (
+        f"drawtext=text='{watermark_text}':"
+        f"fontcolor={watermark_ff_color}:"
+        f"alpha={alpha_value}:"
+        f"fontsize=24:font='Microsoft YaHei':"
+        f"x=w-tw-30:y=30:borderw=2:bordercolor=black"
+    )
+
     vf = (
         f"subtitles=filename='{sub2_path_ff}':force_style='{style2}',"
-        f"subtitles=filename='{sub1_path_ff}':force_style='{style1}'"
+        f"subtitles=filename='{sub1_path_ff}':force_style='{style1}',"
+        f"{watermark_filter}"
     )
 
     cmd = [
@@ -122,17 +154,32 @@ def merge_videos():
     ]
 
     try:
-        completed = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+        completed = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            shell=True,
+            encoding="utf-8"  # 强制用utf-8解码
+        )
         if completed.returncode == 0:
             messagebox.showinfo("成功", f"视频合成成功！已保存为: {output_path}")
         else:
-            messagebox.showerror("FFmpeg错误", f"FFmpeg 执行失败：\n{completed.stderr}")
+            # 输出FFmpeg错误到终端
+            print("FFmpeg 执行失败，错误信息如下：")
+            print(completed.stderr)
+            messagebox.showerror("FFmpeg错误", f"FFmpeg 执行失败，详细错误已输出到终端窗口。")
     except Exception as e:
+        print(f"发生异常：{str(e)}")
         messagebox.showerror("错误", f"发生错误: {str(e)}\n请确保已安装 FFmpeg 并将其添加到系统 PATH 中。")
 
 root = tk.Tk()
 root.title("双语字幕烧录工具（FFmpeg）")
-root.geometry("700x420")  # 调整窗口为更大尺寸，宽700高420
+root.geometry("700x460")  # 调整窗口为更大尺寸，宽700高460
+
+# 新增：水印参数变量（必须在root创建后）
+watermark_text_var = tk.StringVar(value="字幕制作By老猿")
+watermark_alpha_var = tk.DoubleVar(value=60.0)  # 默认60%透明度
+watermark_color_var = tk.StringVar(value="#FFFFFF")  # 默认白色
 
 # 视频文件
 tk.Label(root, text="视频文件:").grid(row=0, column=0, padx=10, pady=15, sticky="e")
@@ -151,6 +198,24 @@ tk.Label(root, text="英文字幕（底部，最下方）:").grid(row=2, column=
 entry_sub2 = tk.Entry(root, width=55)
 entry_sub2.grid(row=2, column=1, padx=5)
 tk.Button(root, text="浏览", command=select_subtitle2).grid(row=2, column=2, padx=10)
+
+# 水印设置区域
+frame_watermark = tk.LabelFrame(root, text="水印设置（右上角）", padx=10, pady=5)
+frame_watermark.grid(row=4, column=0, columnspan=3, padx=15, pady=5, sticky="we")
+
+tk.Label(frame_watermark, text="水印文字:").grid(row=0, column=0, sticky="e")
+entry_watermark = tk.Entry(frame_watermark, textvariable=watermark_text_var, width=25)
+entry_watermark.grid(row=0, column=1, padx=5)
+
+tk.Label(frame_watermark, text="透明度(%):").grid(row=0, column=2, sticky="e")
+scale_alpha = tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL, variable=watermark_alpha_var, length=100)
+scale_alpha.grid(row=0, column=3, padx=5)
+
+tk.Label(frame_watermark, text="颜色:").grid(row=0, column=4, sticky="e")
+entry_color = tk.Entry(frame_watermark, textvariable=watermark_color_var, width=10)
+entry_color.grid(row=0, column=5, padx=5)
+btn_color = tk.Button(frame_watermark, text="选择", command=choose_watermark_color)
+btn_color.grid(row=0, column=6, padx=5)
 
 # 合成按钮
 btn_merge = tk.Button(root, text="开始烧录双语字幕", width=25, command=merge_videos)
