@@ -45,17 +45,61 @@ def select_video():
         entry_video.insert(0, file_path)
         # 获取视频时长
         try:
-            cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', file_path]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            import json
-            data = json.loads(result.stdout)
-            duration_str = data['format']['duration']
+            # 首先检查ffprobe是否可用
+            try:
+                subprocess.run(['ffprobe', '-version'], capture_output=True, check=True, timeout=5)
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                messagebox.showerror("错误", "未找到ffprobe。请确保已安装FFmpeg并将其添加到系统PATH中。\n\n下载地址：https://ffmpeg.org/download.html")
+                video_duration = 0.0
+                label_duration.config(text="视频时长: 未知 (未安装FFmpeg)")
+                return
+            
+            # 使用更简单的命令获取时长
+            cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', file_path]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode != 0:
+                # 尝试备用方法
+                cmd2 = ['ffprobe', '-i', file_path, '-v', 'quiet', '-print_format', 'json', '-show_format']
+                result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=10)
+                if result2.returncode == 0:
+                    data = json.loads(result2.stdout)
+                    duration_str = data['format']['duration']
+                else:
+                    raise Exception(f"ffprobe命令失败: {result.stderr.strip()}")
+            else:
+                duration_str = result.stdout.strip()
+            
             video_duration = float(duration_str)
             label_duration.config(text=f"视频时长: {time.strftime('%H:%M:%S', time.gmtime(video_duration))}")
+            
+        except subprocess.TimeoutExpired:
+            video_duration = 0.0
+            label_duration.config(text="视频时长: 未知 (超时)")
+            messagebox.showwarning("警告", "获取视频时长超时。视频文件可能损坏或过大。")
+        except ValueError as e:
+            video_duration = 0.0
+            label_duration.config(text="视频时长: 未知 (无效时长)")
+            print(f"时长转换错误: {e}, 原始输出: {duration_str}")
+        except json.JSONDecodeError as e:
+            video_duration = 0.0
+            label_duration.config(text="视频时长: 未知 (JSON解析错误)")
+            print(f"JSON解析错误: {e}")
         except Exception as e:
             video_duration = 0.0
             label_duration.config(text="视频时长: 未知")
-            print(f"获取视频时长失败: {e}")
+            error_msg = str(e)
+            print(f"获取视频时长失败: {error_msg}")
+            
+            # 提供更详细的错误信息
+            if "No such file or directory" in error_msg:
+                messagebox.showwarning("警告", "视频文件路径无效或文件不存在。")
+            elif "Permission denied" in error_msg:
+                messagebox.showwarning("警告", "没有权限访问视频文件。")
+            elif "Invalid data found" in error_msg:
+                messagebox.showwarning("警告", "视频文件格式无效或损坏。")
+            else:
+                messagebox.showwarning("警告", f"获取视频时长失败: {error_msg}\n\n您可以继续使用，但进度条可能不准确。")
 
 def select_subtitle1():
     file_path = filedialog.askopenfilename(
