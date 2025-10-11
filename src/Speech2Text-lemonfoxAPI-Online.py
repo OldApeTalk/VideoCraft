@@ -131,13 +131,6 @@ def select_mp3_file():
         entry_mp3_path.delete(0, tk.END)
         entry_mp3_path.insert(0, file_path)
 
-def select_srt_file():
-    """选择SRT文件"""
-    file_path = filedialog.askopenfilename(title="Select SRT File", filetypes=[("SRT Files", "*.srt")])
-    if file_path:
-        entry_srt_path.delete(0, tk.END)
-        entry_srt_path.insert(0, file_path)
-
 def load_key():
     """加载保存的API Key"""
     if os.path.exists(KEY_FILE):
@@ -409,8 +402,20 @@ button_select_mp3.pack(pady=5)
 # API Key输入
 label_api_key = tk.Label(root, text="LemonFox API Key:")
 label_api_key.pack(pady=5)
-entry_api_key = tk.Entry(root, width=60)
+api_key_var = tk.StringVar()
+entry_api_key = tk.Entry(root, width=60, textvariable=api_key_var, show="*")
 entry_api_key.pack(pady=5)
+
+def toggle_key_visibility():
+    if entry_api_key.cget('show') == '*':
+        entry_api_key.config(show='')
+        button_toggle_key.config(text="隐藏 Key")
+    else:
+        entry_api_key.config(show='*')
+        button_toggle_key.config(text="显示 Key")
+
+button_toggle_key = tk.Button(root, text="显示 Key", command=toggle_key_visibility)
+button_toggle_key.pack(pady=2)
 
 # Key管理按钮
 frame_key_buttons = tk.Frame(root)
@@ -432,16 +437,16 @@ button_transcribe = tk.Button(root, text="转录为原始SRT", command=transcrib
 button_transcribe.pack(pady=10)
 
 # SRT文件选择（用于拆分）
-label_srt = tk.Label(root, text="SRT 文件 (用于拆分):")
-label_srt.pack(pady=5)
-entry_srt_path = tk.Entry(root, width=60)
-entry_srt_path.pack()
-button_select_srt = tk.Button(root, text="浏览", command=select_srt_file)
-button_select_srt.pack(pady=5)
+# label_srt = tk.Label(root, text="SRT 文件 (用于拆分):")
+# label_srt.pack(pady=5)
+# entry_srt_path = tk.Entry(root, width=60)
+# entry_srt_path.pack()
+# button_select_srt = tk.Button(root, text="浏览", command=select_srt_file)
+# button_select_srt.pack(pady=5)
 
 # 拆分按钮
-button_split = tk.Button(root, text="拆分短字幕 (每块最多60字符)", command=split_srt)
-button_split.pack(pady=10)
+# button_split = tk.Button(root, text="拆分短字幕 (每块最多60字符)", command=split_srt)
+# button_split.pack(pady=10)
 
 # 日志显示
 label_log = tk.Label(root, text="日志:")
