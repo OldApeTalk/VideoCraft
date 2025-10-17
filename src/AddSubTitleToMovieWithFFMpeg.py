@@ -220,7 +220,7 @@ def merge_videos():
     watermark_color = watermark_color_var.get()  # "#RRGGBB"
     watermark_fontsize = watermark_fontsize_var.get()
     watermark_ff_color = hex_color_to_drawtext(watermark_color)
-    alpha_value = round((100 - watermark_alpha) / 100, 2)  # 0=不透明, 1=全透明
+    alpha_value = round(watermark_alpha / 100, 2)  # 0=不透明, 1=全透明
 
     vf_filters = []
     if show_sub2:
@@ -234,8 +234,7 @@ def merge_videos():
     if show_watermark:
         watermark_filter = (
             f"drawtext=text='{watermark_text}':"
-            f"fontcolor={watermark_ff_color}:"
-            f"alpha={alpha_value}:"
+            f"fontcolor={watermark_ff_color}@{alpha_value}:"
             f"fontsize={watermark_fontsize}:font='Microsoft YaHei':"
             f"x=w-tw-30:y=30:borderw=2:bordercolor=black"
         )
@@ -327,7 +326,7 @@ root.geometry("800x520")
 # 新增：水印参数变量（必须在root创建后）
 watermark_text_var = tk.StringVar(value="字幕制作By老猿")
 watermark_alpha_var = tk.DoubleVar(value=60.0)
-watermark_color_var = tk.StringVar(value="#FFFFFF")
+watermark_color_var = tk.StringVar(value="#00ffff")
 watermark_fontsize_var = tk.IntVar(value=24)
 watermark_show_var = tk.BooleanVar(value=True)
 
