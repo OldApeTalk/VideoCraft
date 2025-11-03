@@ -286,7 +286,7 @@ def transcribe_audio():
     default_srt = os.path.splitext(mp3_path)[0] + ".srt"
     srt_path = filedialog.asksaveasfilename(title="Save SRT File", defaultextension=".srt", initialfile=os.path.basename(default_srt), initialdir=os.path.dirname(mp3_path))
     if not srt_path:
-        srt_path = default_srt
+        return  # 用户取消了路径选择，不进行转录
 
     try:
         log_text.insert(tk.END, "开始调用API进行转录...\n")
@@ -304,6 +304,8 @@ def transcribe_audio():
         data = {"response_format": "srt"}
         if api_lang:
             data["language"] = api_lang
+        if translate_var.get():
+            data["translate_to_english"] = True
 
         response = requests.post(url, headers=headers, data=data, files=files)
 
@@ -378,6 +380,11 @@ label_language.pack(pady=5)
 combo_language = tk.StringVar()
 combo_menu = ttk.OptionMenu(root, combo_language, language_options[0], *language_options)  # 使用ttk以支持滚动
 combo_menu.pack(fill=tk.X, padx=10)
+
+# 自动转换为英语复选框
+translate_var = tk.BooleanVar()
+check_translate = tk.Checkbutton(root, text="自动将识别的字幕转换为英语", variable=translate_var)
+check_translate.pack(pady=5)
 
 # 转录按钮（仅生成原始SRT）
 button_transcribe = tk.Button(root, text="转录为原始SRT", command=transcribe_audio)
