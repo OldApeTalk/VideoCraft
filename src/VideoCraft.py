@@ -6,7 +6,7 @@ VideoCraft - Video Production Toolkit
 This is a unified video production toolkit entry point that calls various functional modules via buttons to achieve video downloading, subtitle generation, translation, splitting, and burning.
 
 界面布局 / Interface Layout:
-- 左边核心工作流 / Left Core Workflow: 视频制作的主要流程（下载→语音转字幕→翻译→切割→烧录）
+- 左边核心工作流 / Left Core Workflow: 视频制作的主要流程（下载→语音转字幕→翻译→烧录）
 - 右边辅助工具 / Right Auxiliary Tools: 视频音频处理和视频切割工具
 
 功能模块 / Functional Modules:
@@ -20,11 +20,8 @@ This is a unified video production toolkit entry point that calls various functi
 3. SRT 字幕文件翻译 / Translate SRT Subtitle File: Translate-srt.py - 使用 DeepL 或 Azure 翻译 SRT 字幕文件为中文。
    Translate SRT Subtitle File: Translate-srt.py - Translate SRT subtitle files to Chinese using DeepL or Azure.
 
-4. SRT 文件适配屏幕的自动化切割 / Automatic Splitting of SRT Files for Screen Adaptation: SplitSubtitles.py - 自动拆分 SRT 字幕文件，使每行适应屏幕显示，支持中英文优化。
-   Automatic Splitting of SRT Files for Screen Adaptation: SplitSubtitles.py - Automatically split SRT subtitle files to fit screen display, with Chinese and English optimization.
-
-5. 将字幕烧录到视频 / Burn Subtitles into Video: AddSubTitleToMovieWithFFMpeg.py - 使用 FFmpeg 将中英双语字幕硬烧录到视频文件中。
-   Burn Subtitles into Video: AddSubTitleToMovieWithFFMpeg.py - Use FFmpeg to hard-burn bilingual subtitles into video files.
+4. 将字幕烧录到视频 / Burn Subtitles into Video: SubtitleTool.py - 统一的字幕处理工具，支持字幕分割和双语字幕烧录。
+   Burn Subtitles into Video: SubtitleTool.py - Unified subtitle processing tool supporting subtitle splitting and bilingual subtitle burning.
 
 辅助工具 / Auxiliary Tools:
 6. VideoTools / VideoTools: VideoTools.py - 视频音频处理工具，包括音频提取、码率转换、音量调整。
@@ -70,9 +67,8 @@ class VideoCraftApp:
         core_functions = [
             ("下载视频 / Download", "yt-dlp-with simuheader ipv4.py"),
             ("语音转字幕 / Speech to SRT", "Speech2Text-lemonfoxAPI-Online.py"),
-            ("翻译字幕 / Translate SRT", "Translate-srt.py"),
-            ("切割字幕 / Split SRT", "SplitSubtitles.py"),
-            ("烧录字幕 / Burn Subtitles", "AddSubTitleToMovieWithFFMpeg.py")
+            ("翻译字幕 / Translate SRT", "Translate-srt-gemini.py"),
+            ("烧录字幕 / Burn Subtitles", "SubtitleTool.py")
         ]
 
         for func_name, script_name in core_functions:

@@ -282,9 +282,21 @@ def transcribe_audio():
         eng_name = selected_language.split(" (")[0].lower()
         api_lang = eng_name
 
+    # 解析语言并生成默认文件名
+    if selected_language.startswith("Auto Detect"):
+        default_filename = "Auto_Detect.srt"
+    else:
+        # 从双语字符串提取英文名
+        eng_name = selected_language.split(" (")[0]
+        default_filename = f"{eng_name}.srt"
+
     # 选择SRT保存路径
-    default_srt = os.path.splitext(mp3_path)[0] + ".srt"
-    srt_path = filedialog.asksaveasfilename(title="Save SRT File", defaultextension=".srt", initialfile=os.path.basename(default_srt), initialdir=os.path.dirname(mp3_path))
+    srt_path = filedialog.asksaveasfilename(
+        title="Save SRT File", 
+        defaultextension=".srt", 
+        initialfile=default_filename, 
+        initialdir=os.path.dirname(mp3_path)
+    )
     if not srt_path:
         return  # 用户取消了路径选择，不进行转录
 

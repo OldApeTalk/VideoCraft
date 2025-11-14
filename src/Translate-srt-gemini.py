@@ -6,6 +6,7 @@ import srt
 import re
 import requests
 import time
+import google.generativeai as genai
 
 # 支持的语言列表 (语言代码 -> (英文名, 中文名))
 SUPPORTED_LANGUAGES = {
@@ -251,14 +252,14 @@ for code, (eng, chn) in SUPPORTED_LANGUAGES.items():
 class TranslateApp:
     def __init__(self, master):
         self.master = master
-        master.title("SRT字幕批量翻译工具（DeepL/Azure）")
+        master.title("SRT字幕批量翻译工具（DeepL/Azure/Gemini）")
         master.geometry("700x420")
         master.resizable(False, False)
 
         # 翻译服务选择
         tk.Label(master, text="选择翻译服务:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.service_var = tk.StringVar(value="deepl")
-        self.combo = ttk.Combobox(master, textvariable=self.service_var, values=["deepl", "azure"], state="readonly", width=10)
+        self.service_var = tk.StringVar(value="gemini")
+        self.combo = ttk.Combobox(master, textvariable=self.service_var, values=["deepl", "azure", "gemini"], state="readonly", width=10)
         self.combo.grid(row=0, column=1, sticky="w")
         tk.Button(master, text="管理Key", command=self.manage_key).grid(row=0, column=2, padx=10)
 
@@ -302,6 +303,8 @@ class TranslateApp:
             self.configure_deepl_key()
         elif service == "azure":
             self.configure_azure_key()
+        elif service == "gemini":
+            self.configure_gemini_key()
 
     def configure_deepl_key(self):
         win = tk.Toplevel(self.master)
@@ -358,6 +361,27 @@ class TranslateApp:
                 win.destroy()
             else:
                 messagebox.showerror("Error", "请输入有效的 Azure Key、Endpoint 和 Region")
+        tk.Button(win, text="保存", command=save).pack(pady=10)
+
+    def configure_gemini_key(self):
+        win = tk.Toplevel(self.master)
+        win.title("Gemini API Key 配置")
+        tk.Label(win, text="Gemini API Key:").pack(pady=10)
+        entry = tk.Entry(win, width=50)
+        entry.pack(pady=5)
+        # 预填已有key
+        if os.path.exists('Gemini.key'):
+            with open('Gemini.key', 'r') as f:
+                entry.insert(0, f.read().strip())
+        def save():
+            key = entry.get().strip()
+            if key:
+                with open('Gemini.key', 'w') as f:
+                    f.write(key)
+                messagebox.showinfo("Success", "API key saved!")
+                win.destroy()
+            else:
+                messagebox.showerror("Error", "请输入有效的API key")
         tk.Button(win, text="保存", command=save).pack(pady=10)
 
     def select_srt(self):
@@ -505,6 +529,97 @@ class TranslateApp:
             except Exception as e:
                 print(f"Azure请求异常: {e}")
                 return
+        elif service == "gemini":
+            if not os.path.exists('Gemini.key'):
+                messagebox.showerror("错误", "请先配置Gemini Key")
+                return
+            try:
+                with open('Gemini.key', 'r') as f:
+                    api_key = f.read().strip()
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                
+                # Gemini翻译逻辑：分批发送，每批最多2000字符，请求间隔6秒
+                source_lang_name = SUPPORTED_LANGUAGES.get(source_lang, ('Unknown', '未知'))[0]
+                target_lang_name = SUPPORTED_LANGUAGES.get(target_lang, ('Unknown', '未知'))[0]
+                
+                # 准备所有字幕文本
+                texts = []
+                for i, sub in enumerate(subs):
+                    content = sub.content.replace('\n', '[NL]')
+                    texts.append(f"{i+1}. {content}")
+                full_text = '\n'.join(texts)
+                
+                # 分批处理，每批最多2000字符
+                max_chars_per_batch = 2000
+                batches = []
+                current_batch = ""
+                for line in texts:
+                    if len(current_batch) + len(line) + 1 > max_chars_per_batch and current_batch:
+                        batches.append(current_batch)
+                        current_batch = line
+                    else:
+                        if current_batch:
+                            current_batch += '\n' + line
+                        else:
+                            current_batch = line
+                if current_batch:
+                    batches.append(current_batch)
+                
+                # 翻译每批
+                translated_subs = {}
+                for batch_idx, batch_text in enumerate(batches):
+                    self.status_var.set(f"正在翻译 ({source_lang.upper()} -> {target_lang.upper()}) - 批次 {batch_idx+1}/{len(batches)}")
+                    self.master.update()
+                    
+                    prompt = f"""Translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
+
+Instructions:
+- Maintain the exact numbering format (e.g., 1. translated text)
+- Keep the structure and line breaks as in the original
+- Replace [NL] with actual newlines in the translated text
+- Output only the translated subtitles, nothing else
+- Ensure the translation is accurate and natural
+
+Subtitles to translate:
+{batch_text}
+"""
+                    
+                    response = model.generate_content(prompt)
+                    translated_batch = response.text.strip()
+                    
+                    # 解析响应
+                    lines = translated_batch.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if line and '. ' in line:
+                            parts = line.split('. ', 1)
+                            if len(parts) == 2:
+                                try:
+                                    idx = int(parts[0]) - 1
+                                    text = parts[1].replace('[NL]', '\n')
+                                    translated_subs[idx] = text
+                                except ValueError:
+                                    continue
+                    
+                    print(f"翻译批次 {batch_idx+1}/{len(batches)} 完成，已翻译 {len(translated_subs)} 条字幕")
+                    
+                    # 请求间隔：每6秒一次
+                    if batch_idx < len(batches) - 1:
+                        time.sleep(6)
+                
+                # 检查是否所有字幕都被翻译
+                if len(translated_subs) != len(subs):
+                    messagebox.showwarning("Warning", f"部分字幕未能正确提取（{len(translated_subs)}/{len(subs)}），建议检查输出。")
+                
+                # 应用翻译
+                for i, sub in enumerate(subs):
+                    if i in translated_subs:
+                        sub.content = translated_subs[i]
+                
+            except Exception as e:
+                messagebox.showerror("Gemini错误", f"翻译失败: {e}")
+                return
         else:
             messagebox.showerror("错误", f"未知翻译服务: {service}")
             return
@@ -512,8 +627,9 @@ class TranslateApp:
         if service == "azure" and isinstance(translated, list):
             for i, sub in enumerate(subs):
                 if i < len(translated):
-                    sub.content = translated[i].replace('[NL]', '\n')
-        else:
+                    sub.content = translated[i]
+        elif service == "deepl":
+            # DeepL返回字符串，需要解析
             pattern = re.compile(r'(\d+)\.\s*(.*?)(?=\n\d+\.|$)', re.DOTALL)
             matches = pattern.findall(translated)
             translated_subs = {}
