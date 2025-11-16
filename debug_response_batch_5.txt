@@ -1,121 +1,121 @@
 === 批次 5 原始响应 ===
-121. 再加上我们国家极其富裕的事实
+【121】华盛顿总统和国会通过了1794年海军法案，
 
-122. 我们没有战争，我们再次尊重它，
+【122】授权建造海军的六艘战舰。
 
-123. 再加上中国曾威胁我们的事实
+【123】“美国号”、“星座号”，
 
-124. 在稀土方面，我能解决它
+【124】“宪法号”、“切萨皮克号”，
 
-125. 仅仅是通过对中国加征关税
+【125】“国会号”和“总统号”。
 
-126. 然后我们在一周后达成了一项协议。
+【126】这项法案标志着美国海军的重生，
 
-127. 当你加上所有这些好处时，
+【127】这些舰船将在与法国的准战争、
 
-128. 我们现在最大的优势就是关税的使用。
+【128】第一次巴巴里战争、
 
-129. 我好好利用了它们。
+【129】1812年战争以及第二次巴巴里战争中发挥重要作用，
 
-130. 多年来，它们一直被用来对付我们。
+【130】并为 securing victory 做出贡献。
 
-131. 我认为，你知道，无论你称它们为关税还是其他什么，
+【131】海军的早期岁月并非一帆风顺，
 
-132. 如果你不使用它们，你真的会无所顾忌。
+【132】但比表面上看起来要成功得多。
 
-133. 遭受灾难。
+【133】大陆海军在私人武装的支持下，不仅扰乱了英国的增援部队，
 
-134. 那 2000 美元的付款，会通货膨胀吗？
+【134】还动摇了英国依赖贸易的经济根基。
 
-135. 因为此前共和党人曾表示，这相当于在拜登治下向人们输送金钱。
+【135】从一开始就很清楚，制海权对于确保我们的独立至关重要。
 
-136. 嗯，区别在于这是赚来的钱，而不是凭空捏造的钱。
+【136】或许最重要的是，美国的海军军官和水手们即使在面对压倒性劣势时，也展现出了非凡的勇气。
 
-137. 你知道，那些钱是凭空捏造的。
+【137】这种特质将贯穿美国海军，直至第二次世界大战最黑暗的日子，直至今日。
 
-138. 拜登推出了《通胀削减法案》，但并未削减通胀，而且也不是
+【138】阿尔弗雷德·赛耶·马汉曾写道：
 
-139. 打算这么做。
+【139】“统治海洋者统治世界。”
 
-140. 他们也承认这是一个虚假的名称。
+【140】这句格言在今天和我们伟大国家历史上的任何时期一样适用。
 
-141. 当他们花数百亿美元购买一项名为《通胀削减法案》的银行交易时，
+【141】它也印证了我个人信奉的一个信念：
 
-142. 那是凭空捏造的钱。当我给每人支付 2000 美元时
+【142】要想成为超级大国，就必须是海洋强国。
 
-143. 面向低收入、中低收入和中等收入人群。富人除外，所有人都能拿到。这不是凭空捏造的
+【143】作为海军部长，我非常感谢每一位
 
-144. 的。这是真金白银。它们来自其他国家，是的。说起中国，既然你已经
+【144】曾服役的个人，以及每一位站岗值班的水手和海军陆战队员，
 
-145. 达成了交易，自你与他们达成交易以来，中国人是否需要实际购买
+【145】无论是在过去还是现在，他们都为保卫我们的共和国而战。
 
-146. 大豆？他们是否锁定了任何大豆？是的，他们正在这么做。
+【146】让我们铭记先辈的遗产。
 
-147. 我们今天和他们谈过了。他们正在做的不仅仅是
+【147】让我们反思始于1775年的不朽精神。
 
-148. 一点点，他们会大量购买大豆。
+【148】因为那种在荣誉、勇气和奉献中锻造出的精神，至今仍然在我们所有人身上。
 
-149. 你知道什么时候，春天吗？
+【149】感谢今天与我一同庆祝我们共同的传承。
 
-150. 就在那时。我想就在那时。
+【150】愿上帝保佑各位、保佑海军陆战队团队，以及美利坚合众国。
 
 === 批次 5 输入编号文本 ===
-121. When you add the fact that our country is extremely rich
+【121】President Washington and Congress passed the Naval Act of 1794,
 
-122. and we have no wars and we respect it again,
+【122】authorizing the construction of the Navy's six brigades.
 
-123. when you add the fact that when China was threatening to us
+【123】The USS United States, USS Constellation,
 
-124. in terms of rare earths, I was able to solve it
+【124】USS Constitution, USS Chesapeake,
 
-125. just by putting tariffs on China
+【125】USS Congress, and USS President.
 
-126. and we made a deal a week later.
+【126】This act marked the rebirth of the United States Navy,
 
-127. When you add all of the benefits,
+【127】and these ships would play a significant role
 
-128. The single greatest thing we have right now is the use of tariffs.
+【128】in securing victory in the quasi-war with France,
 
-129. And I used them properly.
+【129】the First Barbary War,
 
-130. For years, they've been used against us.
+【130】War of 1812, and the Second Barbary War.
 
-131. And I think, you know, whether you call them tariffs or anything else,
+【131】The Navy's earliest years were far from easy,
 
-132. if you didn't use them, you really would have it unguarded.
+【132】but far more successful than they may have appeared.
 
-133. disaster against.
+【133】The Continental Navy, supported by privateers, not only disrupted British reinforcements,
 
-134. Will those $2,000 payments, will that be inflationary?
+【134】but also shook the foundations of Britain's trade-dependent economy.
 
-135. Because previously Republicans had said it's sending money to people like under Biden.
+【135】From the beginning, it was clear sea power was essential to securing our independence.
 
-136. Well, the difference is this is money earned as opposed to money that was made up.
+【136】Perhaps most important, American officers and sailors demonstrated extraordinary valor even in the face of overwhelming odds.
 
-137. You know, that money was made up.
+【137】A characteristic that would permeate the U.S. Navy even into the darkest days of World War II and to today.
 
-138. Biden gave like the Inflation Reduction Act, which did not reduce inflation and it wasn't
+【138】Alfred Thayer Mahan once wrote,
 
-139. meant to.
+【139】Whoever rules the waves rules the world.
 
-140. And they admitted it was a phony name.
+【140】An adage is true today as it was throughout the history of our great country.
 
-141. When they spend hundreds of billions of dollars on a bank deal called the Inflation Reduction Act,
+【141】It has also confirmed a belief I personally espouse,
 
-142. that was made up money. When I pay people $2,000 each for
+【142】that to be a superpower, you must be a sea power.
 
-143. low and moderate income and middle income people. Everybody but the rich get this. That's not made
+【143】As Secretary of the Navy, I'm profoundly grateful to every individual
 
-144. up. That's real money. That comes from other countries, yeah. Speaking of China, since you've
+【144】who has served and to every sailor and marine who has stood to watch,
 
-145. made the deals, since you struck the deal with them, is the Chinese need to actually purchase
+【145】past and present in defense of our Republic.
 
-146. any soybeans? Have they locked in any soybean? Yeah, and they're in the process of doing it.
+【146】Let us honor the legacy of those who came before us.
 
-147. We spoke to them today. They're in the process of doing not only
+【147】Let us reflect on the enduring spirit that began in 1775.
 
-148. a little bit, but they'll be doing a lot of soybean purchase.
+【148】because that spirit, one forged in honor, courage, and commitment remains in all of us today.
 
-149. Do you know when in the spring?
+【149】Thank you for joining me today to celebrate our shared heritage.
 
-150. It's starting. Before then, I think before then.
+【150】May God bless you, the Navy Marine Corps team, and the United States of America.

@@ -1,121 +1,121 @@
 === 批次 1 原始响应 ===
-【1】所以，感谢你们一直支持我们。
+【1】我们需要人民，才能组成一个更完善的联邦。
 
-【2】你扮演了一个角色，这个角色承载着对女性气质和妻子身份的先入为主的观念
+【2】美国殖民地正处于革命的边缘。
 
-【3】而这种观念是建立在种族主义和厌女症的地雷之上的。
+【3】在陆地上，我们的国父们已经建立了一支大陆军
 
-【4】正如你已经说过的，第一夫人的着装是她表达自我的主要方式之一。
+【4】并将其指挥权委托给了乔治·华盛顿将军。
 
-【5】第一夫人可以借此与外界沟通。
+【5】但他们很快就得出了一个令人警醒的认识。
 
-【6】这其中蕴含着太多历史的期望。
+【6】他们争取独立的战争不可能仅凭陆地就能取胜。
 
-【7】你如何看待第一夫人是妻子身份和女性气质的典范这一事实？
+【7】大陆会议的几位代表明白，控制海洋
 
-【8】没错。
+【8】对于摆脱英国暴政的束缚至关重要。
 
-【9】我不同意这一点。
+【9】但并非所有代表都同意。
 
-【10】不同意。
+【10】1775年10月3日，当罗德岛代表提出建立海军的建议时
 
-【11】你知道，这是一种完全过时的说法，这种定义在当今女性在世界上的实际表现方式中已经没有了。
+【11】得到所有13个殖民地的支持，马里兰代表塞缪尔·蔡斯称这是世界上最疯狂的想法。
 
-【12】现代意义。
+【12】反对意见源于现实主义、成本、能力不足以及对远超他们的英国皇家海军的恐惧
 
-【13】你认为这是否影响了我们为女性成为总统所创造的空间？
+【13】他们的200年海上胜利记录证明了这一点。
 
-【14】嗯，正如我们在过去的选举中看到的，不幸的是，我们还没准备好。
+【14】暴君乔治国王将要进行的报复，加剧了国会的恐惧。
 
-【15】这就是为什么我说，别跟我提竞选
+【15】在华盛顿的支持下，大陆会议选择了决心而非恐惧。
 
-【16】因为你们都在撒谎。
+【16】1775年10月13日，国会授权装备两艘武装船只
 
-【17】你们还没准备好迎接一位女性。
+【17】拦截英国补给船，获取急需的火药、武器和其他关键物资。
 
-【18】真的没有。
+【18】从那时起，美国海军便诞生了。
 
-【19】所以别浪费我的时间。
+【19】并非源于雄厚的资源或海军优势，
 
-【20】你知道，我们还有很多需要成长的地方。
+【20】而是源于一个为自由而战的年轻国家的大胆决心。
 
-【21】而且，令人遗憾的是，仍然有很多男性
+【21】他们知道，新生的共和国仅靠军队的力量无法保卫自己的海岸。
 
-【22】他们觉得自己不能被女性领导，而我们看到了这一点。
+【22】11月5日，埃塞克斯·霍普金斯被任命为总司令
 
-【23】问题是什么？
+【23】以及美国海军的第一位委任军官。
 
-【24】我只是说，嗯哼。
+【24】11月25日，国会授权大陆海军舰艇
 
-【25】我们不需要再问了。你已经回答了。
+【25】攻击任何英国军舰或运输船。
 
-【26】所以……
+【26】11月28日，第二次大陆会议公布了由约翰·亚当斯起草的联合殖民地海军章程。
 
-【27】女性气质，妻子身份……
+【27】12月3日，各殖民地将一艘购买的商船改装成一艘24门炮的护卫舰。
 
-【28】是的，是的。我的意思是，我认为在这方面我们还有很多需要成长的地方。
+【28】这艘船将被重新命名为“阿尔弗雷德号”，成为大陆海军第一艘被委任的军舰，并由约翰·保罗·琼斯少校升起了旗帜。
 
-【29】而且，你知道，我们可以看到进步是如何取得的，以及在我们女性掌握自身权力时，事物是如何被夺走的。
+【29】12月11日，国会授权建造13艘护卫舰
 
-【30】我们作为女性掌握自身权力的过程。
+【30】将在殖民地的七个不同港口建造。
 
 === 批次 1 输入编号文本 ===
-【1】So thank you all for being there for us.
+【1】We need a people in order to form a more perfect union.
 
-【2】You stepped into a role that carried a preconceived idea of femininity and wifedom
+【2】The American colony stood at the brink of revolution.
 
-【3】that was founded on the landmines of racism and misogyny.
+【3】On land, our founding fathers had already established a Continental Army
 
-【4】What the First Lady wears is one of the main ways, which you've already said,
+【4】and entrusted its command to General George Washington.
 
-【5】that a First Lady has talked about.
+【5】But they soon came to a sobering realization.
 
-【6】It comes with so much historical expectation.
+【6】Their war for independence could not be won by land alone.
 
-【7】How do you feel about the fact that the First Lady is an archetype for wifedom and femininity?
+【7】Several delegates of the Continental Congress understood that control of the seas
 
-【8】Right.
+【8】was critical to breaking free from the grip of British tyranny.
 
-【9】Yeah, I don't agree with that.
+【9】But not all delegates agreed.
 
-【10】Don't agree with that.
+【10】On October 3rd, 1775, when the Rhode Island delegation proposed the creation of a naval force
 
-【11】You know, it is a completely throwback on, it's a definition that has no current status
+【11】supported by all 13 colonies, Maryland delegates Samuel Chase called it the maddest idea in the world.
 
-【12】in how women actually show up in the world today.
+【12】The objections were rooted in pragmatism, cost, lack of capacity, and fear of the far superior British Royal Navy
 
-【13】Do you think that that impacts the room that we've made for a woman to be president?
+【13】proven by their 200-year victory spree over the waves.
 
-【14】Well, as we saw in this past election, sadly, we ain't ready.
+【14】The assured retribution from the tyrant King George fueled congressional trepidation.
 
-【15】That's why I'm like, don't even look at me about running
+【15】With Washington's support, the Continental Congress chose resolve over fear.
 
-【16】because you all are lying.
+【16】On October 13th, 1775, it was authorized the outfitting of two armed vessels
 
-【17】You're not ready for a woman.
+【17】to intercept British supply ships from much-needed gunpowder, weapons, and other critical materials.
 
-【18】You are not.
+【18】From that authorization, the United States Navy was born.
 
-【19】So don't waste my time.
+【19】not from vast resources or naval supremacy,
 
-【20】You know, we got a lot of growing up to do.
+【20】but from the bold determination of a young nation fighting for freedom.
 
-【21】And there's still, I'm sadly, a lot of men
+【21】They knew that the new republic could not defend its shores by the strength of an army alone.
 
-【22】who do not feel like they can be led by a woman and we saw it.
+【22】On November 5th, Essex Hopkins was selected as commander-in-chief
 
-【23】What was the question?
+【23】and the first commissioned officer in the United States Navy.
 
-【24】I just said, mm-hmm.
+【24】On November 25th, Congress authorized Continental Navy vessels
 
-【25】We don't need to ask it again. You answered it.
+【25】to attack any British warship or transport.
 
-【26】So...
+【26】On November 28th, the Second Continental Congress released rules and regulations for the Navy of the United Colonies drafted by John Adams.
 
-【27】Femininity, wifedom...
+【27】On December 3rd, the colonies converted a purchased merchant ship to a 24-gun frigate.
 
-【28】Yeah, yeah. I mean, I think we still have growing to do in that regard.
+【28】That ship would be renamed the Alfred and became the first ship commissioned in the Continental Navy with the flag raised by Lieutenant John Paul Jones.
 
-【29】And, you know, we can see how progress can be made and things can be snatched back
+【29】And on December 11th, Congress authorized the construction of 13 frigates
 
-【30】when it comes to us owning our power as women.
+【30】to be built in seven different ports in the colonies.

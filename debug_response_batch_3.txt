@@ -1,121 +1,121 @@
 === 批次 3 原始响应 ===
-61. 我相信你做到了。
+【61】在尚普兰湖的瓦尔库岛海战中，他们遭遇了一支远为强大的敌军
 
-62. 你们为自己感到骄傲吗？
+【62】这场战役被普遍认为是美国独立战争中的最早的海战之一
 
-63. 我们合作得很愉快。
+【63】也是大陆海军参与的早期海战之一。
 
-64. 我们就这样抓到了 BBC。
+【64】尽管这是一次整体上的失败，但美军对尚普兰湖的防御阻止了英军向
 
-65. 我们有很好的线人。
+【65】哈德逊河上游进发，并推迟了英军入侵纽约一年。
 
-66. 坦白说，恭喜你们。
+【66】更重要的是，这为大陆军赢得了集结必要兵力的时间
 
-67. 你们为很多国家、很多伟大的人类提供了出色的服务，如果你想知道的话。
+【67】以便在1777年10月于萨拉托加战役中击败英军，
 
-68. 揭露了什么才是大新闻，BBC 做了什么。
+【68】这场战役被认为是美国独立战争的转折点。
 
-69. 没人会想到这种事，先生。我实际上改了我说的话。
+【69】虽然这次失败对英国影响巨大，但对殖民地来说，意义更为重大。
 
-70. 所以 BBC 道歉并撤回了报道，但他们说不会赔偿？
+【70】胜利说服了法国将他们的海军加入我们的事业，
 
-71. 好吧，我们要告他们。我们可能会在下周，向他们索赔十亿到五十亿美元。
+【71】当时法国海军是世界上最强大的海军力量之一。
 
-72. 所以你真的在说，嗯，我想我必须这么做。我是说，他们甚至承认他们作弊了。
+【72】1778年6月6日，大陆会议批准了法美同盟。
 
-73. 我是说，不是说他们不可能那样做。
+【73】随着法国参战，
 
-74. 他们作弊了。
+【74】华盛顿将军很快意识到法国海军对胜利至关重要。
 
-75. 他们改了我口中的话。
+【75】英国能够通过海路调动大批部队，这导致了1776年纽约市的陷落，
 
-76. 这比 CBS 对待喀布尔还要糟糕。
+【76】以及1777年费城的陷落。
 
-77. 他们改了她的回答，但至少她的回答简短，你知道，从她嘴里说出来的。
+【77】正如华盛顿在1780年后来所说，
 
-78. 你认为英国电视观众仅为了看电视就支付超过 200 美元是否合适？
+【78】在任何行动中，在任何情况下，
 
-79. 你认为执照费……
+【79】决定性的海军优势都应被视为一项基本原则
 
-80. 嗯，我不知道他们在一个我喜欢的地方，大体上是英国，对吧？
+【80】并且是所有胜利希望最终必须依赖的基础。
 
-81. 但正如你所想象的，英国人民对发生的事情非常愤怒。
+【81】他的话具有预见性。
 
-82. 因为这表明 BBC 是大新闻。
+【82】1781年9月5日，由德格拉斯伯爵指挥的24艘法国舰船
 
-83. 你我早就知道了。
+【83】在切萨皮克河口附近与西奥马斯·格雷夫斯爵士指挥的19艘英国舰船对峙
 
-84. 但我们不知道是在这周。
+【84】这就是著名的弗吉尼亚海角战役。
 
-85. 你是否向 Secure Stopper 提出过这个问题？
+【85】法国海军在历时数小时的海战中击败了英国舰队，
 
-86. 我没有，但我周末会联系他。
+【86】使得法国控制了切萨皮克湾
 
-87. 他actually给我打了电话。
+【87】并将8500名英军士兵，包括康沃利斯将军，围困在约克镇。
 
-88. 他对此感到非常尴尬。
+【88】这场战役决定了战争的结局。
 
-89. 你知道，那——我不知道那个国家拥有多少股份。
+【89】由于法国有效的封锁，康沃利斯将军无法获得英军海军的补给
 
-90. 但无论股份是少是多，还是没有——
+【90】或海上撤离。
 
 === 批次 3 输入编号文本 ===
-61. I am sure you did.
+【61】engaged a much superior force in the Battle of Valcourt Island on Lake Champlain
 
-62. Are you proud of yourselves?
+【62】in what is generally regarded as one of the first naval battles of the American Revolutionary War
 
-63. We've had a good company.
+【63】and one of the first fought by the Continental Navy.
 
-64. We catch BBC like that.
+【64】Though an overall defeat, the American defense of Lake Champlain stalled British plans to reach
 
-65. We have good sources.
+【65】the upper Hudson River Valley and delayed the British invasion of New York by a year.
 
-66. Honestly, congratulations.
+【66】More importantly, it allowed the Continental Army time to gather the forces necessary
 
-67. You've had a great service to a lot of countries, a lot of great human beings, if you want to know that you're in there.
+【67】to defeat the British at the Battle of Saratoga in October of 1777,
 
-68. Explosing what big news is all about, what BBC did.
+【68】in what is considered the turning point of the American Revolutionary War.
 
-69. Nobody would even think of anything like that, Mr. I actually changed the words coming out of my mouth.
+【69】While the loss had tremendous impact on the British, it was altogether more important for the colonies.
 
-70. So the BBC has apologized and retracted the report, but they say they won't pay compensation?
+【70】Victory had convinced France to lend their navy to our cause,
 
-71. Well, we'll sue them. We'll sue them for anywhere between a billion and $5 billion, probably sometime next week.
+【71】which at the time was one of the most formidable naval powers in the world.
 
-72. So you're really saying, well, I think I have to do it. I mean, they've even admitted that they cheated.
+【72】The Franco-American alliance was ratified by Congress on June 6th, 1778.
 
-73. I mean, not that they couldn't have not done that.
+【73】With the French entry into the war,
 
-74. They cheated.
+【74】General Washington quickly recognized that the French navy would be critical to victory.
 
-75. They changed the words coming out of my mouth.
+【75】Britain's ability to move large forces by sea had resulted in the capture of New York City in 1776,
 
-76. That's worse than what CBS did with Kabul.
+【76】and Philadelphia in 1777.
 
-77. They change her answer, but at least it is short, you know, coming out of her mouth.
+【77】As Washington would later say in 1780,
 
-78. Do you think it's appropriate that British TV viewers have to pay more than $200 just for the height of the watch television?
+【78】in any operation and under all circumstances,
 
-79. Do you think the license...
+【79】a decisive naval superiority is to be considered as a fundamental principle
 
-80. Well, I don't know what they do in a place that I like a lot, the general UK, right?
+【80】and the basis upon which every hope of success must ultimately depend.
 
-81. But the people of the UK are very angry about what happened, as you can imagine.
+【81】His words were prophetic.
 
-82. Because it shows the BBC is big news.
+【82】On September 5th, 1781, 24 French ships under the command of Comte de Grasse
 
-83. It was — you and I knew that for a long time.
+【83】faced off against 19 British ships under the command of Sir Thomas Graves
 
-84. But we didn't know it was this week.
+【84】near the mouth of the Chesapeake River in what is known as the Battle of the Virginia Caves.
 
-85. Have you raised the issue with Secure Stopper?
+【85】French naval forces defeated the British fleet in an hours-long naval battle,
 
-86. I have not, but I'm called over the weekend.
+【86】leaving the French in control of the Chesapeake
 
-87. He actually put a call in to me.
+【87】and trapping 8,500 troops under British General Cornwallis at Yorktown.
 
-88. He's very embarrassed by it.
+【88】It was one that sealed the outcome of the war.
 
-89. You know, that's — I don't know what percentage is owned by the country.
+【89】Because of the effective French blockade, General Cornwallis was unable to be resupplied
 
-90. But regardless of whether it's small or large or nothing —
+【90】or extracted by sea by the British Navy.

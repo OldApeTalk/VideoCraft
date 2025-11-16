@@ -1,121 +1,119 @@
 === 批次 2 原始响应 ===
-31. 但在这个国家，它们不像番茄和香蕉那样有竞争力。
+【31】尽管有这些努力来启动海军力量，但进展缓慢。
 
-32. 我们这个国家不生产这些。
+【32】海军不是一蹴而就的。
 
-33. 因此，我们的产业或食品没有受到保护。
+【33】几乎没有现成的基础设施或建造军舰的经验，
 
-34. 所以我们要做的就是削减
+【34】导致了严重的延误和巨大的成本超支。
 
-35. 我们会看到价格进一步下降。
+【35】为了尽快让尽可能多的船只投入使用，
 
-36. 你们必须明白，我们都饱受了拜登危机的苦，
+【36】殖民地转向了私掠活动。
 
-37. 那时的物价远高于现在。
+【37】私掠是指由私人拥有和运营的船只组成的武装力量，
 
-38. 但我将能够让它们进一步降低，
+【38】这些船只由政府授权，
 
-39. 或者至少再低一点，在某些情况下，可能低很多。
+【39】在战时袭击敌方商船。
 
-40. 未来是更多的“增长回归”，还是您的关税政策？
+【40】所有捕获的战利品，包括船只、货物、武器、食物，
 
-41. 更多？真的吗？
+【41】都会卖给政府，
 
-42. 未来会有更多的“增长回归”吗？
+【42】其中一部分收入会返还给私掠者。
 
-43. 还是你们在关税方面会做些别的改变？
+【43】这证明对私掠者来说利润丰厚，
 
-44. 我认为没有必要。
+【44】而且对殖民地也大有裨益。
 
-45. 我们刚刚对一些食品进行了一些小幅度的调整，
+【45】战争结束时，私掠者共俘获了约600艘英国商船，
 
-46. 比如咖啡，
+【46】大部分战利品都用于战争。
 
-47. 咖啡的价格本来会很高。
+【47】到1776年，我们的海军已显实力。
 
-48. 现在它们会在很短的时间内降到低位。
+【48】3月3日，一支六艘舰船的美国海军部队，
 
-49. 他们在这方面很在行。
+【49】以及来自新近成立的美国海军陆战队的200名海军陆战队员，
 
-50. 问题是我们继承的国家
+【50】袭击了新普罗维登斯岛和巴哈马群岛。
 
-51. 在1月20日就职了，
+【51】这次袭击也称“拿骚袭击”，
 
-52. 国家的物价在那时已真的上涨。
+【52】是我们海军陆战队首次成功的两栖登陆作战，
 
-53. 所以它们上涨了30%、40%、50%。
+【53】俘虏了蒙塔古堡以及急需的军事物资。
 
-54. 而我们已经把它们降低了30%。
+【54】85门大炮、15门迫击炮和10000发弹药。
 
-55. 这意味着它们仍然比过去高。
+【55】4月7日，一艘改装过的16门炮的Brigadine Lexington号
 
-56. 我们有过很棒的四年，我认为这次会更好。
+【56】在约翰·巴里的指挥下，
 
-57. 在可负担性方面，“可负担”对民主党来说不是个好词。
+【57】他是第一位被任命指挥悬挂大陆旗的美国军舰的舰长，
 
-58. 对我们来说是个好词，因为我们的物价远低于他们，而且肯定会远低于
+【58】击败了HMS Edward号，这是大陆海军俘获的第一艘英国军舰。
 
-59. 远低于民主党执政时期。
-
-60. 总统先生，我的报纸是“电报”。
+【59】10月11日，一支由本尼迪克特·阿诺德将军指挥的美国海军部队
 
 === 批次 2 输入编号文本 ===
-31. But they're not competitive in this country, like tomatoes and bananas and things.
+【31】Despite these efforts to jumpstart a naval force, it was a slow beginning.
 
-32. We don't make them in this country.
+【32】One cannot build a navy overnight.
 
-33. So there's no protection of our industries or our food products.
+【33】With little to no existing infrastructure or experience in building warships,
 
-34. So what we're going to do is we cut back
+【34】there are extensive delays and massive cost overruns.
 
-35. We'll see prices come down even lower.
+【35】To get as many ships in the water in the fastest time possible,
 
-36. You have to understand we've all suffered from the Biden crisis,
+【36】The colonies turned to the practice of privateering.
 
-37. which were much higher than they are right now.
+【37】Privateering refers to a force of privately owned and operated ships
 
-38. But I'll be able to get them down even lower,
+【38】armed and commissioned by a government
 
-39. or at least a little bit more, possibly in some cases, a lot lower.
+【39】to attack enemy merchant shipping during wartime.
 
-40. More growbacks in the future or with your tariff policies?
+【40】Whatever spoils captured, ships, cargo, weapons, food,
 
-41. More really?
+【41】would be sold back to the government
 
-42. Will there be more growbacks in the future
+【42】with a certain percentage of the revenue going back to the privateers.
 
-43. or will you change anything else with tariffs?
+【43】It would prove very lucrative to the privateers,
 
-44. I don't think it would be necessary.
+【44】and it would prove very helpful to the colonies.
 
-45. We just did a little bit of a rollback on some foods,
+【45】By the end of the war, privateers commandeered about 600 British merchant ships,
 
-46. like coffee as an example,
+【46】with much of the spoils directed to the war effort.
 
-47. where the prices of coffee are going to be high.
+【47】By 1776, our navy was proving consequential.
 
-48. Now they'll be on the low side in a very short period.
+【48】On March 3rd, a six-ship American naval force,
 
-49. They're very good at this.
+【49】along with 200 Marines from the recently established Continental Marine Corps,
 
-50. The problem is we inherited a country
+【50】raided New Providence and the Bahamas.
 
-51. which took over January 20th,
+【51】Famously known as the raid on NASA,
 
-52. where the prices were truly rose.
+【52】it was our Navy Marine Corps team's first successful amphibious assault
 
-53. So they were up 30, 40, 50%.
+【53】capturing Fort Montague and much-needed military supplies.
 
-54. And we got them down 30%.
+【54】85 cannons, 15 mortars, and 10,000 rounds of ammunition.
 
-55. That means they're still higher than where they were.
+【55】On April 7th, the converted 16-gun Brigadine Lexington
 
-56. We had a great four years, and I think this is going to be even much better.
+【56】under Captain John Barry,
 
-57. And in terms of affordability, it's not a good word for the Democrats.
+【57】the first captain placed in command of an American warship
 
-58. It's a good word for us because our prices are much lower and will certainly be much, much lower than
+【58】commissioned for service under the Continental flag,
 
-59. than they were under the Democrats.
+【59】defeated the HMS Edward, the first British warship captured by the Continental Navy.
 
-60. Mr. President, my newspaper that's telegraphed.
+【60】On October 11th, an American naval force under General Benedict Arnold

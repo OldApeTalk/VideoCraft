@@ -1,121 +1,121 @@
 === 批次 4 原始响应 ===
-91. 我可以说，英国对BBC所作所为感到非常、非常尴尬。
+【91】英国人很快就会被陆地以及美国和法国的联合军队包围
 
-92. 总统先生，您说过关税不会增加消费者价格，但现在您是更低的……
+【92】从纽约出发。
 
-93. 我没说它们不会。我说在某些情况下可能会，但在很大程度上它们已被国家警告。
+【93】这是华盛顿自1778年以来一直试图执行的一次协调陆海军联合行动。
 
-94. 举个例子，我们几乎没有通货膨胀。
+【94】促使康沃利斯在约克镇投降
 
-95. 然而，我们已经收取了数亿美元。
+【95】并说服了英国大部分民众和议会
 
-96. 所以我们已经收取了数亿美元。
+【96】战争无法取胜。
 
-97. 我们曾用关税来停止战争。
+【97】1783年9月3日，
 
-98. 看看印度和巴基斯坦，看看我停止了多少战争，仅仅是说，我要
+【98】英国签署了《巴黎条约》，并正式投降，
 
-99. 反对关税，当你们来到你们的国家时，你们将不得不发动战争。
+【99】正式承认美国是一个自由、主权和独立的国家。
 
-100. 所以关税战是最近的危机。
+【100】但独立是有代价的。
 
-101. 在那种情况下，是核战争。
+【101】战争使我们年轻的共和国负债累累，
 
-102. 我用你们的（关税）阻止了它。
+【102】并且在战争结束后，
 
-103. 但很多时候，在很大程度上，国家自己承担了费用。
+【103】大陆海军的残余力量被出售。
 
-104. 公司们正在发生。
+【104】最后一艘被出售的船是护卫舰“联盟号”
 
-105. 我发现基于通货膨胀，我们几乎没有通货膨胀。
+【105】在1785年夏天。
 
-106. 当我从瞌睡乔·拜登手中接过这个国家时，通货膨胀，它是我们国家
+【106】一种日益增长的情绪是
 
-107. 历史上最高的通货膨胀。
+【107】殖民地所拥有的任何金钱
 
-108. 至少48年。他们用了48年。我认为这是历史。
+【108】都不应该花在维持海军上。
 
-109. 我们没有，我们现在通货膨胀很低
+【109】这种情绪并没有持续下去。
 
-110. 很快就会更低。但我们会让一些价格
+【110】他们很快就会明白，比拥有海军更昂贵的是
 
-111. 下降一点，这将使它们降到一个新的水平。
+【111】没有海军。
 
-112. 美国人承担了多少时间？
+【112】他们新获得的独立伴随着新的挑战。
 
-113. 我认为非常少。
+【113】美国商船不再受英国军舰的保护，
 
-114. 我真的认为非常少。
+【114】我们的商业在世界海洋上很快变得脆弱。
 
-115. 如果你看看，当我们加上我们国家
+【115】在地中海，这种威胁最为明显，
 
-116. 赚取的数万亿美元时，
+【116】那里的北非巴巴里海盗劫掠美国船只，
 
-117. 当你加上我将要归还的事实，
+【117】劫持货物并奴役了我们数百名水手。
 
-118. 给中低收入人群每人约2000美元，
+【118】没有美国海军，我们无力防守。
 
-119. 除了富人，每个人都将得到2000美元。
+【119】需要采取行动。
 
-120. 然后你把这个加进去。
+【120】在支付了多年昂贵的贡品后，
 
 === 批次 4 输入编号文本 ===
-91. I can say this, the UK is very, very embarrassed by BBC what they did.
+【91】The British would soon be surrounded by land as well as with a combined American and French army
 
-92. Mr. President, you've said that tariffs do not increase prices for consumers, but now you're a lower...
+【92】traveling from New York.
 
-93. I didn't say they don't. I say they may in some cases, but to a large extent they've been warned by the country.
+【93】It was a coordinated land-navy action that Washington had been trying to execute since 1778.
 
-94. As an example, we have virtually no inflation.
+【94】was one that convinced Cornwallis to surrender at Yorktown
 
-95. And yet we've taken in hundreds and millions of dollars.
+【95】and convinced much of the British population and Parliament
 
-96. So we've taken in hundreds of millions of dollars.
+【96】that the war could not be won.
 
-97. We've used tariffs to stop wars.
+【97】On September 3rd, 1783,
 
-98. You look at India and Pakistan, look at so many wars I stopped just by saying, I'm going
+【98】the British signed the Treaty of Paris and officially surrendered,
 
-99. to oppose tariffs when you come to your country, you're going to have to have war.
+【99】formally recognizing the United States as a free, sovereign, and independent nation.
 
-100. So a tariff war is a recent crisis.
+【100】But independence came with a price.
 
-101. In that case, it was nuclear war.
+【101】The war left our young republic deeply in debt,
 
-102. And I stopped it by using yours.
+【102】and in the aftermath of the war,
 
-103. But oftentimes, at a large extent, the countries themselves pick up the tab.
+【103】what remained of the Continental Navy was sold off.
 
-104. The companies are coming to happen.
+【104】The last ship sold was the frigate Alliance
 
-105. And I find that based on inflation, we have virtually no inflation.
+【105】in the summer of 1785.
 
-106. When I inherited the country from Sleepy Joe Biden, the inflation, it was the highest
+【106】There was also a growing sentiment
 
-107. inflation in the history of our country.
+【107】that whatever the money the colonies did have
 
-108. at least 48 years. They used 48. I think it was the history.
+【108】should not be spent on sustaining a Navy.
 
-109. We don't have, we have now a low inflation
+【109】That sentiment did not last.
 
-110. going to be very soon even lower. But we'll get some of the prices
+【110】They would quickly learn that the only thing more expensive
 
-111. down a little bit, which will bring them down to a new level.
+【111】than having a Navy is not having one.
 
-112. How much of the time have you been picked up by Americans?
+【112】With their newfound independence came new challenges.
 
-113. I think very little.
+【113】American merchants no longer sailed under the protection of British warships,
 
-114. I mean, I really think very little.
+【114】and our commerce quickly became vulnerable on the world seas.
 
-115. If you look at it, and when you add the trillions of dollars
+【115】Nowhere was this threat more evident than the Mediterranean,
 
-116. that our country is making,
+【116】where the Barbary pirates of North Africa preyed on American shipping,
 
-117. when you add the fact that I'll be giving back,
+【117】seizing cargo and enslaving hundreds of our sailors.
 
-118. $2,000 or so to middle-income people, low-income people,
+【118】Without an American Navy, we were defenseless.
 
-119. everybody but the rich will be giving $2,000 back.
+【119】Action needed to be taken.
 
-120. And you add that in.
+【120】After years of paying costly tribute,
