@@ -1,0 +1,92 @@
+=== 批次 7 原始响应 ===
+181. 而如果你想到战争的成本，忘掉债务吧，那是第一位的，
+182. 而是那些国家内部的债务。但这一切都回到我们身上，以一种形式
+183. 回到我们身上。
+184. 我今天就停止了战争
+185. 在关税的使用过程中，
+186. 关税的威胁。
+187. 如果我们没有那个，
+188. 其他国家就会对我们征收关税
+189. 而我们也将没有公平的手段来反击。
+190. 这是不是证明
+191. 寻求庇护者
+192. 是如此重要？
+193. 他们做得很好。
+194. 他们并没有做得很好。
+195. 然后，你知道，他们发生了冲突，如你所知，先生。
+196. 我与两国总理都谈过了。
+197. 他们都过得很好。
+198. 我认为他们会没事的。
+199. 我认为在医疗补贴、OTP目标和媒体方面。
+200. 是的，医疗补贴是个好问题。
+201. 所以奥巴马医改，也就是《负担不起的医疗法案》，它完全负担不起。
+202. 我们赢了。
+203. 你看到了保险公司赚了多少钱。
+204. 数千亿美元，他们的股票在一段时间内上涨了百分之一千多，
+205. 在一个相对短的时间内。
+206. 我们要做什么，我将要推荐什么，不是这个，奥巴马医改是
+207. 一场灾难，太贵了，而且医疗服务很糟糕。
+208. 我们将把钱给人们，让他们自己购买医疗保健。
+209. 而我们给保险公司的钱，将足以
+210. 解决这个问题。
+
+=== 批次 7 输入编号文本 ===
+181. And if you think of the cost of war, just forget about debt, which is number one,
+
+182. but the debt within those countries. But that all comes to our, in one form of
+
+183. comes right back to us.
+
+184. I stopped the war just today
+
+185. during the use of tariffs,
+
+186. the threat of tariffs.
+
+187. If we didn't have that,
+
+188. other countries would use tariffs on us
+
+189. and we would have no fair means of fighting back.
+
+190. Is that confirmation
+
+191. that people in the asylum
+
+192. is so important?
+
+193. They're doing great.
+
+194. They were not doing great.
+
+195. And then, you know, they had a conflict as you know, sir.
+
+196. And I spoke to the prime ministers of both countries.
+
+197. And they're doing well.
+
+198. I think they're going to be fine.
+
+199. I think on health care subsidies, OTP goals and the media.
+
+200. Yeah, health care subsidies is a good question.
+
+201. So Obamacare, which is the unaffordable Care Act, it is totally unaffordable.
+
+202. We won.
+
+203. You see the kind of money the insurance companies are making.
+
+204. Hundreds of billions of dollars, their stock is up over a thousand percent over a period,
+
+205. a relatively short period of time.
+
+206. What we're going to be doing, what I'm going to be recommending, not this, Obamacare is
+
+207. a disaster, far too expensive and lousy health care.
+
+208. We're going to give the money to the people to buy their own health care.
+
+209. And the kind of money that we give to the insurance companies is more than going to take
+
+210. care of it.

@@ -7,6 +7,19 @@ VideoCraft is an open-source Python tool for seamless video processing. It provi
 - Transcribe audio to subtitles using `whisper`.
 - Translate subtitles into multiple languages using `deep-translator` (DeepL API).
 - Merge subtitles with videos using `ffmpeg-python`.
+- **NEW**: SRT Tools - Generate YouTube segments, extract paragraph content, and create video titles using Gemini AI.
+
+## SRT Tools (New Feature)
+A comprehensive SRT subtitle processing tool with four main functions:
+1. **Generate YouTube Segments**: Create timestamp-based video segments from SRT files (`subs.txt`)
+2. **Extract Paragraph Content**: Extract text content for each time segment (`subs-segment.txt`)
+3. **Generate Video Titles**: Create engaging video titles based on segment descriptions (`titles.txt`)
+4. **Extract All Subtitles**: Extract all subtitle text with one subtitle per line (`AllSubtitles.txt`)
+
+Run the SRT Tools GUI:
+```bash
+python src/SrtTools.py
+```
 
 ## Installation
 1. Clone the repository:

@@ -1,0 +1,73 @@
+=== 输入格式 ===
+【31】And all done with the help of our President and Secretary of State.
+
+【32】It took only days for the Obama administration to reply to this demand letter from the Islamists,
+
+【33】promising to set up a task force with these same organizations to immediately begin this unprecedented purge of our counterterrorism training
+
+【34】in every federal agency across the board.
+
+【35】It's breathtaking, never been done before.
+
+【36】But when members of Congress, myself included, started to ask questions about the identities
+
+【37】of who these people were who were leading this purge in our government and what it was they
+
+【38】were purging from our training materials, the Obama administration told us the information
+
+【39】was closed.
+
+【40】It was classified.
+
+【41】We couldn't know who was behind this.
+
+【42】I'm here to say, my friends, that we're now today very late in the game.
+
+【43】We're quickly losing our sense of who we are as a nation, and we're losing our ability to identify our radical Islamist enemy.
+
+【44】The time has come to stand unashamedly this week for our freedom and our values and draw an unmistakable red line for our enemies across the world.
+
+=== API 响应 ===
+【31】这一切都是在我们总统和国务卿的帮助下完成的。
+
+【32】奥巴马政府只用了几天时间就回复了伊斯兰主义者的这封最后通牒，
+
+【33】承诺与这些组织一同成立一个特别工作组，立即开始对我们的反恐培训进行前所未有的清除行动，
+
+【34】在所有联邦机构全面推行。
+
+【35】这令人震惊，前所未有。
+
+【36】但当国会议员们，包括我自己在内，开始询问是谁
+
+【37】在领导这场政府内部的清洗行动，以及他们
+
+【38】要从我们的培训材料中清除什么时，奥巴马政府告诉我们这些信息
+
+【39】是保密的。
+
+【40】是机密的。
+
+【41】我们不知道是谁在幕后操纵。
+
+【42】我来这里是为了说，我的朋友们，我们现在已经错过了很多时机。
+
+【43】我们正在迅速失去对自己作为一个国家身份的认知，并且正在失去识别我们激进伊斯兰敌人能力。
+
+【44】现在是时候本周毫不羞愧地捍卫我们的自由和价值观，并划定一条明确的红线，向全世界的敌人表明立场。
+
+=== 解析结果 ===
+字幕 31: 这一切都是在我们总统和国务卿的帮助下完成的。
+字幕 32: 奥巴马政府只用了几天时间就回复了伊斯兰主义者的这封最后通牒，
+字幕 33: 承诺与这些组织一同成立一个特别工作组，立即开始对我们的反恐培训进行前所未有的清除行动，
+字幕 34: 在所有联邦机构全面推行。
+字幕 35: 这令人震惊，前所未有。
+字幕 36: 但当国会议员们，包括我自己在内，开始询问是谁
+字幕 37: 在领导这场政府内部的清洗行动，以及他们
+字幕 38: 要从我们的培训材料中清除什么时，奥巴马政府告诉我们这些信息
+字幕 39: 是保密的。
+字幕 40: 是机密的。
+字幕 41: 我们不知道是谁在幕后操纵。
+字幕 42: 我来这里是为了说，我的朋友们，我们现在已经错过了很多时机。
+字幕 43: 我们正在迅速失去对自己作为一个国家身份的认知，并且正在失去识别我们激进伊斯兰敌人能力。
+字幕 44: 现在是时候本周毫不羞愧地捍卫我们的自由和价值观，并划定一条明确的红线，向全世界的敌人表明立场。

@@ -1,0 +1,92 @@
+=== 批次 12 原始响应 ===
+331. 所以我听说玛乔丽·泰勒·格林说，
+332. 哦，天哪，我在国外花太多时间了。
+333. 所以，比如说我不和中国会面。
+334. 你知道现在发生了什么吗？
+335. 对乔治亚州和所有其他州来说，
+336. 它们都没有在运转，因为你们的磁铁
+337. 和你们的稀土会起作用。
+338. 世界上就不会有任何工厂在运转了。
+339. 如果我没有和中国建立海外关系，
+340. 和日本、韩国、和他们所有人，
+341. 马来西亚，去了马来西亚，
+342. 还会去更多国家。
+343. 如果我们不这样做，如果我们只待在这里，
+344. 你现在就会发现世界上任何地方的工厂
+345. 都不会运转，因为稀土在中国。
+346. 不仅如此，我们还和中国达成了协议。
+347. 我们赚取了数百万美元。
+348. 我们和日本达成了协议。
+349. 我们赚取了数百万美元。
+350. 我们和韩国达成了协议。
+351. 我们赚取了数百万美元。
+352. 如果我待在家里，这一切都不会发生。
+353. 顺便说一句，我98%的时间都待在家里。
+354. 我最后想做的事情就是坐22小时的飞机，尽管这架飞机很好。
+355. 所以，你知道，玛乔丽·泰勒·格林绝不是。
+356. 我的意思是，她的想法和我非常不同。
+357. 在过去的一两个月里，她身上发生了一些事情。
+358. 她改变了。我认为政治上，我认为她的选民
+359. 不会高兴。我已经有人打电话给我，他们想在乔治亚州她的选区
+360. 挑战她竞选。
+
+=== 批次 12 输入编号文本 ===
+331. So I heard that Marjorie Taylor Green said,
+
+332. oh gee, I'm spending too much time overseas.
+
+333. So let's say I don't meet with China.
+
+334. You know what's happened right now?
+
+335. to Georgia and to every other state,
+
+336. they're not working because your magnets
+
+337. and your rare earth would have kicked in.
+
+338. And there wouldn't be a factory in the world that was working.
+
+339. If I didn't have a relationship overseas with China,
+
+340. with Japan, with South Korea, with all of them,
+
+341. Malaysia, went to Malaysia,
+
+342. would visit in many more countries than that.
+
+343. If we didn't do that, if we just stayed right here,
+
+344. you would right now have no factory anywhere in the world
+
+345. that would be working because of rare earth with China.
+
+346. Not only that, we made a deal with China.
+
+347. We take in millions and millions of dollars.
+
+348. We made a deal with Japan.
+
+349. We take in millions of dollars.
+
+350. We made a deal with South Korea.
+
+351. We're taking in millions and millions of dollars.
+
+352. If I would stay home, none of that would be happening.
+
+353. And by the way, I stay home 90 by 98% of the time.
+
+354. The last thing I want to do is travel 22 hours in an airplane, as nice as this plane is.
+
+355. So, you know, Marge Retail Agreed is not any way.
+
+356. I mean, she is a very different thinking than I have.
+
+357. Something happened to her over the last period of a month or two.
+
+358. where she changed. I think politically, I think that her constituents
+
+359. aren't going to be happy. Already I have people calling me, they want to challenge her
+
+360. to a race in her district in Georgia.

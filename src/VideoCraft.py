@@ -51,7 +51,7 @@ class VideoCraftApp:
     def __init__(self, root):
         self.root = root
         self.root.title("VideoCraft - 视频制作工具集")
-        self.root.geometry("1000x500")
+        self.root.geometry("1000x650")
 
         # 标题
         title_label = tk.Label(root, text="VideoCraft - 视频制作工具集", font=("Arial", 16, "bold"))
@@ -106,7 +106,17 @@ class VideoCraftApp:
         tk.Label(split_video_frame, text="• 根据时间戳切割视频\n• 支持关键帧对齐\n• 批量分段处理", 
                 justify=tk.LEFT, font=("Arial", 9)).pack(pady=5)
 
-        # 退出按钮
+        # SrtTools 按钮和描述
+        srt_tools_frame = tk.Frame(tools_frame)
+        srt_tools_frame.pack(pady=10)
+        
+        btn_srt_tools = tk.Button(srt_tools_frame, text="SrtTools\n字幕处理工具", 
+                                   command=lambda: self.run_script("SrtTools.py"), 
+                                   width=20, height=3, bg="#fff3e0", font=("Arial", 10))
+        btn_srt_tools.pack()
+        
+        tk.Label(srt_tools_frame, text="• 生成YouTube片段\n• 提取段落内容\n• 生成视频标题\n• 提取字幕文本", 
+                justify=tk.LEFT, font=("Arial", 9)).pack(pady=5)
         exit_btn = tk.Button(root, text="退出 / Exit", command=root.quit, width=20)
         exit_btn.grid(row=2, column=1, columnspan=2, pady=20)
 
@@ -121,8 +131,13 @@ class VideoCraftApp:
                 messagebox.showerror("错误 / Error", f"脚本文件不存在: {script_path}\nScript file not found: {script_path}")
                 return
 
-            # 运行脚本
-            subprocess.Popen([sys.executable, script_path])
+            # 使用虚拟环境的Python解释器
+            venv_python = os.path.join(current_dir, "..", "myenv", "Scripts", "python.exe")
+            if os.path.exists(venv_python):
+                subprocess.Popen([venv_python, script_path])
+            else:
+                # 如果虚拟环境不存在，使用系统Python
+                subprocess.Popen([sys.executable, script_path])
         except Exception as e:
             messagebox.showerror("错误 / Error", f"运行失败: {str(e)}\nFailed to run: {str(e)}")
 

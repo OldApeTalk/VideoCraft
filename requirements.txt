@@ -4,3 +4,4 @@ srt
 ffmpeg-python==0.2.0
 deepl
 google-generativeai
+# pydub  # Optional: for Live API audio processing (may not be available on all Windows systems)

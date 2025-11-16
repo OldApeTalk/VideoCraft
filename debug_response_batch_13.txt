@@ -1,0 +1,92 @@
+=== 批次 13 原始响应 ===
+361. 而且你知道，这太糟糕了。她失去了一个很好的
+362. 保守派声誉。但当她说，
+363. 不要去海外，如果我不去海外，我们现在可能就和中国开战了。
+364. 你会强迫你的……
+365. 这是关于核试验，先生。关于核试验，先生。
+366. 你是否收到任何关于核试验担忧的会议？
+367. 我们将进行核试验，因为其他人也在试验。
+368. 我们有其他国家在试验。
+369. 我们拥有的核武器比任何其他国家都多。
+370. 我是负责翻新和建造其中一些的人，
+371. 我很不愿意这样做，但我别无选择，因为他们有。
+372. 俄罗斯排第二，中国是遥远的第三，但在四年或五年内，他们将赶上我们。
+373. 我想做的是，我想走向无核化。
+374. 换句话说，我们有一个会议，主要是前三个国家削减核武器。
+375. 这将是一件大事。
+376. 当然。
+377. 进行一次试验。
+378. 很有把握。
+379. 所以，中国、俄罗斯和西方。
+380. 我们是第一，俄罗斯是第二，中国是第三。
+381. 他们在赶上来。
+382. 他们现在离我们相当远，但他们将在 45 岁左右赶上我们。
+383. 总统先生，你能告诉我们吗？
+384. 我认为最好的办法是我们必须繁荣发展。
+385. 总统先生，你能告诉我们为什么你需要得到 MNPRA 并理解结果吗？
+386. 因为这是我身体检查的一部分。
+387. 做核磁共振成像很常规。
+388. 那么，你认为我带孩子不应该做吗？
+389. 不，但通常核磁共振成像……
+390. 我做过核磁共振成像。
+
+=== 批次 13 输入编号文本 ===
+361. And you know, that's too bad. She's lost a wonderful
+
+362. conservative reputation. But when she says,
+
+363. don't go overseas, if I didn't go overseas, we might be in a war right now with China.
+
+364. Will you force your...
+
+365. This is on nuclear testing, sir. On nuclear testing, sir.
+
+366. Are you receiving any meetings about concerns about nuclear testing?
+
+367. We're going to have nuclear testing because other people test.
+
+368. We have other countries that test.
+
+369. We have more nuclear weapons than any other country.
+
+370. I'm the one that renovated them and built some,
+
+371. and I hated to do it, but I had no choice because they have it.
+
+372. We have more Russia second than China is a distant third, but within four or five years they're going to be up with us.
+
+373. What I would like to do is I would like to go denuclearization.
+
+374. In other words, where we have a meeting primarily of the top three to cut back on nuclear weapons.
+
+375. That would be a great thing.
+
+376. Absolutely.
+
+377. Get a test take place, though.
+
+378. Pretty certain.
+
+379. So, China, Russia, and the West.
+
+380. We're number one, Russia's number two, China's number three.
+
+381. They're catching up.
+
+382. They're quite a bit distant from us right now, but they'll catch us at 45.
+
+383. Mr. President, can you tell us?
+
+384. I think the best thing would be that we need to flourish.
+
+385. Mr. President, could you tell us why you needed to get an MNPRA understanding the results?
+
+386. because it's part of my physical.
+
+387. Getting an MRI is very standard.
+
+388. Well, you think I shouldn't have it with a baby?
+
+389. No, but typically an MRI...
+
+390. I had an MRI.

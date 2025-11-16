@@ -1,0 +1,121 @@
+=== 批次 1 原始响应 ===
+【1】所以，感谢你们一直支持我们。
+
+【2】你扮演了一个角色，这个角色承载着对女性气质和妻子身份的先入为主的观念
+
+【3】而这种观念是建立在种族主义和厌女症的地雷之上的。
+
+【4】正如你已经说过的，第一夫人的着装是她表达自我的主要方式之一。
+
+【5】第一夫人可以借此与外界沟通。
+
+【6】这其中蕴含着太多历史的期望。
+
+【7】你如何看待第一夫人是妻子身份和女性气质的典范这一事实？
+
+【8】没错。
+
+【9】我不同意这一点。
+
+【10】不同意。
+
+【11】你知道，这是一种完全过时的说法，这种定义在当今女性在世界上的实际表现方式中已经没有了。
+
+【12】现代意义。
+
+【13】你认为这是否影响了我们为女性成为总统所创造的空间？
+
+【14】嗯，正如我们在过去的选举中看到的，不幸的是，我们还没准备好。
+
+【15】这就是为什么我说，别跟我提竞选
+
+【16】因为你们都在撒谎。
+
+【17】你们还没准备好迎接一位女性。
+
+【18】真的没有。
+
+【19】所以别浪费我的时间。
+
+【20】你知道，我们还有很多需要成长的地方。
+
+【21】而且，令人遗憾的是，仍然有很多男性
+
+【22】他们觉得自己不能被女性领导，而我们看到了这一点。
+
+【23】问题是什么？
+
+【24】我只是说，嗯哼。
+
+【25】我们不需要再问了。你已经回答了。
+
+【26】所以……
+
+【27】女性气质，妻子身份……
+
+【28】是的，是的。我的意思是，我认为在这方面我们还有很多需要成长的地方。
+
+【29】而且，你知道，我们可以看到进步是如何取得的，以及在我们女性掌握自身权力时，事物是如何被夺走的。
+
+【30】我们作为女性掌握自身权力的过程。
+
+=== 批次 1 输入编号文本 ===
+【1】So thank you all for being there for us.
+
+【2】You stepped into a role that carried a preconceived idea of femininity and wifedom
+
+【3】that was founded on the landmines of racism and misogyny.
+
+【4】What the First Lady wears is one of the main ways, which you've already said,
+
+【5】that a First Lady has talked about.
+
+【6】It comes with so much historical expectation.
+
+【7】How do you feel about the fact that the First Lady is an archetype for wifedom and femininity?
+
+【8】Right.
+
+【9】Yeah, I don't agree with that.
+
+【10】Don't agree with that.
+
+【11】You know, it is a completely throwback on, it's a definition that has no current status
+
+【12】in how women actually show up in the world today.
+
+【13】Do you think that that impacts the room that we've made for a woman to be president?
+
+【14】Well, as we saw in this past election, sadly, we ain't ready.
+
+【15】That's why I'm like, don't even look at me about running
+
+【16】because you all are lying.
+
+【17】You're not ready for a woman.
+
+【18】You are not.
+
+【19】So don't waste my time.
+
+【20】You know, we got a lot of growing up to do.
+
+【21】And there's still, I'm sadly, a lot of men
+
+【22】who do not feel like they can be led by a woman and we saw it.
+
+【23】What was the question?
+
+【24】I just said, mm-hmm.
+
+【25】We don't need to ask it again. You answered it.
+
+【26】So...
+
+【27】Femininity, wifedom...
+
+【28】Yeah, yeah. I mean, I think we still have growing to do in that regard.
+
+【29】And, you know, we can see how progress can be made and things can be snatched back
+
+【30】when it comes to us owning our power as women.

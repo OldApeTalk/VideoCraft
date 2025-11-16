@@ -1,0 +1,121 @@
+=== 批次 3 原始响应 ===
+61. 我相信你做到了。
+
+62. 你们为自己感到骄傲吗？
+
+63. 我们合作得很愉快。
+
+64. 我们就这样抓到了 BBC。
+
+65. 我们有很好的线人。
+
+66. 坦白说，恭喜你们。
+
+67. 你们为很多国家、很多伟大的人类提供了出色的服务，如果你想知道的话。
+
+68. 揭露了什么才是大新闻，BBC 做了什么。
+
+69. 没人会想到这种事，先生。我实际上改了我说的话。
+
+70. 所以 BBC 道歉并撤回了报道，但他们说不会赔偿？
+
+71. 好吧，我们要告他们。我们可能会在下周，向他们索赔十亿到五十亿美元。
+
+72. 所以你真的在说，嗯，我想我必须这么做。我是说，他们甚至承认他们作弊了。
+
+73. 我是说，不是说他们不可能那样做。
+
+74. 他们作弊了。
+
+75. 他们改了我口中的话。
+
+76. 这比 CBS 对待喀布尔还要糟糕。
+
+77. 他们改了她的回答，但至少她的回答简短，你知道，从她嘴里说出来的。
+
+78. 你认为英国电视观众仅为了看电视就支付超过 200 美元是否合适？
+
+79. 你认为执照费……
+
+80. 嗯，我不知道他们在一个我喜欢的地方，大体上是英国，对吧？
+
+81. 但正如你所想象的，英国人民对发生的事情非常愤怒。
+
+82. 因为这表明 BBC 是大新闻。
+
+83. 你我早就知道了。
+
+84. 但我们不知道是在这周。
+
+85. 你是否向 Secure Stopper 提出过这个问题？
+
+86. 我没有，但我周末会联系他。
+
+87. 他actually给我打了电话。
+
+88. 他对此感到非常尴尬。
+
+89. 你知道，那——我不知道那个国家拥有多少股份。
+
+90. 但无论股份是少是多，还是没有——
+
+=== 批次 3 输入编号文本 ===
+61. I am sure you did.
+
+62. Are you proud of yourselves?
+
+63. We've had a good company.
+
+64. We catch BBC like that.
+
+65. We have good sources.
+
+66. Honestly, congratulations.
+
+67. You've had a great service to a lot of countries, a lot of great human beings, if you want to know that you're in there.
+
+68. Explosing what big news is all about, what BBC did.
+
+69. Nobody would even think of anything like that, Mr. I actually changed the words coming out of my mouth.
+
+70. So the BBC has apologized and retracted the report, but they say they won't pay compensation?
+
+71. Well, we'll sue them. We'll sue them for anywhere between a billion and $5 billion, probably sometime next week.
+
+72. So you're really saying, well, I think I have to do it. I mean, they've even admitted that they cheated.
+
+73. I mean, not that they couldn't have not done that.
+
+74. They cheated.
+
+75. They changed the words coming out of my mouth.
+
+76. That's worse than what CBS did with Kabul.
+
+77. They change her answer, but at least it is short, you know, coming out of her mouth.
+
+78. Do you think it's appropriate that British TV viewers have to pay more than $200 just for the height of the watch television?
+
+79. Do you think the license...
+
+80. Well, I don't know what they do in a place that I like a lot, the general UK, right?
+
+81. But the people of the UK are very angry about what happened, as you can imagine.
+
+82. Because it shows the BBC is big news.
+
+83. It was — you and I knew that for a long time.
+
+84. But we didn't know it was this week.
+
+85. Have you raised the issue with Secure Stopper?
+
+86. I have not, but I'm called over the weekend.
+
+87. He actually put a call in to me.
+
+88. He's very embarrassed by it.
+
+89. You know, that's — I don't know what percentage is owned by the country.
+
+90. But regardless of whether it's small or large or nothing —

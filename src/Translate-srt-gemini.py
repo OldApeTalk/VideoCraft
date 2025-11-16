@@ -1,12 +1,21 @@
-import deepl
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import os
 import srt
 import re
-import requests
 import time
+import asyncio
+import threading
 import google.generativeai as genai
+
+# 尝试导入pydub，如果不可用则设置为None
+# 注意：当前Live API实现仍使用文本翻译，pydub仅为未来音频处理功能预留
+try:
+    from pydub import AudioSegment
+    PYDUB_AVAILABLE = True
+except ImportError:
+    AudioSegment = None
+    PYDUB_AVAILABLE = False
 
 # 支持的语言列表 (语言代码 -> (英文名, 中文名))
 SUPPORTED_LANGUAGES = {
@@ -125,169 +134,147 @@ SUPPORTED_LANGUAGES = {
     'pi': ('Pali', '巴利语'),
 }
 
-# Azure语言代码映射 (ISO -> Azure格式)
-AZURE_LANG_MAP = {
-    'zh': 'zh-Hans',  # 简体中文
-    'zh-cn': 'zh-Hans',
-    'zh-tw': 'zh-Hant',  # 繁体中文
-    'zh-hk': 'zh-Hant',
-    'pt': 'pt-pt',  # 葡萄牙语(葡萄牙)
-    'pt-br': 'pt-br',  # 葡萄牙语(巴西)
-    'en': 'en',
-    'ja': 'ja',
-    'ko': 'ko',
-    'de': 'de',
-    'fr': 'fr',
-    'es': 'es',
-    'it': 'it',
-    'ru': 'ru',
-    'ar': 'ar',
-    'hi': 'hi',
-    'th': 'th',
-    'vi': 'vi',
-    'nl': 'nl',
-    'pl': 'pl',
-    'tr': 'tr',
-    'sv': 'sv',
-    'da': 'da',
-    'no': 'nb',  # 挪威语(书面)
-    'fi': 'fi',
-    'cs': 'cs',
-    'hu': 'hu',
-    'ro': 'ro',
-    'bg': 'bg',
-    'hr': 'hr',
-    'sk': 'sk',
-    'sl': 'sl',
-    'et': 'et',
-    'lv': 'lv',
-    'lt': 'lt',
-    'mt': 'mt',
-    'ga': 'ga',
-    'is': 'is',
-    'mk': 'mk',
-    'sq': 'sq',
-    'bs': 'bs',
-    'sr': 'sr',
-    'me': 'sr',  # 黑山语 -> 塞尔维亚语
-    'uk': 'uk',
-    'be': 'be',
-    'ka': 'ka',
-    'hy': 'hy',
-    'az': 'az',
-    'kk': 'kk',
-    'uz': 'uz',
-    'tk': 'tk',
-    'ky': 'ky',
-    'tg': 'tg',
-    'mn': 'mn',
-    'bn': 'bn',
-    'pa': 'pa',
-    'gu': 'gu',
-    'or': 'or',
-    'te': 'te',
-    'kn': 'kn',
-    'ml': 'ml',
-    'si': 'si',
-    'ne': 'ne',
-    'mr': 'mr',
-    'as': 'as',
-    'sa': 'sa',
-    'sd': 'sd',
-    'ur': 'ur',
-    'fa': 'fa',
-    'he': 'he',
-    'yi': 'yi',
-    'am': 'am',
-    'ti': 'ti',
-    'om': 'om',
-    'so': 'so',
-    'sw': 'sw',
-    'rw': 'rw',
-    'rn': 'rn',
-    'mg': 'mg',
-    'xh': 'xh',
-    'zu': 'zu',
-    'st': 'st',
-    'tn': 'tn',
-    'af': 'af',
-    'ha': 'ha',
-    'yo': 'yo',
-    'ig': 'ig',
-    'id': 'id',
-    'ms': 'ms',
-    'tl': 'tl',
-    'jv': 'jv',
-    'su': 'su',
-    'ceb': 'ceb',
-    'ilo': 'ilo',
-    'bi': 'bi',
-    'to': 'to',
-    'sm': 'sm',
-    'haw': 'haw',
-    'fj': 'fj',
-    'mh': 'mh',
-    'ty': 'ty',
-    'el': 'el',
-    'la': 'la',
-    'cy': 'cy',
-    'eu': 'eu',
-    'ca': 'ca',
-    'gl': 'gl',
-    'eo': 'eo',
-    'my': 'my',
-    'km': 'km',
-    'lo': 'lo',
-    'bo': 'bo',
-    'dz': 'dz',
-    'pi': 'pi',
-}
-
 # 生成语言选项列表
 language_options = []
 for code, (eng, chn) in SUPPORTED_LANGUAGES.items():
     language_options.append(f"{eng} ({chn}) - {code.upper()}")
 
+def split_audio_by_size(audio_path, max_size_kb=100):
+    """按文件大小分割音频，确保每段不超过max_size_kb KB"""
+    if not PYDUB_AVAILABLE:
+        raise ImportError("pydub不可用，无法进行音频分割。请安装pydub: pip install pydub")
+    
+    audio = AudioSegment.from_file(audio_path)
+    max_size_bytes = max_size_kb * 1024
+    
+    # 估算每秒音频大小（粗略）
+    sample_rate = audio.frame_rate
+    channels = audio.channels
+    bytes_per_second = sample_rate * channels * 2  # 16-bit
+    
+    # 计算段长（秒）
+    segment_length_sec = max_size_bytes / bytes_per_second
+    segment_length_ms = int(segment_length_sec * 1000)
+    
+    # 确保不小于1秒
+    segment_length_ms = max(segment_length_ms, 1000)
+    
+    segments = []
+    duration_ms = len(audio)
+    
+    for i in range(0, duration_ms, segment_length_ms):
+        start_time = i
+        end_time = min(i + segment_length_ms, duration_ms)
+        
+        # 提取段
+        segment = audio[start_time:end_time]
+        
+        # 检查实际大小，如果仍超过限制，进一步分割
+        temp_path = f"temp_segment_{i//segment_length_ms}.wav"
+        segment.export(temp_path, format="wav")
+        
+        actual_size = os.path.getsize(temp_path)
+        if actual_size > max_size_bytes:
+            # 如果仍大，进一步分割成更小段
+            sub_segments = split_audio_by_size(temp_path, max_size_kb // 2)
+            segments.extend(sub_segments)
+            os.remove(temp_path)
+        else:
+            segments.append({
+                'path': temp_path,
+                'start_ms': start_time,
+                'end_ms': end_time,
+                'size_kb': actual_size / 1024
+            })
+    
+    return segments
+
 # ===================== GUI 主界面 =====================
 class TranslateApp:
     def __init__(self, master):
         self.master = master
-        master.title("SRT字幕批量翻译工具（DeepL/Azure/Gemini）")
+        master.title("SRT字幕批量翻译工具（Gemini）")
         master.geometry("700x420")
         master.resizable(False, False)
 
-        # 翻译服务选择
-        tk.Label(master, text="选择翻译服务:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.service_var = tk.StringVar(value="gemini")
-        self.combo = ttk.Combobox(master, textvariable=self.service_var, values=["deepl", "azure", "gemini"], state="readonly", width=10)
-        self.combo.grid(row=0, column=1, sticky="w")
-        tk.Button(master, text="管理Key", command=self.manage_key).grid(row=0, column=2, padx=10)
+        # 获取可用模型列表
+        self.available_models = self.get_available_models()
+
+        # Gemini API Key 配置
+        tk.Label(master, text="Gemini API Key:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        self.api_key_var = tk.StringVar()
+        tk.Entry(master, textvariable=self.api_key_var, width=50, show='*').grid(row=0, column=1, sticky="w")
+        tk.Button(master, text="管理Key", command=self.configure_gemini_key).grid(row=0, column=2, padx=10)
+
+        # 模型选择
+        tk.Label(master, text="选择模型:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        self.model_var = tk.StringVar(value="gemini-2.5-flash-lite" if "gemini-2.5-flash-lite" in self.available_models else (self.available_models[0] if self.available_models else "gemini-2.5-flash-lite"))
+        self.model_combo = ttk.Combobox(master, textvariable=self.model_var, values=self.available_models, state="readonly", width=25)
+        self.model_combo.grid(row=1, column=1, sticky="w", padx=(0,10))
+
+        # 模型说明
+        tk.Label(master, text="选择适合的模型进行翻译", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
 
         # 源语言选择
-        tk.Label(master, text="源语言 (Source):").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(master, text="源语言 (Source):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
         self.source_lang_var = tk.StringVar(value="English (英语) - EN")
         self.source_combo = ttk.Combobox(master, textvariable=self.source_lang_var, values=language_options, state="readonly", width=30)
-        self.source_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(0,10))
+        self.source_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0,10))
 
         # 目标语言选择
-        tk.Label(master, text="目标语言 (Target):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(master, text="目标语言 (Target):").grid(row=3, column=0, padx=10, pady=5, sticky="e")
         self.target_lang_var = tk.StringVar(value="Chinese (中文) - ZH")
         self.target_combo = ttk.Combobox(master, textvariable=self.target_lang_var, values=language_options, state="readonly", width=30)
-        self.target_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0,10))
+        self.target_combo.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0,10))
 
         # SRT文件选择
-        tk.Label(master, text="原始SRT文件:").grid(row=3, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(master, text="原始SRT文件:").grid(row=4, column=0, padx=10, pady=10, sticky="e")
         self.srt_path_var = tk.StringVar()
-        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=3, column=1, sticky="w")
-        tk.Button(master, text="浏览", command=self.select_srt).grid(row=3, column=2, padx=10)
+        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=4, column=1, sticky="w")
+        tk.Button(master, text="浏览", command=self.select_srt).grid(row=4, column=2, padx=10)
 
         # 翻译按钮
         self.trans_btn = tk.Button(master, text="开始翻译", command=self.translate_srt, width=20)
-        self.trans_btn.grid(row=4, column=1, pady=25)
+        self.trans_btn.grid(row=5, column=1, pady=25)
 
         # 进度/提示
         self.status_var = tk.StringVar()
-        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=5, column=0, columnspan=3, pady=10)
+        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=6, column=0, columnspan=3, pady=10)
+
+    def get_available_models(self):
+        """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
+        default_models = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+        
+        if os.path.exists('Gemini.key'):
+            try:
+                with open('Gemini.key', 'r') as f:
+                    api_key = f.read().strip()
+                genai.configure(api_key=api_key)
+                models = genai.list_models()
+                # 只选择支持 generateContent 且为 2.5 版本的模型
+                model_names = [m.name.split('/')[-1] for m in models if 'generateContent' in m.supported_generation_methods and '2.5' in m.name]
+                if model_names:
+                    sorted_models = sorted(model_names)
+                    print("可用 2.5 版本模型列表:")
+                    for model in sorted_models:
+                        print(f"  - {model}")
+                    print("注意: 模型价格信息请参考 Google Cloud 定价页面 (https://cloud.google.com/vertex-ai/pricing)")
+                    return sorted_models
+            except Exception as e:
+                print(f"获取模型列表失败: {e}")
+        
+        print("使用默认 2.5 版本模型列表:")
+        for model in default_models:
+            print(f"  - {model}")
+        return default_models
+
+    def refresh_available_models(self):
+        """刷新可用模型列表并更新 Combobox"""
+        self.available_models = self.get_available_models()
+        self.model_combo['values'] = self.available_models
+        # 如果当前选择的模型不在新列表中，重置为第一个
+        if self.model_var.get() not in self.available_models:
+            self.model_var.set(self.available_models[0] if self.available_models else "gemini-2.5-flash")
 
     def get_lang_code(self, lang_str):
         """从语言选择字符串中提取语言代码"""
@@ -296,72 +283,6 @@ class TranslateApp:
             if code in SUPPORTED_LANGUAGES:
                 return code
         return 'en'  # 默认返回英语
-
-    def manage_key(self):
-        service = self.service_var.get()
-        if service == "deepl":
-            self.configure_deepl_key()
-        elif service == "azure":
-            self.configure_azure_key()
-        elif service == "gemini":
-            self.configure_gemini_key()
-
-    def configure_deepl_key(self):
-        win = tk.Toplevel(self.master)
-        win.title("DeepL API Key 配置")
-        tk.Label(win, text="DeepL API Key:").pack(pady=10)
-        entry = tk.Entry(win, width=50)
-        entry.pack(pady=5)
-        # 预填已有key
-        if os.path.exists('DeepL.key'):
-            with open('DeepL.key', 'r') as f:
-                entry.insert(0, f.read().strip())
-        def save():
-            key = entry.get().strip()
-            if key:
-                with open('DeepL.key', 'w') as f:
-                    f.write(key)
-                messagebox.showinfo("Success", "API key saved!")
-                win.destroy()
-            else:
-                messagebox.showerror("Error", "请输入有效的API key")
-        tk.Button(win, text="保存", command=save).pack(pady=10)
-
-    def configure_azure_key(self):
-        win = tk.Toplevel(self.master)
-        win.title("Azure API Key 配置")
-        tk.Label(win, text="Azure Translator Key:").pack(pady=5)
-        entry_key = tk.Entry(win, width=50)
-        entry_key.pack(pady=2)
-        tk.Label(win, text="Azure Endpoint (如 https://xxx.cognitiveservices.azure.com/):").pack(pady=5)
-        entry_ep = tk.Entry(win, width=50)
-        entry_ep.pack(pady=2)
-        tk.Label(win, text="Azure 区域(region，如 westeurope, eastasia):").pack(pady=5)
-        entry_region = tk.Entry(win, width=30)
-        entry_region.pack(pady=2)
-        # 预填已有key
-        if os.path.exists('Azure.key'):
-            with open('Azure.key', 'r') as f:
-                lines = f.readlines()
-                if len(lines) >= 3:
-                    entry_key.insert(0, lines[0].strip())
-                    entry_ep.insert(0, lines[1].strip())
-                    entry_region.insert(0, lines[2].strip())
-                elif len(lines) == 2:
-                    entry_key.insert(0, lines[0].strip())
-                    entry_ep.insert(0, lines[1].strip())
-        def save():
-            key = entry_key.get().strip()
-            endpoint = entry_ep.get().strip()
-            region = entry_region.get().strip()
-            if key and endpoint and region:
-                with open('Azure.key', 'w') as f:
-                    f.write(key + '\n' + endpoint + '\n' + region)
-                messagebox.showinfo("Success", "Azure key, endpoint & region saved!")
-                win.destroy()
-            else:
-                messagebox.showerror("Error", "请输入有效的 Azure Key、Endpoint 和 Region")
-        tk.Button(win, text="保存", command=save).pack(pady=10)
 
     def configure_gemini_key(self):
         win = tk.Toplevel(self.master)
@@ -378,6 +299,8 @@ class TranslateApp:
             if key:
                 with open('Gemini.key', 'w') as f:
                     f.write(key)
+                self.api_key_var.set(key)  # 更新界面显示
+                self.refresh_available_models()  # 刷新模型列表
                 messagebox.showinfo("Success", "API key saved!")
                 win.destroy()
             else:
@@ -389,8 +312,7 @@ class TranslateApp:
         if path:
             self.srt_path_var.set(path)
 
-    def translate_srt(self):
-        service = self.service_var.get()
+    def translate_with_standard_api(self):
         srt_path = self.srt_path_var.get()
         source_lang = self.get_lang_code(self.source_lang_var.get())
         target_lang = self.get_lang_code(self.target_lang_var.get())
@@ -403,17 +325,6 @@ class TranslateApp:
             messagebox.showerror("错误", "源语言和目标语言不能相同")
             return
             
-        # 验证语言支持
-        if service == "deepl":
-            # DeepL支持的主要语言
-            deepl_supported = ['en', 'de', 'fr', 'es', 'pt', 'it', 'nl', 'pl', 'ru', 'ja', 'zh', 'auto']
-            if source_lang not in deepl_supported and source_lang != 'auto':
-                messagebox.showerror("错误", f"DeepL不支持源语言: {source_lang.upper()}")
-                return
-            if target_lang not in deepl_supported:
-                messagebox.showerror("错误", f"DeepL不支持目标语言: {target_lang.upper()}")
-                return
-            
         self.status_var.set("正在读取字幕...")
         self.master.update()
         
@@ -425,223 +336,235 @@ class TranslateApp:
             messagebox.showerror("Error", f"Failed to parse SRT file: {e}")
             return
             
-        texts = []
-        placeholder = '[NL]'
-        for i, sub in enumerate(subs):
-            content = sub.content.replace('\n', placeholder)
-            texts.append(f"{i+1}. {content}")
-        full_text = '\n'.join(texts)
-        self.status_var.set(f"正在翻译 ({source_lang.upper()} -> {target_lang.upper()})...")
-        self.master.update()
-        
-        translated = None
-        if service == "deepl":
-            if not os.path.exists('DeepL.key'):
-                messagebox.showerror("错误", "请先配置DeepL Key")
-                return
-            try:
-                with open('DeepL.key', 'r') as f:
-                    auth_key = f.read().strip()
-                translator = deepl.Translator(auth_key)
-                
-                # DeepL语言代码转换
-                deepl_source = source_lang.upper() if source_lang != 'auto' else None
-                deepl_target = target_lang.upper()
-                
-                translated = translator.translate_text(
-                    full_text,
-                    source_lang=deepl_source,
-                    target_lang=deepl_target,
-                    preserve_formatting=True
-                ).text
-            except Exception as e:
-                messagebox.showerror("DeepL错误", f"翻译失败: {e}")
-                return
-                
-        elif service == "azure":
-            if not os.path.exists('Azure.key'):
-                messagebox.showerror("错误", "请先配置Azure Key")
-                return
-            try:
-                with open('Azure.key', 'r') as f:
-                    lines = f.readlines()
-                    azure_key = lines[0].strip()
-                    azure_endpoint = lines[1].strip()
-                    azure_region = lines[2].strip() if len(lines) >= 3 else 'global'
-                
-                # 构造 Azure API URL
-                azure_target = AZURE_LANG_MAP.get(target_lang, target_lang)
-                if '/translate' in azure_endpoint:
-                    url = azure_endpoint.rstrip('/') + f"?api-version=3.0&to={azure_target}"
-                else:
-                    url = azure_endpoint.rstrip('/') + f"/translate?api-version=3.0&to={azure_target}"
-                
-                if source_lang != 'auto':
-                    azure_source = AZURE_LANG_MAP.get(source_lang, source_lang)
-                    url += f"&from={azure_source}"
-                
-                headers = {
-                    'Ocp-Apim-Subscription-Key': azure_key,
-                    'Ocp-Apim-Subscription-Region': azure_region,
-                    'Content-type': 'application/json',
-                }
-                
-                # 更健壮的分批逻辑
-                translated_texts = []
-                # Azure免费层限制：每分钟最多20次请求，建议每3.2秒最多1次
-                REQUEST_INTERVAL = 3.5  # 秒，略大于3.2，确保安全
-                batch_size = 50  # 每批最多50条，防止字符数超限
-                i = 0
-                
-                def send_batch(batch):
-                    resp = requests.post(url, headers=headers, json=batch)
-                    print(f"Azure API status: {resp.status_code}\nResponse: {resp.text}")
-                    if resp.status_code == 200:
-                        return [t['translations'][0]['text'] for t in resp.json()]
-                    elif resp.status_code == 429:
-                        print("检测到429限流，等待30秒后重试...")
-                        time.sleep(30)
-                        # 重试一次
-                        resp = requests.post(url, headers=headers, json=batch)
-                        print(f"Azure API status: {resp.status_code}\nResponse: {resp.text}")
-                        if resp.status_code == 200:
-                            return [t['translations'][0]['text'] for t in resp.json()]
-                        else:
-                            raise Exception(f"Azure API error after retry: {resp.text}")
-                    else:
-                        raise Exception(f"Azure API error: {resp.text}")
-                        
-                while i < len(subs):
-                    batch = []
-                    batch_char_count = 0
-                    while i < len(subs) and len(batch) < batch_size:
-                        text = subs[i].content.replace('\n', '[NL]')
-                        if batch_char_count + len(text) > 4900 and batch:
-                            break
-                        batch.append({"Text": text})
-                        batch_char_count += len(text)
-                        i += 1
-                    translated_texts.extend(send_batch(batch))
-                    if i < len(subs):  # 最后一批不需要等待
-                        time.sleep(REQUEST_INTERVAL)
-                translated = translated_texts
-                
-            except Exception as e:
-                print(f"Azure请求异常: {e}")
-                return
-        elif service == "gemini":
-            if not os.path.exists('Gemini.key'):
-                messagebox.showerror("错误", "请先配置Gemini Key")
-                return
-            try:
-                with open('Gemini.key', 'r') as f:
-                    api_key = f.read().strip()
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                
-                # Gemini翻译逻辑：分批发送，每批最多2000字符，请求间隔6秒
-                source_lang_name = SUPPORTED_LANGUAGES.get(source_lang, ('Unknown', '未知'))[0]
-                target_lang_name = SUPPORTED_LANGUAGES.get(target_lang, ('Unknown', '未知'))[0]
-                
-                # 准备所有字幕文本
-                texts = []
-                for i, sub in enumerate(subs):
-                    content = sub.content.replace('\n', '[NL]')
-                    texts.append(f"{i+1}. {content}")
-                full_text = '\n'.join(texts)
-                
-                # 分批处理，每批最多2000字符
-                max_chars_per_batch = 2000
-                batches = []
-                current_batch = ""
-                for line in texts:
-                    if len(current_batch) + len(line) + 1 > max_chars_per_batch and current_batch:
-                        batches.append(current_batch)
-                        current_batch = line
-                    else:
-                        if current_batch:
-                            current_batch += '\n' + line
-                        else:
-                            current_batch = line
-                if current_batch:
-                    batches.append(current_batch)
-                
-                # 翻译每批
-                translated_subs = {}
-                for batch_idx, batch_text in enumerate(batches):
-                    self.status_var.set(f"正在翻译 ({source_lang.upper()} -> {target_lang.upper()}) - 批次 {batch_idx+1}/{len(batches)}")
-                    self.master.update()
-                    
-                    prompt = f"""Translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
+        # Gemini翻译逻辑：分批发送，每批最多2000字符，请求间隔6秒
+        if not os.path.exists('Gemini.key'):
+            messagebox.showerror("错误", "请先配置Gemini Key")
+            return
+            
+        try:
+            with open('Gemini.key', 'r') as f:
+                api_key = f.read().strip()
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(self.model_var.get())
+            
+            # Gemini翻译逻辑
+            source_lang_name = SUPPORTED_LANGUAGES.get(source_lang, ('Unknown', '未知'))[0]
+            target_lang_name = SUPPORTED_LANGUAGES.get(target_lang, ('Unknown', '未知'))[0]
 
-Instructions:
-- Maintain the exact numbering format (e.g., 1. translated text)
-- Keep the structure and line breaks as in the original
-- Replace [NL] with actual newlines in the translated text
-- Output only the translated subtitles, nothing else
-- Ensure the translation is accurate and natural
+            # 直接处理每个字幕，不进行合并
+            print(f"📋 准备翻译 {len(subs)} 条字幕")
 
-Subtitles to translate:
-{batch_text}
-"""
-                    
-                    response = model.generate_content(prompt)
-                    translated_batch = response.text.strip()
-                    
-                    # 解析响应
+            # 准备所有字幕文本 - 使用醒目的编号格式确保API不会合并字幕
+            subtitle_contents = []
+            for i, sub in enumerate(subs):
+                # 使用醒目的【编号】格式，确保每条字幕都被单独处理
+                subtitle_contents.append(f"【{i+1}】{sub.content}")
+
+            # 分批处理，每批最多包含一定数量的字幕（而不是字符数）
+            max_subs_per_batch = 30  # 减少批次大小，确保每条字幕都被单独处理
+            batches = []
+
+            for i in range(0, len(subtitle_contents), max_subs_per_batch):
+                batch_contents = subtitle_contents[i:i + max_subs_per_batch]
+                batches.append({
+                    'start_idx': i,
+                    'contents': batch_contents
+                })
+
+            print(f"📦 分成 {len(batches)} 个批次进行翻译")
+
+            # 翻译每批
+            translated_subs = {}
+            total_processed = 0
+
+            for batch_idx, batch in enumerate(batches):
+                self.status_var.set(f"正在翻译 ({source_lang.upper()} -> {target_lang.upper()}) - 批次 {batch_idx+1}/{len(batches)}")
+                self.master.update()
+
+                batch_start_idx = batch['start_idx']
+                batch_contents = batch['contents']
+                batch_size = len(batch_contents)
+
+                # 创建编号文本输入
+                numbered_input = '\n\n'.join(batch_contents)
+
+                prompt = f"""You are a professional SRT subtitle translator. Your task is to translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
+
+The subtitles are provided in a special numbered format with 【number】 markers (【1】subtitle, 【2】subtitle, etc.). You must return the translated subtitles in the EXACT SAME special numbered format.
+
+CRITICAL REQUIREMENTS:
+1. Translate EACH AND EVERY subtitle individually and separately
+2. Return the EXACT SAME NUMBER of subtitles as input ({batch_size} subtitles)
+3. Maintain the special numbered format: "【1】translated text", "【2】translated text", etc.
+4. DO NOT split any single subtitle into multiple subtitles
+5. DO NOT merge multiple subtitles into one subtitle
+6. DO NOT change the numbering or add/remove any subtitles
+7. DO NOT remove the 【】markers - they are essential for identification
+8. Preserve the original line breaks and formatting within each subtitle
+9. Output ONLY the numbered subtitles with 【】markers, no explanations, comments, or additional text
+10. Do NOT add quotation marks around translated text unless they are part of the original meaning
+11. Ensure translation quality and natural language
+
+Input subtitles ({batch_size} subtitles):
+{numbered_input}
+
+Return the translated subtitles in the same special 【number】 format with {batch_size} subtitles:"""
+
+                response = model.generate_content(prompt)
+                translated_batch = response.text.strip()
+
+                # 处理可能的markdown代码块格式
+                if translated_batch.startswith('```'):
+                    # 移除开头的```json或```
                     lines = translated_batch.split('\n')
+                    # 找到第一个非空行且不是代码块标记的行
+                    start_idx = 0
+                    for i, line in enumerate(lines):
+                        line = line.strip()
+                        if line and not line.startswith('```'):
+                            start_idx = i
+                            break
+
+                    # 移除结尾的```
+                    end_idx = len(lines)
+                    for i in range(len(lines) - 1, -1, -1):
+                        line = lines[i].strip()
+                        if line and not line.startswith('```'):
+                            end_idx = i + 1
+                            break
+
+                    translated_batch = '\n'.join(lines[start_idx:end_idx]).strip()
+
+                # 调试：保存原始响应用于诊断
+                debug_file = f"debug_response_batch_{batch_idx+1}.txt"
+                try:
+                    with open(debug_file, 'w', encoding='utf-8') as f:
+                        f.write(f"=== 批次 {batch_idx+1} 原始响应 ===\n")
+                        f.write(translated_batch)
+                        f.write(f"\n\n=== 批次 {batch_idx+1} 输入编号文本 ===\n")
+                        f.write(numbered_input)
+                    print(f"  💾 调试信息已保存到: {debug_file}")
+                except:
+                    pass  # 调试文件保存失败不影响主流程
+
+                # 解析编号响应
+                try:
+                    # 按行分割并解析编号格式
+                    lines = translated_batch.split('\n')
+                    parsed_subs = {}
+
+                    current_num = None
+                    current_content = []
+
                     for line in lines:
                         line = line.strip()
-                        if line and '. ' in line:
-                            parts = line.split('. ', 1)
-                            if len(parts) == 2:
-                                try:
-                                    idx = int(parts[0]) - 1
-                                    text = parts[1].replace('[NL]', '\n')
-                                    translated_subs[idx] = text
-                                except ValueError:
-                                    continue
-                    
-                    print(f"翻译批次 {batch_idx+1}/{len(batches)} 完成，已翻译 {len(translated_subs)} 条字幕")
-                    
-                    # 请求间隔：每6秒一次
-                    if batch_idx < len(batches) - 1:
-                        time.sleep(6)
-                
-                # 检查是否所有字幕都被翻译
-                if len(translated_subs) != len(subs):
-                    messagebox.showwarning("Warning", f"部分字幕未能正确提取（{len(translated_subs)}/{len(subs)}），建议检查输出。")
-                
-                # 应用翻译
-                for i, sub in enumerate(subs):
-                    if i in translated_subs:
-                        sub.content = translated_subs[i]
-                
-            except Exception as e:
-                messagebox.showerror("Gemini错误", f"翻译失败: {e}")
-                return
-        else:
-            messagebox.showerror("错误", f"未知翻译服务: {service}")
-            return
-        # 还原字幕
-        if service == "azure" and isinstance(translated, list):
-            for i, sub in enumerate(subs):
-                if i < len(translated):
-                    sub.content = translated[i]
-        elif service == "deepl":
-            # DeepL返回字符串，需要解析
-            pattern = re.compile(r'(\d+)\.\s*(.*?)(?=\n\d+\.|$)', re.DOTALL)
-            matches = pattern.findall(translated)
-            translated_subs = {}
-            for match in matches:
-                idx = int(match[0]) - 1
-                text = match[1].strip().replace(placeholder, '\n')
-                translated_subs[idx] = text
-            if len(translated_subs) != len(subs):
-                messagebox.showwarning("Warning", "部分字幕未能正确提取，建议检查输出。")
+                        if not line:
+                            continue
+
+                        # 检查是否是编号行 (如 "【1】", "【2】", etc.)
+                        import re
+                        match = re.match(r'^【(\d+)】\s*(.*)$', line)
+                        if match:
+                            # 保存之前的字幕（如果有）
+                            if current_num is not None and current_content:
+                                parsed_subs[current_num] = '\n'.join(current_content).strip()
+
+                            # 开始新的字幕
+                            current_num = int(match.group(1)) - 1  # 转换为0-based索引
+                            current_content = [match.group(2)]
+                        elif current_num is not None:
+                            # 继续当前字幕的内容
+                            current_content.append(line)
+
+                    # 保存最后一个字幕
+                    if current_num is not None and current_content:
+                        parsed_subs[current_num] = '\n'.join(current_content).strip()
+
+                    # 验证数量
+                    if len(parsed_subs) != batch_size:
+                        print(f"  ⚠️  批次 {batch_idx+1} 字幕数量不匹配: 期望 {batch_size}, 实际 {len(parsed_subs)}")
+                        actual_size = min(batch_size, len(parsed_subs))
+                    else:
+                        actual_size = batch_size
+                        print(f"  ✅ 批次 {batch_idx+1} 编号解析成功: {actual_size} 条字幕")
+
+                    # 存储翻译结果
+                    for i in range(actual_size):
+                        global_idx = batch_start_idx + i
+                        if global_idx in parsed_subs:  # 修复：使用全局索引而不是批次内索引
+                            translated_content = parsed_subs[global_idx]
+
+                            # 清理可能的多余引号（如果API添加了引号包围）
+                            if isinstance(translated_content, str):
+                                # 清理首尾引号 - 更激进的清理
+                                original_content = translated_content
+                                while (len(translated_content) > 1 and
+                                       translated_content.startswith('"') and
+                                       translated_content.endswith('"')):
+                                    # 检查清理后是否仍然有效
+                                    cleaned = translated_content[1:-1]  # 移除最外层引号
+                                    # 如果清理后内容仍然合理，则接受清理
+                                    if cleaned.strip():
+                                        translated_content = cleaned
+                                    else:
+                                        break
+
+                                # 如果内容被清理了，记录一下
+                                if translated_content != original_content:
+                                    print(f"  🧹 清理字幕 {global_idx} 的多余引号")
+                                    print(f"     原文: '{original_content}'")
+                                    print(f"     清理后: '{translated_content}'")
+
+                            translated_subs[global_idx] = translated_content
+
+                    print(f"  📍 批次 {batch_idx+1} 处理完成 (全局索引 {batch_start_idx}-{batch_start_idx+actual_size-1})")
+
+                except Exception as e:
+                    print(f"  ❌ 批次 {batch_idx+1} 编号解析失败: {e}")
+                    print(f"  📄 原始响应: {translated_batch[:200]}...")
+
+                    # 后备解析：尝试按行分割（不推荐，但作为最后手段）
+                    lines = translated_batch.split('\n')
+                    valid_lines = [line.strip() for line in lines if line.strip() and not line.startswith('```')]
+
+                    if len(valid_lines) >= batch_size:
+                        print(f"  🔄 使用后备解析方法...")
+                        for i in range(batch_size):
+                            global_idx = batch_start_idx + i
+                            if i < len(valid_lines):
+                                translated_subs[global_idx] = valid_lines[i]
+                        print(f"  ✅ 后备解析完成: {batch_size} 条字幕")
+                    else:
+                        print(f"  ❌ 后备解析也失败: 只有 {len(valid_lines)} 行可用文本")
+
+                # 更新已处理的字幕数量
+                total_processed += batch_size
+
+                # API调用间隔，避免速率限制
+                if batch_idx < len(batches) - 1:
+                    print("  ⏳ 等待6秒...")
+                    import time
+                    time.sleep(6)
+
+            # 直接应用翻译结果 - 未翻译的字幕保持原文
+            untranslated_count = 0
             for i, sub in enumerate(subs):
                 if i in translated_subs:
                     sub.content = translated_subs[i]
+                else:
+                    # 保持原文
+                    untranslated_count += 1
+                    print(f"字幕 {i+1} 未翻译，保持原文: '{sub.content[:50]}...'")
+
+            if untranslated_count > 0:
+                print(f"共 {untranslated_count} 条字幕未翻译，保持原文")
+            else:
+                print(f"成功: 所有 {len(subs)} 条字幕都已翻译")
+            
+        except Exception as e:
+            messagebox.showerror("Gemini错误", f"翻译失败: {e}")
+            return
+        
         # 输出
         target_lang_name = SUPPORTED_LANGUAGES[target_lang][0]  # 获取目标语言的英文名
         output_dir = os.path.dirname(srt_path)  # 获取原文件的目录
@@ -654,6 +577,10 @@ Subtitles to translate:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save output: {e}")
             self.status_var.set("")
+
+    def translate_srt(self):
+        # 使用标准 API 进行翻译
+        self.translate_with_standard_api()
 
 # 启动主界面
 if __name__ == "__main__":

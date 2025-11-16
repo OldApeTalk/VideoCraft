@@ -1,0 +1,121 @@
+=== 批次 15 原始响应 ===
+421. 你是否愿意支持某人在初选时，比如玛乔丽·泰勒·格林，考虑到她最近的言论？
+
+422. 嗯，这取决于谁来竞选。
+
+423. 我的意思是，我不再是她的粉丝了，因为我不同意她的政策。
+
+424. 当她说，你知道，去外国，带回数万亿美元并不重要的时候。
+
+425. 你认为我想去坐飞机...
+
+426. 20个小时，你们有些人和我一起，确切地说22个小时，旅行，然后下飞机发表演讲
+
+427. 并让人们在我们国家投资数千亿美元。
+
+428. 我宁愿不这么做，但如果你不去，你就无法
+
+429. 取得那样的结果。
+
+430. 举个例子，马来西亚，如果你看看泰国，我在泰国和柬埔寨停止了战争。
+
+431. 如果我没去那个地区，我本可以去那个地区。
+
+432. 我可能就无法停止那场战争。
+
+433. 那场战争在生命代价上将是极其昂贵的，
+
+434. 但即使对我们来说也是昂贵的。
+
+435. 那么，你下周会见我们吗？
+
+436. 你下周圣诞节会见议员们，大迪安娜吗？
+
+437. 我不知道，我可能…
+
+438. 我不知道。
+
+439. 他们会。
+
+440. 我猜他们正在决定是否
+
+441. 要多赢得共和党。
+
+442. 再多一两个。
+
+443. 顺便说一句，我得说一句。
+
+444. 我听说要再多一两个席位。
+
+445. 我听说
+
+446. 一场大诉讼将要发生，将要发生，涉及加州的骗局
+
+447. 他们试图再赢五个席位。而加州是有史以来最不诚实的选举之一。
+
+448. 他们向各地人们寄出数百亿美元的选票。很多人
+
+449. 收到两三张选票，然后寄回。加州在投票方面是个耻辱。
+
+450. 他们正在做一件非常非法的事情。
+
+=== 批次 15 输入编号文本 ===
+421. Would you be open to endorsing someone in the primary Marjorie Taylor Green giving her latest statements?
+
+422. Well, it depends on who runs against them.
+
+423. I mean, I'm no longer much of a fan, as I disagree with her policy.
+
+424. When she said that, you know, going to foreign countries, bringing back trillions of dollars is not important.
+
+425. Do you think I want to go and be on an airplane for...
+
+426. 20 hours, some of you were with me, 22 hours to be exact, travel, and then get off and make
+
+427. a speech and get people to invest hundreds of billions of dollars in our country.
+
+428. I'd rather do it without having to go, but if you didn't go, you wouldn't be able to
+
+429. have that kind of result.
+
+430. As an example, Malaysia, if you look at Thailand, I stopped the war in Thailand and Cambodia.
+
+431. If I didn't go to that region, I'd be able to go to that region.
+
+432. I probably wouldn't have been able to stop that war.
+
+433. That war would have been very costly in terms of lives,
+
+434. but even costly in terms of us.
+
+435. So are you meeting with us next week?
+
+436. Are you meeting with lawmakers, Big Diana, next week on Christmas?
+
+437. Not that I know if I might be.
+
+438. I don't know.
+
+439. They will.
+
+440. I guess they're making a decision as to whether or not they
+
+441. want to gain more the Republican Party.
+
+442. One or two more.
+
+443. By the way, I will say this.
+
+444. I heard one or two more seats.
+
+445. I heard
+
+446. that a big lawsuit will be taking place is what will be taking place concerning the California hoax
+
+447. where they're trying to get five more seats. And California is one of the most dishonest elections
+
+448. ever. They send out tens of billions of ballots to people all over the place. Many of those people
+
+449. get two or three ballots and they come back. California is a disgrace for voting.
+
+450. And they're doing something that is very illegal.
