@@ -1,0 +1,5 @@
+=== 批次 1 原始响应 ===
+【1】我们捍卫我们的民主。我们保卫这个德国，我们不会让这个国家被极端诱惑者毁掉。
+
+=== 批次 1 输入编号文本 ===
+【1】Wir stehen zu unserer Demokratie. Wir verteidigen dieses Deutschland und wir lassen uns dieses Land nicht von extremistischen Rattenfängern kaputt machen.

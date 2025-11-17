@@ -233,21 +233,50 @@ class TranslateApp:
         tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=4, column=1, sticky="w")
         tk.Button(master, text="浏览", command=self.select_srt).grid(row=4, column=2, padx=10)
 
+        # Prompt编辑
+        tk.Label(master, text="Prompt提示语:").grid(row=5, column=0, padx=10, pady=5, sticky="ne")
+        self.translate_prompt_text = tk.Text(master, height=10, width=50, wrap=tk.WORD)
+        self.translate_prompt_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0,10))
+        # 设置默认prompt
+        default_translate_prompt = """You are a professional SRT subtitle translator. Your task is to translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
+
+The subtitles are provided in a special numbered format with 【number】 markers (【1】subtitle, 【2】subtitle, etc.). You must return the translated subtitles in the EXACT SAME special numbered format.
+
+CRITICAL REQUIREMENTS:
+1. Translate EACH AND EVERY subtitle individually and separately
+2. Return the EXACT SAME NUMBER of subtitles as input ({{batch_size}} subtitles)
+3. Maintain the special numbered format: "【1】translated text", "【2】translated text", etc.
+4. DO NOT split any single subtitle into multiple subtitles
+5. DO NOT merge multiple subtitles into one subtitle
+6. DO NOT change the numbering or add/remove any subtitles
+7. DO NOT remove the 【】markers - they are essential for identification
+8. Preserve the original line breaks and formatting within each subtitle
+9. Output ONLY the numbered subtitles with 【】markers, no explanations, comments, or additional text
+10. Do NOT add quotation marks around translated text unless they are part of the original meaning
+11. Ensure translation quality and natural language
+
+Input subtitles ({{batch_size}} subtitles):
+{{numbered_input}}
+
+Return the translated subtitles in the same special 【number】 format with {{batch_size}} subtitles:"""
+        self.translate_prompt_text.insert(tk.END, default_translate_prompt)
+
         # 翻译按钮
         self.trans_btn = tk.Button(master, text="开始翻译", command=self.translate_srt, width=20)
-        self.trans_btn.grid(row=5, column=1, pady=25)
+        self.trans_btn.grid(row=6, column=1, pady=25)
 
         # 进度/提示
         self.status_var = tk.StringVar()
-        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=6, column=0, columnspan=3, pady=10)
+        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=7, column=0, columnspan=3, pady=10)
 
     def get_available_models(self):
         """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
         default_models = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
         
-        if os.path.exists('Gemini.key'):
+        gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+        if os.path.exists(gemini_key_path):
             try:
-                with open('Gemini.key', 'r') as f:
+                with open(gemini_key_path, 'r') as f:
                     api_key = f.read().strip()
                 genai.configure(api_key=api_key)
                 models = genai.list_models()
@@ -291,13 +320,17 @@ class TranslateApp:
         entry = tk.Entry(win, width=50)
         entry.pack(pady=5)
         # 预填已有key
-        if os.path.exists('Gemini.key'):
-            with open('Gemini.key', 'r') as f:
+        gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+        if os.path.exists(gemini_key_path):
+            with open(gemini_key_path, 'r') as f:
                 entry.insert(0, f.read().strip())
         def save():
             key = entry.get().strip()
             if key:
-                with open('Gemini.key', 'w') as f:
+                gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+                # 确保keys文件夹存在
+                os.makedirs(os.path.dirname(gemini_key_path), exist_ok=True)
+                with open(gemini_key_path, 'w') as f:
                     f.write(key)
                 self.api_key_var.set(key)  # 更新界面显示
                 self.refresh_available_models()  # 刷新模型列表
@@ -312,7 +345,7 @@ class TranslateApp:
         if path:
             self.srt_path_var.set(path)
 
-    def translate_with_standard_api(self):
+    def translate_with_standard_api(self, custom_prompt=None):
         srt_path = self.srt_path_var.get()
         source_lang = self.get_lang_code(self.source_lang_var.get())
         target_lang = self.get_lang_code(self.target_lang_var.get())
@@ -337,12 +370,13 @@ class TranslateApp:
             return
             
         # Gemini翻译逻辑：分批发送，每批最多2000字符，请求间隔6秒
-        if not os.path.exists('Gemini.key'):
+        gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+        if not os.path.exists(gemini_key_path):
             messagebox.showerror("错误", "请先配置Gemini Key")
             return
             
         try:
-            with open('Gemini.key', 'r') as f:
+            with open(gemini_key_path, 'r') as f:
                 api_key = f.read().strip()
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel(self.model_var.get())
@@ -388,27 +422,11 @@ class TranslateApp:
                 # 创建编号文本输入
                 numbered_input = '\n\n'.join(batch_contents)
 
-                prompt = f"""You are a professional SRT subtitle translator. Your task is to translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
-
-The subtitles are provided in a special numbered format with 【number】 markers (【1】subtitle, 【2】subtitle, etc.). You must return the translated subtitles in the EXACT SAME special numbered format.
-
-CRITICAL REQUIREMENTS:
-1. Translate EACH AND EVERY subtitle individually and separately
-2. Return the EXACT SAME NUMBER of subtitles as input ({batch_size} subtitles)
-3. Maintain the special numbered format: "【1】translated text", "【2】translated text", etc.
-4. DO NOT split any single subtitle into multiple subtitles
-5. DO NOT merge multiple subtitles into one subtitle
-6. DO NOT change the numbering or add/remove any subtitles
-7. DO NOT remove the 【】markers - they are essential for identification
-8. Preserve the original line breaks and formatting within each subtitle
-9. Output ONLY the numbered subtitles with 【】markers, no explanations, comments, or additional text
-10. Do NOT add quotation marks around translated text unless they are part of the original meaning
-11. Ensure translation quality and natural language
-
-Input subtitles ({batch_size} subtitles):
-{numbered_input}
-
-Return the translated subtitles in the same special 【number】 format with {batch_size} subtitles:"""
+                # 使用自定义prompt，替换占位符
+                prompt = custom_prompt.replace("{source_lang_name}", source_lang_name)
+                prompt = prompt.replace("{target_lang_name}", target_lang_name)
+                prompt = prompt.replace("{batch_size}", str(batch_size))
+                prompt = prompt.replace("{numbered_input}", numbered_input)
 
                 response = model.generate_content(prompt)
                 translated_batch = response.text.strip()
@@ -579,8 +597,12 @@ Return the translated subtitles in the same special 【number】 format with {ba
             self.status_var.set("")
 
     def translate_srt(self):
+        custom_prompt = self.translate_prompt_text.get("1.0", tk.END).strip()
+        if not custom_prompt:
+            messagebox.showerror("错误", "请输入Prompt提示语")
+            return
         # 使用标准 API 进行翻译
-        self.translate_with_standard_api()
+        self.translate_with_standard_api(custom_prompt)
 
 # 启动主界面
 if __name__ == "__main__":

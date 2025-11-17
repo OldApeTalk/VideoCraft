@@ -6,7 +6,7 @@ from tkinter import filedialog, messagebox, ttk
 import threading
 from datetime import datetime
 
-def generate_youtube_segments(srt_path, api_key_path='Gemini.key', model_name='gemini-2.5-flash-lite'):
+def generate_youtube_segments(srt_path, api_key_path=None, model_name='gemini-2.5-flash-lite', prompt=None):
     '''
     根据SRT字幕文件生成YouTube分段描述
 
@@ -14,10 +14,16 @@ def generate_youtube_segments(srt_path, api_key_path='Gemini.key', model_name='g
         srt_path (str): SRT文件路径
         api_key_path (str): Gemini API key文件路径
         model_name (str): 使用的Gemini模型名称
+        prompt (str): 自定义提示语，如果为None则使用默认提示语
 
     Returns:
         str: 生成的YouTube分段描述
     '''
+    # 设置默认API key路径
+    if api_key_path is None:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
+    
     # 检查API key文件
     if not os.path.exists(api_key_path):
         raise FileNotFoundError(f'Gemini API key文件 \'{api_key_path}\' 不存在，请先配置API key')
@@ -52,7 +58,8 @@ def generate_youtube_segments(srt_path, api_key_path='Gemini.key', model_name='g
         subtitle_content += f'[{time_str}] {content}\n'
 
     # 构建prompt
-    prompt = f'''# 生成时间戳分段
+    if prompt is None:
+        prompt = f'''# 生成时间戳分段
 
 【
 
@@ -77,6 +84,11 @@ xx:xx 标题
 {subtitle_content}
 
 请根据以上字幕内容生成YouTube分段描述，格式为每行一个分段，格式为：时:分:秒 标题'''
+
+    else:
+        # 使用自定义prompt，替换占位符
+        full_prompt = prompt.replace("{subtitle_content}", subtitle_content)
+        prompt = full_prompt
 
     # 调用Gemini API
     try:
@@ -161,7 +173,7 @@ def extract_paragraphs_from_segments(srt_path, segments_path):
 
     return output.strip()
 
-def generate_video_titles(subs_path, prompt, api_key_path='Gemini.key', model_name='gemini-2.5-flash-lite'):
+def generate_video_titles(subs_path, prompt, api_key_path=None, model_name='gemini-2.5-flash-lite'):
     """
     根据subs文件内容生成视频标题
 
@@ -174,6 +186,11 @@ def generate_video_titles(subs_path, prompt, api_key_path='Gemini.key', model_na
     Returns:
         str: 生成的标题内容
     """
+    # 设置默认API key路径
+    if api_key_path is None:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
+    
     # 检查API key文件
     if not os.path.exists(api_key_path):
         raise FileNotFoundError(f'Gemini API key文件 \'{api_key_path}\' 不存在，请先配置API key')
@@ -281,19 +298,51 @@ class YouTubeSegmentsApp:
         tk.Entry(tab, textvariable=self.srt_path_var, width=50).grid(row=2, column=1, sticky="w")
         tk.Button(tab, text="浏览", command=self.select_srt).grid(row=2, column=2, padx=10)
 
+        # Prompt编辑
+        tk.Label(tab, text="Prompt提示语:").grid(row=3, column=0, padx=10, pady=5, sticky="ne")
+        self.segments_prompt_text = tk.Text(tab, height=8, width=50, wrap=tk.WORD)
+        self.segments_prompt_text.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0,10))
+        # 设置默认prompt
+        default_segments_prompt = """# 生成时间戳分段
+
+【
+
+1、你知道youtube的视频分段的格式吧？请学习这种分段格式：
+
+xx:xx 标题
+
+xx:xx 标题
+
+xx:xx 标题
+
+2、请根据srt字幕内容，生成youtube分段描述（中文）
+
+3、如有记者提问，优先以记者提问内容作为标题
+
+4、时:分:秒，这是时间戳的基本格式，不要弄错了
+
+】
+
+以下是SRT字幕内容：
+
+{subtitle_content}
+
+请根据以上字幕内容生成YouTube分段描述，格式为每行一个分段，格式为：时:分:秒 标题"""
+        self.segments_prompt_text.insert(tk.END, default_segments_prompt)
+
         # 输出文件选择
-        tk.Label(tab, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(tab, text="输出文件:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
         self.output_path_var = tk.StringVar(value="subs.txt")
-        tk.Entry(tab, textvariable=self.output_path_var, width=50).grid(row=3, column=1, sticky="w")
-        tk.Button(tab, text="浏览", command=self.select_output).grid(row=3, column=2, padx=10)
+        tk.Entry(tab, textvariable=self.output_path_var, width=50).grid(row=4, column=1, sticky="w")
+        tk.Button(tab, text="浏览", command=self.select_output).grid(row=4, column=2, padx=10)
 
         # 生成按钮
         self.generate_btn = tk.Button(tab, text="生成分段描述", command=self.generate_segments, width=20)
-        self.generate_btn.grid(row=4, column=1, pady=25)
+        self.generate_btn.grid(row=5, column=1, pady=25)
 
         # 进度/提示
         self.status_var = tk.StringVar()
-        tk.Label(tab, textvariable=self.status_var, fg="blue").grid(row=5, column=0, columnspan=3, pady=10)
+        tk.Label(tab, textvariable=self.status_var, fg="blue").grid(row=6, column=0, columnspan=3, pady=10)
 
     def create_paragraphs_tab(self):
         """创建段落提取标签页"""
@@ -393,9 +442,11 @@ class YouTubeSegmentsApp:
         """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
         default_models = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
         
-        if os.path.exists('Gemini.key'):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
+        if os.path.exists(api_key_path):
             try:
-                with open('Gemini.key', 'r') as f:
+                with open(api_key_path, 'r') as f:
                     api_key = f.read().strip()
                 genai.configure(api_key=api_key)
                 models = genai.list_models()
@@ -431,13 +482,18 @@ class YouTubeSegmentsApp:
         entry = tk.Entry(win, width=50)
         entry.pack(pady=5)
         # 预填已有key
-        if os.path.exists('Gemini.key'):
-            with open('Gemini.key', 'r') as f:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
+        if os.path.exists(api_key_path):
+            with open(api_key_path, 'r') as f:
                 entry.insert(0, f.read().strip())
         def save():
             key = entry.get().strip()
             if key:
-                with open('Gemini.key', 'w') as f:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
+                os.makedirs(os.path.dirname(api_key_path), exist_ok=True)
+                with open(api_key_path, 'w') as f:
                     f.write(key)
                 self.api_key_var.set(key)  # 更新界面显示
                 self.refresh_available_models()  # 刷新模型列表
@@ -464,6 +520,7 @@ class YouTubeSegmentsApp:
     def generate_segments(self):
         srt_path = self.srt_path_var.get()
         output_path = self.output_path_var.get()
+        prompt = self.segments_prompt_text.get("1.0", tk.END).strip()
         
         if not srt_path or not os.path.exists(srt_path):
             messagebox.showerror("错误", "请选择有效的SRT文件")
@@ -471,6 +528,10 @@ class YouTubeSegmentsApp:
         
         if not output_path:
             messagebox.showerror("错误", "请选择输出文件路径")
+            return
+        
+        if not prompt:
+            messagebox.showerror("错误", "请输入Prompt提示语")
             return
         
         # 如果输出路径不是绝对路径，设置为与SRT文件同目录
@@ -495,7 +556,7 @@ class YouTubeSegmentsApp:
         # 在后台线程中运行生成任务
         def run_generation():
             try:
-                segments = generate_youtube_segments(srt_path, model_name=self.model_var.get())
+                segments = generate_youtube_segments(srt_path, model_name=self.model_var.get(), prompt=prompt)
                 
                 # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:

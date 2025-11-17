@@ -310,13 +310,17 @@ class TranslateApp:
         entry = tk.Entry(win, width=50)
         entry.pack(pady=5)
         # 预填已有key
-        if os.path.exists('DeepL.key'):
-            with open('DeepL.key', 'r') as f:
+        deepl_key_path = os.path.join('..', 'keys', 'DeepL.key')
+        if os.path.exists(deepl_key_path):
+            with open(deepl_key_path, 'r') as f:
                 entry.insert(0, f.read().strip())
         def save():
             key = entry.get().strip()
             if key:
-                with open('DeepL.key', 'w') as f:
+                deepl_key_path = os.path.join('..', 'keys', 'DeepL.key')
+                # 确保keys文件夹存在
+                os.makedirs(os.path.dirname(deepl_key_path), exist_ok=True)
+                with open(deepl_key_path, 'w') as f:
                     f.write(key)
                 messagebox.showinfo("Success", "API key saved!")
                 win.destroy()
@@ -412,11 +416,12 @@ class TranslateApp:
         
         translated = None
         if service == "deepl":
-            if not os.path.exists('DeepL.key'):
+            deepl_key_path = os.path.join('..', 'keys', 'DeepL.key')
+            if not os.path.exists(deepl_key_path):
                 messagebox.showerror("错误", "请先配置DeepL Key")
                 return
             try:
-                with open('DeepL.key', 'r') as f:
+                with open(deepl_key_path, 'r') as f:
                     auth_key = f.read().strip()
                 translator = deepl.Translator(auth_key)
                 

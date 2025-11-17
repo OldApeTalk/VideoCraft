@@ -134,6 +134,7 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Keys
+# Keys and sensitive files
+keys/
 DeepL.key
 *.key
