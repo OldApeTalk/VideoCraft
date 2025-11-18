@@ -1,0 +1,121 @@
+=== 批次 5 原始响应 ===
+【121】我们希望看到纽约一切顺利。
+
+【122】几年前，您自己曾与尼克·昆汀（Nick Quentes）在海湖庄园共进晚餐。
+
+【123】他应该在保守派运动中扮演什么角色？
+
+【124】嗯，我不知道他要来，而且当时和他在一起的是，如您所知，某个名人，侃爷（Kanye）。
+
+【125】侃爷（Kanye）昨天可以一起吃饭，他还带来了尼克（Nick）。
+
+【126】当时我还不认识尼克（Nick）。
+
+【127】他确实来了，还带了另外几个人。
+
+【128】他带了几个人和他一起来。
+
+【129】会见人们，与像塔克（Tucker）这样的人交谈。
+
+【130】他们就是这么做的。
+
+【131】你知道，有些人很有争议。
+
+【132】有些人有，有些人没有。
+
+【133】我不算有争议，我喜欢这样。
+
+【134】委内瑞拉，你难道不和国会打交道吗？
+
+【135】我想让国会继续参与进来。
+
+【136】我的意思是，我们正在阻止——
+
+【137】毒贩和毒品进入我们的国家。
+
+【138】事实上，我告诉了马可（Marco）和一些人，
+
+【139】我们（我国）的国务卿做得非常出色，顺便说一句。
+
+【140】我说，去国会告诉他们，我们不会让毒品通过墨西哥进来。
+
+【141】我们不会让它们通过委内瑞拉进来，让国会知道这件事。
+
+【142】我们不一定需要他们的批准，但我认为让他们知道是件好事。
+
+【143】我唯一不希望他们做的是泄露非常重要和机密的信息
+
+【144】并且可能危及我们的军队或正在执行任务的人员，你知道，中央情报局、军队等等。
+
+【145】但我确实说了，我说去见国会，去见我们应该见的代表们，
+
+【146】并对此保持开放态度。
+
+【147】如果他们说，我们不希望你阻止毒品进入这个国家，我认为那不好，是的。
+
+【148】我们得到了很好的支持，因为这完全是为了毒品。
+
+【149】嗯，在委内瑞拉的情况下，这关乎毒品，也关乎……
+
+【150】成千上万，数十万被他们释放到我国的人。
+
+=== 批次 5 输入编号文本 ===
+【121】We want to see everything work out well for New York.
+
+【122】You yourself had dinner with Nick Quentes at Mar-a-Lago a few years ago.
+
+【123】What role should he play in the conservative movement?
+
+【124】Well, I didn't know he was coming, and he was with, as you know, somebody, Kanye.
+
+【125】And Kanye yesterday could have dinner, and he brought Nick.
+
+【126】I didn't know Nick at the time.
+
+【127】And he did. He came along with a few other people.
+
+【128】He brought a few people with him.
+
+【129】meeting people, talking to people like for somebody like Tucker.
+
+【130】That's what they do.
+
+【131】You know, people are controversial.
+
+【132】Some are, some aren't.
+
+【133】I'm not controversial, so I like it that way.
+
+【134】Venezuela, aren't you with Congress?
+
+【135】I'd like to keep Congress involved.
+
+【136】I mean, we're stopping –
+
+【137】drug dealers and drugs from coming into our country.
+
+【138】And I actually told Marco and some of the people,
+
+【139】our Secretary of State is doing a great job, by the way.
+
+【140】I said, go to Congress and let them know we're not letting drugs come through Mexico.
+
+【141】We're not letting them come through Venezuela and let Congress know about it.
+
+【142】We don't have to get their approval, but I think letting them know is good.
+
+【143】The only thing I don't want them to do is leak information that's very important and confidential
+
+【144】and may put our military at risk or whoever is doing, you know, CIA, military, etc.
+
+【145】But I did say, I said go and see Congress, see the representatives that we're supposed to be seeing,
+
+【146】and be open about it.
+
+【147】If they say, we don't want you to stop drugs from coming into the country, I don't think that would be good, yes.
+
+【148】We have great support because it's all about drugs.
+
+【149】Well, in Venezuela's case, it's about drugs and it's also about...
+
+【150】thousands, hundreds of thousands of people that they've released into our country.

@@ -273,7 +273,8 @@ Return the translated subtitles in the same special 【number】 format with {{b
         """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
         default_models = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
         
-        gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
         if os.path.exists(gemini_key_path):
             try:
                 with open(gemini_key_path, 'r') as f:
@@ -319,15 +320,17 @@ Return the translated subtitles in the same special 【number】 format with {{b
         tk.Label(win, text="Gemini API Key:").pack(pady=10)
         entry = tk.Entry(win, width=50)
         entry.pack(pady=5)
-        # 预填已有key
-        gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+        # 预填已有key（使用绝对路径）
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
         if os.path.exists(gemini_key_path):
             with open(gemini_key_path, 'r') as f:
                 entry.insert(0, f.read().strip())
         def save():
             key = entry.get().strip()
             if key:
-                gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
                 # 确保keys文件夹存在
                 os.makedirs(os.path.dirname(gemini_key_path), exist_ok=True)
                 with open(gemini_key_path, 'w') as f:
@@ -370,7 +373,8 @@ Return the translated subtitles in the same special 【number】 format with {{b
             return
             
         # Gemini翻译逻辑：分批发送，每批最多2000字符，请求间隔6秒
-        gemini_key_path = os.path.join('..', 'keys', 'Gemini.key')
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
         if not os.path.exists(gemini_key_path):
             messagebox.showerror("错误", "请先配置Gemini Key")
             return

@@ -119,7 +119,9 @@ for code in un_languages + other_languages:
     eng, chn = language_dict[code]
     language_options.append(f"{eng} ({chn})")
 
-KEY_FILE = os.path.join('..', 'keys', 'lemonfox.key')
+# 使用绝对路径
+script_dir = os.path.dirname(os.path.abspath(__file__))
+KEY_FILE = os.path.join(os.path.dirname(script_dir), 'keys', 'lemonfox.key')
 
 def select_mp3_file():
     """选择音频/视频文件"""
@@ -145,11 +147,13 @@ def save_key():
     if not api_key:
         messagebox.showerror("Error", "请输入有效的API Key。")
         return
-    # 确保keys文件夹存在
-    os.makedirs(os.path.dirname(KEY_FILE), exist_ok=True)
-    with open(KEY_FILE, "w") as f:
+    # 确保keys文件夹存在（使用绝对路径）
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    key_file = os.path.join(os.path.dirname(script_dir), 'keys', 'lemonfox.key')
+    os.makedirs(os.path.dirname(key_file), exist_ok=True)
+    with open(key_file, "w") as f:
         f.write(api_key)
-    messagebox.showinfo("成功", "API Key 已保存。")
+    messagebox.showinfo("Success", "API Key 已保存。")
 
 def delete_key():
     """删除API Key文件"""

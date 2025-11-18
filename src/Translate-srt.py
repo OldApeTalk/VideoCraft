@@ -309,15 +309,17 @@ class TranslateApp:
         tk.Label(win, text="DeepL API Key:").pack(pady=10)
         entry = tk.Entry(win, width=50)
         entry.pack(pady=5)
-        # 预填已有key
-        deepl_key_path = os.path.join('..', 'keys', 'DeepL.key')
+        # 预填已有key（使用绝对路径）
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        deepl_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'DeepL.key')
         if os.path.exists(deepl_key_path):
             with open(deepl_key_path, 'r') as f:
                 entry.insert(0, f.read().strip())
         def save():
             key = entry.get().strip()
             if key:
-                deepl_key_path = os.path.join('..', 'keys', 'DeepL.key')
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                deepl_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'DeepL.key')
                 # 确保keys文件夹存在
                 os.makedirs(os.path.dirname(deepl_key_path), exist_ok=True)
                 with open(deepl_key_path, 'w') as f:
@@ -416,7 +418,8 @@ class TranslateApp:
         
         translated = None
         if service == "deepl":
-            deepl_key_path = os.path.join('..', 'keys', 'DeepL.key')
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            deepl_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'DeepL.key')
             if not os.path.exists(deepl_key_path):
                 messagebox.showerror("错误", "请先配置DeepL Key")
                 return
