@@ -194,7 +194,7 @@ class TranslateApp:
     def __init__(self, master):
         self.master = master
         master.title("SRT字幕批量翻译工具（Gemini）")
-        master.geometry("700x420")
+        master.geometry("700x460")
         master.resizable(False, False)
 
         # 获取可用模型列表
@@ -208,7 +208,7 @@ class TranslateApp:
 
         # 模型选择
         tk.Label(master, text="选择模型:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.model_var = tk.StringVar(value="gemini-2.5-flash-lite" if "gemini-2.5-flash-lite" in self.available_models else (self.available_models[0] if self.available_models else "gemini-2.5-flash-lite"))
+        self.model_var = tk.StringVar(value="gemini-2.5-flash" if "gemini-2.5-flash" in self.available_models else (self.available_models[0] if self.available_models else "gemini-2.5-flash"))
         self.model_combo = ttk.Combobox(master, textvariable=self.model_var, values=self.available_models, state="readonly", width=25)
         self.model_combo.grid(row=1, column=1, sticky="w", padx=(0,10))
 
@@ -227,16 +227,26 @@ class TranslateApp:
         self.target_combo = ttk.Combobox(master, textvariable=self.target_lang_var, values=language_options, state="readonly", width=30)
         self.target_combo.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0,10))
 
+        # 批次大小选择
+        tk.Label(master, text="每批次字幕条数:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        self.batch_size_var = tk.StringVar(value="50")
+        batch_size_frame = tk.Frame(master)
+        batch_size_frame.grid(row=4, column=1, columnspan=2, sticky="w", padx=(0,10))
+        ttk.Radiobutton(batch_size_frame, text="30", variable=self.batch_size_var, value="30").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(batch_size_frame, text="50", variable=self.batch_size_var, value="50").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(batch_size_frame, text="100", variable=self.batch_size_var, value="100").pack(side=tk.LEFT, padx=5)
+        tk.Label(batch_size_frame, text="(批次越大速度越快，但可能影响准确性)", font=("Arial", 8), fg="gray").pack(side=tk.LEFT, padx=5)
+
         # SRT文件选择
-        tk.Label(master, text="原始SRT文件:").grid(row=4, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(master, text="原始SRT文件:").grid(row=5, column=0, padx=10, pady=10, sticky="e")
         self.srt_path_var = tk.StringVar()
-        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=4, column=1, sticky="w")
-        tk.Button(master, text="浏览", command=self.select_srt).grid(row=4, column=2, padx=10)
+        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=5, column=1, sticky="w")
+        tk.Button(master, text="浏览", command=self.select_srt).grid(row=5, column=2, padx=10)
 
         # Prompt编辑
-        tk.Label(master, text="Prompt提示语:").grid(row=5, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(master, text="Prompt提示语:").grid(row=6, column=0, padx=10, pady=5, sticky="ne")
         self.translate_prompt_text = tk.Text(master, height=10, width=50, wrap=tk.WORD)
-        self.translate_prompt_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0,10))
+        self.translate_prompt_text.grid(row=6, column=1, columnspan=2, sticky="w", padx=(0,10))
         # 设置默认prompt
         default_translate_prompt = """You are a professional SRT subtitle translator. Your task is to translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
 
@@ -263,11 +273,11 @@ Return the translated subtitles in the same special 【number】 format with {{b
 
         # 翻译按钮
         self.trans_btn = tk.Button(master, text="开始翻译", command=self.translate_srt, width=20)
-        self.trans_btn.grid(row=6, column=1, pady=25)
+        self.trans_btn.grid(row=7, column=1, pady=25)
 
         # 进度/提示
         self.status_var = tk.StringVar()
-        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=7, column=0, columnspan=3, pady=10)
+        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=8, column=0, columnspan=3, pady=10)
 
     def get_available_models(self):
         """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
@@ -399,7 +409,7 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 subtitle_contents.append(f"【{i+1}】{sub.content}")
 
             # 分批处理，每批最多包含一定数量的字幕（而不是字符数）
-            max_subs_per_batch = 30  # 减少批次大小，确保每条字幕都被单独处理
+            max_subs_per_batch = int(self.batch_size_var.get())  # 从 GUI 获取批次大小
             batches = []
 
             for i in range(0, len(subtitle_contents), max_subs_per_batch):
@@ -457,17 +467,18 @@ Return the translated subtitles in the same special 【number】 format with {{b
 
                     translated_batch = '\n'.join(lines[start_idx:end_idx]).strip()
 
-                # 调试：保存原始响应用于诊断
-                debug_file = f"debug_response_batch_{batch_idx+1}.txt"
-                try:
-                    with open(debug_file, 'w', encoding='utf-8') as f:
-                        f.write(f"=== 批次 {batch_idx+1} 原始响应 ===\n")
-                        f.write(translated_batch)
-                        f.write(f"\n\n=== 批次 {batch_idx+1} 输入编号文本 ===\n")
-                        f.write(numbered_input)
-                    print(f"  💾 调试信息已保存到: {debug_file}")
-                except:
-                    pass  # 调试文件保存失败不影响主流程
+                # 调试：保存原始响应用于诊断（仅在出错时保存，正常翻译不保存）
+                # 如果需要调试，取消下面的注释
+                # debug_file = f"debug_response_batch_{batch_idx+1}.txt"
+                # try:
+                #     with open(debug_file, 'w', encoding='utf-8') as f:
+                #         f.write(f"=== 批次 {batch_idx+1} 原始响应 ===\n")
+                #         f.write(translated_batch)
+                #         f.write(f"\n\n=== 批次 {batch_idx+1} 输入编号文本 ===\n")
+                #         f.write(numbered_input)
+                #     print(f"  💾 调试信息已保存到: {debug_file}")
+                # except:
+                #     pass  # 调试文件保存失败不影响主流程
 
                 # 解析编号响应
                 try:

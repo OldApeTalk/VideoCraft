@@ -10,12 +10,19 @@ class YouTubeDownloader:
     def __init__(self, root):
         self.root = root
         self.root.title("YouTube Downloader")
-        self.root.geometry("1200x600")  # Wider window for horizontal layout
+        self.root.geometry("1200x650")  # Wider window for horizontal layout
         
         # Initialize yt-dlp
         self.ydl_opts = {}
         self.video_list = []  # List of videos from URLs/playlists
         self.selected_videos = []  # Selected videos for download
+        
+        # Network configuration
+        self.network_speed = "fast"  # fast, medium, slow
+        
+        # Progress update throttling - 避免事件队列堆积
+        self.last_progress_update = {}  # {video_title: last_update_time}
+        self.progress_update_interval = 0.5  # 最小更新间隔（秒）
         
         # Create GUI elements
         self.create_widgets()
@@ -79,6 +86,14 @@ class YouTubeDownloader:
         self.mp3_var = tk.BooleanVar()
         tk.Checkbutton(options_frame, text="Extract MP3", variable=self.mp3_var, font=("Arial", 9)).grid(row=2, column=0, sticky="w")
         
+        # Network Speed
+        tk.Label(options_frame, text="Network Speed:", font=("Arial", 9, "bold")).grid(row=3, column=0, sticky="w", pady=(10,5))
+        self.network_combo = ttk.Combobox(options_frame, values=["Fast (30MB chunks)", "Medium (15MB chunks)", "Slow (5MB chunks)"], 
+                                         state="readonly", width=20)
+        self.network_combo.current(0)
+        self.network_combo.grid(row=4, column=0, sticky="w", pady=(0,5))
+        tk.Label(options_frame, text="(选择网络速度以优化下载)", font=("Arial", 7), fg="gray").grid(row=5, column=0, sticky="w")
+        
         # Right Panel - Output and Download
         # Output Directory
         tk.Label(right_frame, text="Download Settings", font=("Arial", 12, "bold")).pack(anchor="w", pady=(0,10))
@@ -110,7 +125,7 @@ class YouTubeDownloader:
         self.status_text.insert(tk.END, message + "\n")
         self.status_text.see(tk.END)
         self.status_text.config(state="disabled")
-        self.root.update()
+        # 移除 root.update() - 让事件循环自然处理，避免递归
         
     def browse_directory(self):
         directory = filedialog.askdirectory()
@@ -145,6 +160,13 @@ class YouTubeDownloader:
                     'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
                     'referer': 'https://www.youtube.com/',
                     'extract_flat': False,
+                    # 网络和缓冲区优化
+                    'buffersize': 131072,  # 128KB内存缓冲区
+                    'http_chunk_size': 10485760,  # 10MB HTTP块大小
+                    'retries': 10,  # 下载重试次数
+                    'fragment_retries': 10,  # 片段重试次数
+                    'file_access_retries': 5,  # 文件访问重试
+                    'socket_timeout': 30,  # Socket超时30秒
                 }
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -201,8 +223,9 @@ class YouTubeDownloader:
                 
                 self.root.after(0, self.update_video_listbox)
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to fetch video list: {str(e)}"))
-                self.root.after(0, lambda: self.log(f"Error: {str(e)}"))
+                error_message = str(e)
+                self.root.after(0, lambda em=error_message: messagebox.showerror("Error", f"Failed to fetch video list: {em}"))
+                self.root.after(0, lambda em=error_message: self.log(f"Error: {em}"))
                 self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
                 
         threading.Thread(target=fetch_list, daemon=True).start()
@@ -254,15 +277,17 @@ class YouTubeDownloader:
                     self.root.after(0, lambda: self.log("FFmpeg check passed"))
                 except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
                     error_msg = f"FFmpeg not found or not working: {str(e)}"
-                    self.root.after(0, lambda: messagebox.showerror("Error", "FFmpeg not found. Install FFmpeg for video processing."))
-                    self.root.after(0, lambda: self.log(error_msg))
+                    self.root.after(0, lambda em=error_msg: messagebox.showerror("Error", "FFmpeg not found. Install FFmpeg for video processing."))
+                    self.root.after(0, lambda em=error_msg: self.log(em))
                     self.root.after(0, lambda: self.download_btn.config(state="normal"))
                     self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
                     return
                 
                 for i, video in enumerate(self.selected_videos):
                     video_title = video['title']
-                    self.root.after(0, lambda vt=video_title: self.log(f"Starting download {i+1}/{len(self.selected_videos)}: {vt}"))
+                    idx = i + 1
+                    total = len(self.selected_videos)
+                    self.root.after(0, lambda vt=video_title, n=idx, t=total: self.log(f"Starting download {n}/{t}: {vt}"))
                     
                     # Map quality to format
                     format_str = {
@@ -275,22 +300,62 @@ class YouTubeDownloader:
                     
                     output_template = os.path.join(output_dir, "%(title)s.%(ext)s")
                     
+                    # 根据网络速度选择HTTP块大小
+                    network_choice = self.network_combo.get()
+                    if "Fast" in network_choice:
+                        http_chunk = 31457280  # 30MB
+                        buffersize = 131072    # 128KB
+                    elif "Medium" in network_choice:
+                        http_chunk = 15728640  # 15MB
+                        buffersize = 65536     # 64KB
+                    else:  # Slow
+                        http_chunk = 5242880   # 5MB
+                        buffersize = 65536     # 64KB
+                    
+                    self.root.after(0, lambda hc=http_chunk//1048576: self.log(f"Using {hc}MB chunk size for download"))
+                    
                     ydl_opts = {
                         'format': f"{format_str}/best",
                         'outtmpl': output_template,
                         'merge_output_format': 'mp4',
-                        'postprocessor_args': {'ffmpeg': ['-c:v', 'copy', '-c:a', 'aac']},
+                        
+                        # FFmpeg后处理优化参数
+                        'postprocessor_args': {
+                            'ffmpeg': [
+                                '-c:v', 'copy',              # 视频流直接复制，不重编码
+                                '-c:a', 'aac',               # 音频编码为AAC
+                                '-b:a', '192k',              # 音频码率192kbps
+                                '-threads', '0',             # 使用所有CPU线程
+                                '-movflags', '+faststart',   # 优化MP4结构，支持流式播放
+                            ]
+                        },
+                        
+                        # 网络和缓冲区优化
+                        'http_chunk_size': http_chunk,       # 动态HTTP块大小
+                        'buffersize': buffersize,            # 内存缓冲区
+                        'retries': 15,                       # 下载重试次数（增加到15次）
+                        'fragment_retries': 15,              # 片段重试次数
+                        'file_access_retries': 8,            # 文件访问重试
+                        'skip_unavailable_fragments': True,  # 跳过不可用片段
+                        'socket_timeout': 30,                # Socket超时30秒
+                        
+                        # 并发下载（保守设置）
+                        'concurrent_fragment_downloads': 2,  # 并发下载2个片段
+                        
+                        # 其他优化
                         'progress_hooks': [self.create_progress_hook(video)],
                         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
                         'referer': 'https://www.youtube.com/',
                         'quiet': False,
                         'no_warnings': False,
+                        'noprogress': False,
+                        'ignoreerrors': False,               # 不忽略错误，便于调试
                     }
                     
                     try:
-                        self.root.after(0, lambda: self.log(f"Initializing yt-dlp for: {video_title}"))
+                        self.root.after(0, lambda vt=video_title: self.log(f"Initializing yt-dlp for: {vt}"))
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            self.root.after(0, lambda: self.log(f"Extracting info for: {video_title}"))
+                            self.root.after(0, lambda vt=video_title: self.log(f"Extracting info for: {vt}"))
                             info = ydl.extract_info(video['url'], download=True)
                             video_file = ydl.prepare_filename(info)
                         
@@ -298,21 +363,31 @@ class YouTubeDownloader:
                         
                         # Extract MP3 if selected
                         if self.mp3_var.get():
-                            self.root.after(0, lambda: self.log(f"Extracting MP3 for: {video_title}"))
+                            self.root.after(0, lambda vt=video_title: self.log(f"Extracting MP3 for: {vt}"))
                             mp3_file = os.path.splitext(video_file)[0] + '.mp3'
                             try:
+                                # 使用优化的FFmpeg参数提取MP3
                                 subprocess.run([
-                                    'ffmpeg', '-i', video_file, '-vn', '-acodec', 'mp3',
-                                    '-ab', '192k', '-y', mp3_file
-                                ], check=True, capture_output=True, timeout=60)
+                                    'ffmpeg', '-y',
+                                    '-i', video_file,
+                                    '-vn',                      # 不处理视频流
+                                    '-acodec', 'libmp3lame',    # 使用高质量MP3编码器
+                                    '-b:a', '192k',             # 音频码率
+                                    '-ar', '44100',             # 采样率44.1kHz
+                                    '-threads', '0',            # 使用所有CPU线程
+                                    mp3_file
+                                ], check=True, capture_output=True, timeout=600)  # 10分钟超时，足够长视频
                                 self.root.after(0, lambda mf=mp3_file: self.log(f"MP3 saved: {mf}"))
-                            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                                error_msg = f"MP3 extraction failed for {video_title}: {str(e)}"
-                                self.root.after(0, lambda: self.log(error_msg))
+                            except subprocess.TimeoutExpired:
+                                error_msg = f"MP3 extraction timeout for {video_title} (超过10分钟)"
+                                self.root.after(0, lambda em=error_msg: self.log(em))
+                            except subprocess.CalledProcessError as e:
+                                error_msg = f"MP3 extraction failed for {video_title}: {e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)}"
+                                self.root.after(0, lambda em=error_msg: self.log(em))
                     
                     except Exception as video_error:
                         error_msg = f"Failed to download {video_title}: {str(video_error)}"
-                        self.root.after(0, lambda: self.log(error_msg))
+                        self.root.after(0, lambda em=error_msg: self.log(em))
                         continue  # Continue with next video
                 
                 self.root.after(0, lambda: self.log("All downloads completed!"))
@@ -320,8 +395,8 @@ class YouTubeDownloader:
                 
             except Exception as e:
                 error_msg = f"Download process failed: {str(e)}"
-                self.root.after(0, lambda: messagebox.showerror("Error", error_msg))
-                self.root.after(0, lambda: self.log(error_msg))
+                self.root.after(0, lambda em=error_msg: messagebox.showerror("Error", em))
+                self.root.after(0, lambda em=error_msg: self.log(em))
                 
             finally:
                 self.root.after(0, lambda: self.download_btn.config(state="normal"))
@@ -333,18 +408,44 @@ class YouTubeDownloader:
         
     def create_progress_hook(self, video):
         """Create a progress hook function for a specific video"""
+        video_title = video['title']  # 提前捕获标题
+        import time
+        
         def progress_hook(d):
             if d['status'] == 'downloading':
-                progress = d.get('_percent_str', '0%').replace('%', '')
-                video_title = video['title']
-                self.root.after(0, lambda: self.log(f"{video_title} - Progress: {progress}%"))
+                # 节流机制：限制进度更新频率
+                current_time = time.time()
+                last_update = self.last_progress_update.get(video_title, 0)
+                
+                # 只有距离上次更新超过指定间隔才更新进度
+                if current_time - last_update >= self.progress_update_interval:
+                    self.last_progress_update[video_title] = current_time
+                    progress = d.get('_percent_str', '0%').replace('%', '')
+                    speed = d.get('_speed_str', 'N/A')
+                    eta = d.get('_eta_str', 'N/A')
+                    # 使用try-except保护，避免事件队列问题
+                    try:
+                        self.root.after_idle(lambda vt=video_title, p=progress, s=speed, e=eta: 
+                                           self.log(f"{vt} - {p}% | Speed: {s} | ETA: {e}"))
+                    except:
+                        pass  # 如果事件队列满了，跳过这次更新
+                        
             elif d['status'] == 'finished':
-                video_title = video['title']
-                self.root.after(0, lambda: self.log(f"{video_title} - Download finished, processing..."))
+                # 完成消息必须显示
+                try:
+                    self.root.after_idle(lambda vt=video_title: self.log(f"{vt} - Download finished, processing..."))
+                except:
+                    pass
+                # 清理进度记录
+                if video_title in self.last_progress_update:
+                    del self.last_progress_update[video_title]
+                    
             elif 'error' in d['status'].lower():
-                video_title = video['title']
                 error_msg = d.get('info_dict', {}).get('error', 'Unknown error')
-                self.root.after(0, lambda: self.log(f"{video_title} - Error: {error_msg}"))
+                try:
+                    self.root.after_idle(lambda vt=video_title, em=error_msg: self.log(f"{vt} - Error: {em}"))
+                except:
+                    pass
         return progress_hook
 
 if __name__ == "__main__":

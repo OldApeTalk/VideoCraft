@@ -18,6 +18,7 @@ from datetime import timedelta
 # 全局变量
 video_duration = 0.0  # 视频总时长（秒）
 processing = False  # 是否正在处理
+encode_preset = "veryfast"  # 编码速度预设
 
 def split_subtitle(sub, max_chars, is_chinese=False):
     """
@@ -231,6 +232,19 @@ def hex_color_to_drawtext(color):
         color = "FFFFFF"
     return f"#{color}"
 
+def get_video_resolution(video_path):
+    """获取视频分辨率"""
+    try:
+        cmd = ['ffprobe', '-v', 'error', '-select_streams', 'v:0', 
+               '-show_entries', 'stream=width,height', '-of', 'csv=p=0', video_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            width, height = map(int, result.stdout.strip().split(','))
+            return width, height
+    except:
+        pass
+    return None, None
+
 def merge_videos():
     global processing
     if processing:
@@ -340,13 +354,57 @@ def merge_videos():
 
     vf = ",".join(vf_filters)
 
+    # 获取视频分辨率以设置合适的缓冲区大小
+    width, height = get_video_resolution(video_path_abs)
+    
+    # 根据分辨率设置缓冲区大小和最大码率
+    if width and height:
+        pixels = width * height
+        if pixels >= 3840 * 2160:  # 4K或更高
+            bufsize = '150M'
+            maxrate = '150M'
+        elif pixels >= 2560 * 1440:  # 2K
+            bufsize = '80M'
+            maxrate = '80M'
+        elif pixels >= 1920 * 1080:  # 1080p
+            bufsize = '50M'
+            maxrate = '50M'
+        else:  # 720p或更低
+            bufsize = '30M'
+            maxrate = '30M'
+    else:
+        # 无法获取分辨率时使用保守的大值
+        bufsize = '100M'
+        maxrate = '100M'
+    
+    # 获取编码预设
+    preset = encode_preset_var.get()
+    
+    # 根据preset设置CRF值（更快的preset使用略高的CRF以保持合理文件大小）
+    crf_map = {
+        'ultrafast': '28',
+        'superfast': '26',
+        'veryfast': '25',
+        'faster': '24',
+        'fast': '23',
+        'medium': '23'
+    }
+    crf = crf_map.get(preset, '25')
+    
     cmd = [
         'ffmpeg',
         '-y',
         '-i', video_path_abs,
         '-vf', vf,
         '-c:v', 'libx264',
+        '-preset', preset,           # 编码速度预设
+        '-crf', crf,                 # 质量控制
+        '-threads', '0',             # 使用所有CPU线程
+        '-bufsize', bufsize,         # 根据分辨率动态设置的大缓冲区
+        '-maxrate', maxrate,         # 根据分辨率动态设置的最大码率
+        '-pix_fmt', 'yuv420p',       # 兼容性像素格式
         '-c:a', 'aac',
+        '-b:a', '192k',              # 音频码率
         '-movflags', '+faststart',
         output_path
     ]
@@ -453,6 +511,9 @@ sub2_is_chinese_var = tk.BooleanVar(value=False)
 # 屏幕方向变量
 orientation_var = tk.StringVar(value="horizontal")
 
+# 编码速度预设变量
+encode_preset_var = tk.StringVar(value="veryfast")
+
 def update_split_settings():
     if orientation_var.get() == "horizontal":
         sub1_max_chars_var.set(20)
@@ -477,6 +538,17 @@ frame_orientation.grid(row=1, column=0, columnspan=3, padx=15, pady=5, sticky="w
 
 tk.Radiobutton(frame_orientation, text="横屏", variable=orientation_var, value="horizontal", command=update_split_settings).grid(row=0, column=0, padx=20)
 tk.Radiobutton(frame_orientation, text="竖屏", variable=orientation_var, value="vertical", command=update_split_settings).grid(row=0, column=1, padx=20)
+
+# 编码速度设置（放在屏幕方向设置的右侧）
+tk.Label(frame_orientation, text="  |  编码速度:").grid(row=0, column=2, padx=(40, 5), sticky="e")
+encode_preset_combo = ttk.Combobox(frame_orientation, textvariable=encode_preset_var, 
+                                   values=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium"],
+                                   width=12, state="readonly")
+encode_preset_combo.grid(row=0, column=3, padx=5)
+
+# 添加提示标签
+tk.Label(frame_orientation, text="(高分辨率建议: veryfast或更快)", 
+         font=("Arial", 8), fg="gray").grid(row=0, column=4, padx=5)
 
 # 字幕1（底部，中文，在英文字幕之上）
 frame_sub1 = tk.LabelFrame(root, text="中文字幕（底部，之上）", padx=5, pady=5)

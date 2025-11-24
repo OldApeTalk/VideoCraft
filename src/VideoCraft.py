@@ -51,15 +51,15 @@ class VideoCraftApp:
     def __init__(self, root):
         self.root = root
         self.root.title("VideoCraft - 视频制作工具集")
-        self.root.geometry("1000x650")
+        self.root.geometry("1400x650")
 
         # 标题
         title_label = tk.Label(root, text="VideoCraft - 视频制作工具集", font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, columnspan=4, pady=20)
+        title_label.grid(row=0, column=0, columnspan=6, pady=20)
 
         # 核心工作流区域（左边）
         core_frame = tk.LabelFrame(root, text="核心工作流", padx=20, pady=10)
-        core_frame.grid(row=1, column=0, columnspan=2, padx=20, pady=10, sticky="n")
+        core_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky="n")
 
         tk.Label(core_frame, text="视频制作核心流程", font=("Arial", 12, "bold")).pack(pady=10)
 
@@ -76,9 +76,9 @@ class VideoCraftApp:
                            width=25, height=2, bg="#e8f5e8")
             btn.pack(pady=5)
 
-        # 辅助工具区域（右边）
+        # 辅助工具区域（中间）
         tools_frame = tk.LabelFrame(root, text="辅助工具", padx=20, pady=10)
-        tools_frame.grid(row=1, column=2, columnspan=2, padx=20, pady=10, sticky="n")
+        tools_frame.grid(row=1, column=2, columnspan=2, padx=10, pady=10, sticky="n")
 
         tk.Label(tools_frame, text="视频处理辅助工具", font=("Arial", 12, "bold")).pack(pady=10)
 
@@ -117,8 +117,27 @@ class VideoCraftApp:
         
         tk.Label(srt_tools_frame, text="• 生成YouTube片段\n• 提取段落内容\n• 生成视频标题\n• 提取字幕文本", 
                 justify=tk.LEFT, font=("Arial", 9)).pack(pady=5)
+
+        # 创作工具区域（右边）
+        create_frame = tk.LabelFrame(root, text="创作工具", padx=20, pady=10)
+        create_frame.grid(row=1, column=4, columnspan=2, padx=10, pady=10, sticky="n")
+
+        tk.Label(create_frame, text="视频创作工具", font=("Arial", 12, "bold")).pack(pady=10)
+
+        # Text2Video 按钮和描述
+        text2video_frame = tk.Frame(create_frame)
+        text2video_frame.pack(pady=10)
+        
+        btn_text2video = tk.Button(text2video_frame, text="Text2Video\n文本转视频", 
+                                   command=lambda: self.run_script("text2Video.py"), 
+                                   width=20, height=3, bg="#e8eaf6", font=("Arial", 10))
+        btn_text2video.pack()
+        
+        tk.Label(text2video_frame, text="• 文本转语音(TTS)\n• 音频合成视频\n• 支持多种语音\n• Gemini TTS", 
+                justify=tk.LEFT, font=("Arial", 9)).pack(pady=5)
+
         exit_btn = tk.Button(root, text="退出 / Exit", command=root.quit, width=20)
-        exit_btn.grid(row=2, column=1, columnspan=2, pady=20)
+        exit_btn.grid(row=2, column=2, columnspan=2, pady=20)
 
     def run_script(self, script_name):
         try:

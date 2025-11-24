@@ -124,9 +124,18 @@ def extract_paragraphs_from_segments(srt_path, segments_path):
         if line and ' ' in line:
             time_str, title = line.split(' ', 1)
             try:
-                # 解析时间戳 (hh:mm:ss)
-                h, m, s = map(int, time_str.split(':'))
-                timestamp = h * 3600 + m * 60 + s
+                # 解析时间戳 (支持 mm:ss 或 hh:mm:ss 格式)
+                time_parts = list(map(int, time_str.split(':')))
+                if len(time_parts) == 2:
+                    # mm:ss 格式
+                    m, s = time_parts
+                    timestamp = m * 60 + s
+                elif len(time_parts) == 3:
+                    # hh:mm:ss 格式
+                    h, m, s = time_parts
+                    timestamp = h * 3600 + m * 60 + s
+                else:
+                    continue  # 格式不正确，跳过
                 segments.append({
                     'timestamp': timestamp,
                     'time_str': time_str,
