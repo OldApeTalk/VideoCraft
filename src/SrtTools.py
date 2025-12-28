@@ -427,25 +427,59 @@ xx:xx 标题
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="提取字幕文字")
 
+        # 创建左右分栏框架
+        left_frame = tk.Frame(tab)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=10, pady=10)
+
+        right_frame = tk.Frame(tab)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 10), pady=10)
+
+        # 左侧控制区域
         # SRT文件选择
-        tk.Label(tab, text="SRT字幕文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(left_frame, text="SRT字幕文件:").grid(row=0, column=0, padx=5, pady=10, sticky="e")
         self.subtitles_srt_var = tk.StringVar()
-        tk.Entry(tab, textvariable=self.subtitles_srt_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(tab, text="浏览", command=self.select_subtitles_srt).grid(row=0, column=2, padx=10)
+        tk.Entry(left_frame, textvariable=self.subtitles_srt_var, width=40).grid(row=0, column=1, sticky="w")
+        tk.Button(left_frame, text="浏览", command=self.select_subtitles_srt).grid(row=0, column=2, padx=10)
 
         # 输出文件选择
-        tk.Label(tab, text="输出文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(left_frame, text="输出文件:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
         self.subtitles_output_var = tk.StringVar(value="AllSubtitles.txt")
-        tk.Entry(tab, textvariable=self.subtitles_output_var, width=50).grid(row=1, column=1, sticky="w")
-        tk.Button(tab, text="浏览", command=self.select_subtitles_output).grid(row=1, column=2, padx=10)
+        tk.Entry(left_frame, textvariable=self.subtitles_output_var, width=40).grid(row=1, column=1, sticky="w")
+        tk.Button(left_frame, text="浏览", command=self.select_subtitles_output).grid(row=1, column=2, padx=10)
 
         # 提取按钮
-        self.subtitles_btn = tk.Button(tab, text="提取字幕文字", command=self.extract_subtitles, width=20)
+        self.subtitles_btn = tk.Button(left_frame, text="提取字幕文字", command=self.extract_subtitles, width=20)
         self.subtitles_btn.grid(row=2, column=1, pady=25)
 
         # 进度/提示
         self.subtitles_status_var = tk.StringVar()
-        tk.Label(tab, textvariable=self.subtitles_status_var, fg="blue").grid(row=3, column=0, columnspan=3, pady=10)
+        tk.Label(left_frame, textvariable=self.subtitles_status_var, fg="blue").grid(row=3, column=0, columnspan=3, pady=10)
+
+        # 右侧显示区域
+        tk.Label(right_frame, text="提取的字幕内容:", font=("Arial", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        
+        # 创建带滚动条的文本框
+        text_frame = tk.Frame(right_frame)
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 垂直滚动条
+        scrollbar_y = tk.Scrollbar(text_frame)
+        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 水平滚动条
+        scrollbar_x = tk.Scrollbar(text_frame, orient=tk.HORIZONTAL)
+        scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # 文本框
+        self.subtitles_text_display = tk.Text(text_frame, wrap=tk.WORD, 
+                                              yscrollcommand=scrollbar_y.set,
+                                              xscrollcommand=scrollbar_x.set,
+                                              font=("Consolas", 10))
+        self.subtitles_text_display.pack(fill=tk.BOTH, expand=True)
+        
+        # 配置滚动条
+        scrollbar_y.config(command=self.subtitles_text_display.yview)
+        scrollbar_x.config(command=self.subtitles_text_display.xview)
 
     def get_available_models(self):
         """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
@@ -796,6 +830,8 @@ xx:xx 标题
                 # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.subtitles_status_var.set("提取完成")
+                    # 在右侧文本框中显示提取的内容
+                    self.master.after(0, self.display_subtitles_content, subtitles_text)
                     messagebox.showinfo("Success", f"字幕文字已保存到: {output_path}")
                 else:
                     raise Exception("文件创建失败或文件为空")
@@ -807,6 +843,11 @@ xx:xx 标题
                 self.subtitles_btn.config(state="normal")
 
         threading.Thread(target=run_subtitle_extraction, daemon=True).start()
+
+    def display_subtitles_content(self, content):
+        """在右侧文本框中显示字幕内容"""
+        self.subtitles_text_display.delete("1.0", tk.END)
+        self.subtitles_text_display.insert("1.0", content)
 
 def main():
     # 启动GUI界面

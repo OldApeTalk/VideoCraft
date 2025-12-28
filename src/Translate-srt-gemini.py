@@ -229,7 +229,7 @@ class TranslateApp:
 
         # 批次大小选择
         tk.Label(master, text="每批次字幕条数:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
-        self.batch_size_var = tk.StringVar(value="50")
+        self.batch_size_var = tk.StringVar(value="100")
         batch_size_frame = tk.Frame(master)
         batch_size_frame.grid(row=4, column=1, columnspan=2, sticky="w", padx=(0,10))
         ttk.Radiobutton(batch_size_frame, text="30", variable=self.batch_size_var, value="30").pack(side=tk.LEFT, padx=5)
@@ -573,11 +573,11 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 # 更新已处理的字幕数量
                 total_processed += batch_size
 
-                # API调用间隔，避免速率限制
+                # API调用间隔，避免速率限制（付费版：0.5秒 ≈ 120 RPM）
                 if batch_idx < len(batches) - 1:
-                    print("  ⏳ 等待6秒...")
+                    print("  ⏳ 等待0.5秒...")
                     import time
-                    time.sleep(6)
+                    time.sleep(0.5)
 
             # 直接应用翻译结果 - 未翻译的字幕保持原文
             untranslated_count = 0
