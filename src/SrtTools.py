@@ -266,6 +266,9 @@ class YouTubeSegmentsApp:
         self.notebook = ttk.Notebook(master)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
+        # 字幕提取标签页（使用频度最高，放在第一位）
+        self.create_subtitles_tab()
+
         # 分段生成标签页
         self.create_segments_tab()
 
@@ -274,9 +277,6 @@ class YouTubeSegmentsApp:
 
         # 标题生成标签页
         self.create_titles_tab()
-
-        # 字幕提取标签页
-        self.create_subtitles_tab()
 
     def create_segments_tab(self):
         """创建分段生成标签页"""
@@ -456,7 +456,12 @@ xx:xx 标题
         tk.Label(left_frame, textvariable=self.subtitles_status_var, fg="blue").grid(row=3, column=0, columnspan=3, pady=10)
 
         # 右侧显示区域
-        tk.Label(right_frame, text="提取的字幕内容:", font=("Arial", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        # 标题和拷贝按钮框架
+        header_frame = tk.Frame(right_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        tk.Label(header_frame, text="提取的字幕内容:", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        tk.Button(header_frame, text="拷贝内容", command=self.copy_subtitles, width=12).pack(side=tk.RIGHT, padx=5)
         
         # 创建带滚动条的文本框
         text_frame = tk.Frame(right_frame)
@@ -829,16 +834,15 @@ xx:xx 标题
 
                 # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                    self.subtitles_status_var.set("提取完成")
+                    output_filename = os.path.basename(output_path)
+                    self.subtitles_status_var.set(f"✓ 提取完成，已保存到: {output_filename}")
                     # 在右侧文本框中显示提取的内容
                     self.master.after(0, self.display_subtitles_content, subtitles_text)
-                    messagebox.showinfo("Success", f"字幕文字已保存到: {output_path}")
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                messagebox.showerror("错误", f"提取失败: {e}")
-                self.subtitles_status_var.set("提取失败")
+                self.subtitles_status_var.set(f"提取失败: {e}")
             finally:
                 self.subtitles_btn.config(state="normal")
 
@@ -848,6 +852,23 @@ xx:xx 标题
         """在右侧文本框中显示字幕内容"""
         self.subtitles_text_display.delete("1.0", tk.END)
         self.subtitles_text_display.insert("1.0", content)
+
+    def copy_subtitles(self):
+        """将字幕内容拷贝到剪贴板"""
+        try:
+            content = self.subtitles_text_display.get("1.0", tk.END).strip()
+            if not content:
+                self.subtitles_status_var.set("没有可拷贝的内容")
+                return
+            
+            # 清空剪贴板并设置新内容
+            self.master.clipboard_clear()
+            self.master.clipboard_append(content)
+            self.master.update()  # 确保剪贴板更新
+            
+            self.subtitles_status_var.set("内容已拷贝到剪贴板 ✓")
+        except Exception as e:
+            self.subtitles_status_var.set(f"拷贝失败: {e}")
 
 def main():
     # 启动GUI界面

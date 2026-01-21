@@ -18,91 +18,111 @@ except ImportError:
     PYDUB_AVAILABLE = False
 
 # 支持的语言列表 (语言代码 -> (英文名, 中文名))
+# 与 Speech2Text-lemonfoxAPI-Online.py 中的 language_dict 保持一致
+# UN官方语言优先：ar, zh, en, fr, ru, es
+# 其他按英文名字母顺序
 SUPPORTED_LANGUAGES = {
     'auto': ('Auto Detect', '自动检测'),
-    'en': ('English', '英语'),
-    'zh': ('Chinese', '中文'),
-    'ja': ('Japanese', '日语'),
-    'ko': ('Korean', '韩语'),
-    'de': ('German', '德语'),
-    'fr': ('French', '法语'),
-    'es': ('Spanish', '西班牙语'),
-    'pt': ('Portuguese', '葡萄牙语'),
-    'it': ('Italian', '意大利语'),
-    'ru': ('Russian', '俄语'),
     'ar': ('Arabic', '阿拉伯语'),
-    'hi': ('Hindi', '印地语'),
-    'th': ('Thai', '泰语'),
-    'vi': ('Vietnamese', '越南语'),
-    'nl': ('Dutch', '荷兰语'),
-    'pl': ('Polish', '波兰语'),
-    'tr': ('Turkish', '土耳其语'),
-    'sv': ('Swedish', '瑞典语'),
-    'da': ('Danish', '丹麦语'),
-    'no': ('Norwegian', '挪威语'),
-    'fi': ('Finnish', '芬兰语'),
-    'cs': ('Czech', '捷克语'),
-    'hu': ('Hungarian', '匈牙利语'),
-    'ro': ('Romanian', '罗马尼亚语'),
-    'bg': ('Bulgarian', '保加利亚语'),
-    'hr': ('Croatian', '克罗地亚语'),
-    'sk': ('Slovak', '斯洛伐克语'),
-    'sl': ('Slovenian', '斯洛文尼亚语'),
-    'et': ('Estonian', '爱沙尼亚语'),
-    'lv': ('Latvian', '拉脱维亚语'),
-    'lt': ('Lithuanian', '立陶宛语'),
-    'mt': ('Maltese', '马耳他语'),
-    'ga': ('Irish', '爱尔兰语'),
-    'is': ('Icelandic', '冰岛语'),
-    'mk': ('Macedonian', '马其顿语'),
-    'sq': ('Albanian', '阿尔巴尼亚语'),
-    'bs': ('Bosnian', '波斯尼亚语'),
-    'sr': ('Serbian', '塞尔维亚语'),
-    'me': ('Montenegrin', '黑山语'),
-    'uk': ('Ukrainian', '乌克兰语'),
-    'be': ('Belarusian', '白俄罗斯语'),
-    'ka': ('Georgian', '格鲁吉亚语'),
-    'hy': ('Armenian', '亚美尼亚语'),
-    'az': ('Azerbaijani', '阿塞拜疆语'),
-    'kk': ('Kazakh', '哈萨克语'),
-    'uz': ('Uzbek', '乌兹别克语'),
-    'tk': ('Turkmen', '土库曼语'),
-    'ky': ('Kyrgyz', '吉尔吉斯语'),
-    'tg': ('Tajik', '塔吉克语'),
-    'mn': ('Mongolian', '蒙古语'),
-    'bn': ('Bengali', '孟加拉语'),
-    'pa': ('Punjabi', '旁遮普语'),
-    'gu': ('Gujarati', '古吉拉特语'),
-    'or': ('Oriya', '奥里亚语'),
-    'te': ('Telugu', '泰卢固语'),
-    'kn': ('Kannada', '卡纳达语'),
-    'ml': ('Malayalam', '马拉雅拉姆语'),
-    'si': ('Sinhala', '僧伽罗语'),
-    'ne': ('Nepali', '尼泊尔语'),
-    'mr': ('Marathi', '马拉地语'),
+    'zh': ('Chinese', '中文'),
+    'en': ('English', '英语'),
+    'fr': ('French', '法语'),
+    'ru': ('Russian', '俄语'),
+    'es': ('Spanish', '西班牙语'),
+    'af': ('Afrikaans', '南非荷兰语'),
+    'am': ('Amharic', '阿姆哈拉语'),
     'as': ('Assamese', '阿萨姆语'),
-    'bh': ('Bihari', '比哈里语'),
+    'az': ('Azerbaijani', '阿塞拜疆语'),
+    'ba': ('Bashkir', '巴什基尔语'),
+    'be': ('Belarusian', '白俄罗斯语'),
+    'bg': ('Bulgarian', '保加利亚语'),
+    'bn': ('Bengali', '孟加拉语'),
+    'bo': ('Tibetan', '藏语'),
+    'br': ('Breton', '布列塔尼语'),
+    'bs': ('Bosnian', '波斯尼亚语'),
+    'ca': ('Catalan', '加泰罗尼亚语'),
+    'cs': ('Czech', '捷克语'),
+    'cy': ('Welsh', '威尔士语'),
+    'da': ('Danish', '丹麦语'),
+    'de': ('German', '德语'),
+    'el': ('Greek', '希腊语'),
+    'et': ('Estonian', '爱沙尼亚语'),
+    'eu': ('Basque', '巴斯克语'),
+    'fa': ('Persian', '波斯语'),
+    'fi': ('Finnish', '芬兰语'),
+    'fo': ('Faroese', '法罗语'),
+    'gl': ('Galician', '加利西亚语'),
+    'gu': ('Gujarati', '古吉拉特语'),
+    'ha': ('Hausa', '豪萨语'),
+    'haw': ('Hawaiian', '夏威夷语'),
+    'he': ('Hebrew', '希伯来语'),
+    'hi': ('Hindi', '印地语'),
+    'hr': ('Croatian', '克罗地亚语'),
+    'ht': ('Haitian Creole', '海地克里奥尔语'),
+    'hu': ('Hungarian', '匈牙利语'),
+    'hy': ('Armenian', '亚美尼亚语'),
+    'id': ('Indonesian', '印度尼西亚语'),
+    'is': ('Icelandic', '冰岛语'),
+    'it': ('Italian', '意大利语'),
+    'ja': ('Japanese', '日语'),
+    'jw': ('Javanese', '爪哇语'),
+    'ka': ('Georgian', '格鲁吉亚语'),
+    'kk': ('Kazakh', '哈萨克语'),
+    'km': ('Khmer', '高棉语'),
+    'kn': ('Kannada', '卡纳达语'),
+    'ko': ('Korean', '韩语'),
+    'la': ('Latin', '拉丁语'),
+    'lb': ('Luxembourgish', '卢森堡语'),
+    'ln': ('Lingala', '林加拉语'),
+    'lo': ('Lao', '老挝语'),
+    'lt': ('Lithuanian', '立陶宛语'),
+    'lv': ('Latvian', '拉脱维亚语'),
+    'mg': ('Malagasy', '马达加斯加语'),
+    'mi': ('Maori', '毛利语'),
+    'mk': ('Macedonian', '马其顿语'),
+    'ml': ('Malayalam', '马拉雅拉姆语'),
+    'mn': ('Mongolian', '蒙古语'),
+    'mr': ('Marathi', '马拉地语'),
+    'ms': ('Malay', '马来语'),
+    'mt': ('Maltese', '马耳他语'),
+    'my': ('Myanmar', '缅甸语'),
+    'ne': ('Nepali', '尼泊尔语'),
+    'nl': ('Dutch', '荷兰语'),
+    'nn': ('Norwegian Nynorsk', '新挪威语'),
+    'no': ('Norwegian', '挪威语'),
+    'oc': ('Occitan', '奥克语'),
+    'pa': ('Punjabi', '旁遮普语'),
+    'pl': ('Polish', '波兰语'),
+    'ps': ('Pashto', '普什图语'),
+    'pt': ('Portuguese', '葡萄牙语'),
+    'ro': ('Romanian', '罗马尼亚语'),
     'sa': ('Sanskrit', '梵语'),
     'sd': ('Sindhi', '信德语'),
-    'ur': ('Urdu', '乌尔都语'),
-    'fa': ('Persian', '波斯语'),
-    'he': ('Hebrew', '希伯来语'),
-    'yi': ('Yiddish', '意第绪语'),
-    'am': ('Amharic', '阿姆哈拉语'),
-    'ti': ('Tigrinya', '提格里尼亚语'),
-    'om': ('Oromo', '奥罗莫语'),
+    'si': ('Sinhala', '僧伽罗语'),
+    'sk': ('Slovak', '斯洛伐克语'),
+    'sl': ('Slovenian', '斯洛文尼亚语'),
+    'sn': ('Shona', '绍纳语'),
     'so': ('Somali', '索马里语'),
+    'sq': ('Albanian', '阿尔巴尼亚语'),
+    'sr': ('Serbian', '塞尔维亚语'),
+    'su': ('Sundanese', '巽他语'),
+    'sv': ('Swedish', '瑞典语'),
     'sw': ('Swahili', '斯瓦希里语'),
-    'rw': ('Kinyarwanda', '卢旺达语'),
-    'rn': ('Kirundi', '基隆迪语'),
-    'mg': ('Malagasy', '马达加斯加语'),
-    'xh': ('Xhosa', '科萨语'),
-    'zu': ('Zulu', '祖鲁语'),
-    'st': ('Sesotho', '塞索托语'),
-    'tn': ('Tswana', '茨瓦纳语'),
-    'af': ('Afrikaans', '南非荷兰语'),
-    'ha': ('Hausa', '豪萨语'),
+    'ta': ('Tamil', '泰米尔语'),
+    'te': ('Telugu', '泰卢固语'),
+    'tg': ('Tajik', '塔吉克语'),
+    'th': ('Thai', '泰语'),
+    'tk': ('Turkmen', '土库曼语'),
+    'tl': ('Tagalog', '他加禄语'),
+    'tr': ('Turkish', '土耳其语'),
+    'tt': ('Tatar', '鞑靼语'),
+    'uk': ('Ukrainian', '乌克兰语'),
+    'ur': ('Urdu', '乌尔都语'),
+    'uz': ('Uzbek', '乌兹别克语'),
+    'vi': ('Vietnamese', '越南语'),
+    'yi': ('Yiddish', '意第绪语'),
     'yo': ('Yoruba', '约鲁巴语'),
+    'yue': ('Cantonese', '粤语'),
     'ig': ('Igbo', '伊博语'),
     'id': ('Indonesian', '印度尼西亚语'),
     'ms': ('Malay', '马来语'),
@@ -134,10 +154,14 @@ SUPPORTED_LANGUAGES = {
     'pi': ('Pali', '巴利语'),
 }
 
-# 生成语言选项列表
-language_options = []
-for code, (eng, chn) in SUPPORTED_LANGUAGES.items():
-    language_options.append(f"{eng} ({chn}) - {code.upper()}")
+# 生成双语选项列表（与 Speech2Text-lemonfoxAPI-Online.py 保持一致）
+language_options = ["Auto Detect (自动检测，用于混合或未知语言)"]
+un_languages = ["ar", "zh", "en", "fr", "ru", "es"]
+other_languages = sorted([code for code in SUPPORTED_LANGUAGES if code not in un_languages and code != 'auto'])
+
+for code in un_languages + other_languages:
+    eng, chn = SUPPORTED_LANGUAGES[code]
+    language_options.append(f"{eng} ({chn})")
 
 def split_audio_by_size(audio_path, max_size_kb=100):
     """按文件大小分割音频，确保每段不超过max_size_kb KB"""
@@ -217,13 +241,13 @@ class TranslateApp:
 
         # 源语言选择
         tk.Label(master, text="源语言 (Source):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
-        self.source_lang_var = tk.StringVar(value="English (英语) - EN")
+        self.source_lang_var = tk.StringVar(value="English (英语)")
         self.source_combo = ttk.Combobox(master, textvariable=self.source_lang_var, values=language_options, state="readonly", width=30)
         self.source_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0,10))
 
         # 目标语言选择
         tk.Label(master, text="目标语言 (Target):").grid(row=3, column=0, padx=10, pady=5, sticky="e")
-        self.target_lang_var = tk.StringVar(value="Chinese (中文) - ZH")
+        self.target_lang_var = tk.StringVar(value="Chinese (中文)")
         self.target_combo = ttk.Combobox(master, textvariable=self.target_lang_var, values=language_options, state="readonly", width=30)
         self.target_combo.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0,10))
 
@@ -317,11 +341,19 @@ Return the translated subtitles in the same special 【number】 format with {{b
             self.model_var.set(self.available_models[0] if self.available_models else "gemini-2.5-flash")
 
     def get_lang_code(self, lang_str):
-        """从语言选择字符串中提取语言代码"""
-        if " - " in lang_str:
-            code = lang_str.split(" - ")[-1].lower()
-            if code in SUPPORTED_LANGUAGES:
+        """从语言选择字符串中提取语言代码（与 Speech2Text 保持一致）"""
+        # 处理 Auto Detect
+        if lang_str.startswith("Auto Detect"):
+            return 'auto'
+        
+        # 从双语字符串提取英文名并转为小写，然后查找对应代码
+        eng_name = lang_str.split(" (")[0]
+        
+        # 在 SUPPORTED_LANGUAGES 中查找匹配的语言代码
+        for code, (english, chinese) in SUPPORTED_LANGUAGES.items():
+            if english == eng_name:
                 return code
+        
         return 'en'  # 默认返回英语
 
     def configure_gemini_key(self):

@@ -395,8 +395,8 @@ button_delete_key.pack(side=tk.LEFT, padx=5)
 # 语言选择
 label_language = tk.Label(root, text="选择语言:")
 label_language.pack(pady=5)
-combo_language = tk.StringVar()
-combo_menu = ttk.OptionMenu(root, combo_language, language_options[0], *language_options)  # 使用ttk以支持滚动
+combo_language = tk.StringVar(value=language_options[0])
+combo_menu = ttk.Combobox(root, textvariable=combo_language, values=language_options, state="readonly", width=40)
 combo_menu.pack(fill=tk.X, padx=10)
 
 # 自动转换为英语复选框
