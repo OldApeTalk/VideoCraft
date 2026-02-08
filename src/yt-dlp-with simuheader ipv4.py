@@ -289,58 +289,67 @@ class YouTubeDownloader:
                     total = len(self.selected_videos)
                     self.root.after(0, lambda vt=video_title, n=idx, t=total: self.log(f"Starting download {n}/{t}: {vt}"))
                     
-                    # Map quality to format
-                    format_str = {
-                        "best": "best[height<=1080]",
-                        "1080p": "best[height<=1080]",
-                        "720p": "best[height<=720]",
-                        "480p": "best[height<=480]",
-                        "360p": "best[height<=360]"
-                    }.get(quality, "best")
+                    # Map quality to format - 修复格式选择逻辑
+                    # 使用 bestvideo+bestaudio 确保获取最高质量的音视频流
+                    if quality == "best":
+                        format_str = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+                    elif quality == "1080p":
+                        format_str = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+                    elif quality == "720p":
+                        format_str = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]"
+                    elif quality == "480p":
+                        format_str = "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]"
+                    elif quality == "360p":
+                        format_str = "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]"
+                    else:
+                        format_str = "bestvideo+bestaudio/best"
                     
                     output_template = os.path.join(output_dir, "%(title)s.%(ext)s")
                     
-                    # 根据网络速度选择HTTP块大小
+                    # 根据网络速度选择HTTP块大小和并发设置
                     network_choice = self.network_combo.get()
                     if "Fast" in network_choice:
                         http_chunk = 31457280  # 30MB
-                        buffersize = 131072    # 128KB
+                        buffersize = 16777216  # 16MB 内存缓冲区
+                        concurrent = 8         # 并发下载8个片段
                     elif "Medium" in network_choice:
                         http_chunk = 15728640  # 15MB
-                        buffersize = 65536     # 64KB
+                        buffersize = 8388608   # 8MB 内存缓冲区
+                        concurrent = 5         # 并发下载5个片段
                     else:  # Slow
                         http_chunk = 5242880   # 5MB
-                        buffersize = 65536     # 64KB
+                        buffersize = 4194304   # 4MB 内存缓冲区
+                        concurrent = 3         # 并发下载3个片段
                     
-                    self.root.after(0, lambda hc=http_chunk//1048576: self.log(f"Using {hc}MB chunk size for download"))
+                    self.root.after(0, lambda hc=http_chunk//1048576, bs=buffersize//1048576, c=concurrent: 
+                                   self.log(f"Using {hc}MB chunks, {bs}MB buffer, {c} concurrent downloads"))
                     
                     ydl_opts = {
-                        'format': f"{format_str}/best",
+                        'format': format_str,
                         'outtmpl': output_template,
                         'merge_output_format': 'mp4',
                         
-                        # FFmpeg后处理优化参数
+                        # FFmpeg后处理优化参数 - 音视频都不重编码以提速
                         'postprocessor_args': {
                             'ffmpeg': [
-                                '-c:v', 'copy',              # 视频流直接复制，不重编码
-                                '-c:a', 'aac',               # 音频编码为AAC
-                                '-b:a', '192k',              # 音频码率192kbps
+                                '-c:v', 'copy',              # 视频流直接复制
+                                '-c:a', 'copy',              # 音频流也直接复制，不重编码
                                 '-threads', '0',             # 使用所有CPU线程
-                                '-movflags', '+faststart',   # 优化MP4结构，支持流式播放
+                                '-movflags', '+faststart',   # 优化MP4结构
                             ]
                         },
                         
                         # 网络和缓冲区优化
                         'http_chunk_size': http_chunk,       # 动态HTTP块大小
                         'buffersize': buffersize,            # 内存缓冲区
-                        'retries': 15,                       # 下载重试次数（增加到15次）
-                        'fragment_retries': 15,              # 片段重试次数
-                        'file_access_retries': 8,            # 文件访问重试
+                        'retries': 10,                       # 下载重试次数
+                        'fragment_retries': 10,              # 片段重试次数
+                        'file_access_retries': 5,            # 文件访问重试
                         'skip_unavailable_fragments': True,  # 跳过不可用片段
-                        'socket_timeout': 30,                # Socket超时30秒
+                        'socket_timeout': 30,                # Socket超时
                         
-                        # 并发下载（保守设置）
-                        'concurrent_fragment_downloads': 2,  # 并发下载2个片段
+                        # 并发下载优化
+                        'concurrent_fragment_downloads': concurrent,  # 动态并发数
                         
                         # 其他优化
                         'progress_hooks': [self.create_progress_hook(video)],
@@ -349,7 +358,7 @@ class YouTubeDownloader:
                         'quiet': False,
                         'no_warnings': False,
                         'noprogress': False,
-                        'ignoreerrors': False,               # 不忽略错误，便于调试
+                        'ignoreerrors': False,               # 不忽略错误
                     }
                     
                     try:
