@@ -7,4 +7,5 @@ google-generativeai
 google-genai
 google-cloud-texttospeech>=2.29.0
 Pillow>=10.0.0
+tkcalendar
 # pydub  # Optional: for Live API audio processing (may not be available on all Windows systems)

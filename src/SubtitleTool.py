@@ -13,7 +13,8 @@ import time
 import re
 import json
 import srt
-from datetime import timedelta
+from datetime import timedelta, datetime
+from tkcalendar import DateEntry
 
 # 全局变量
 video_duration = 0.0  # 视频总时长（秒）
@@ -325,14 +326,23 @@ def merge_videos():
         f"Bold=0,Alignment=2,MarginV={marginv2}"
     )
 
+    # 获取视频分辨率（提前获取，用于水印字体大小计算和缓冲区设置）
+    width, height = get_video_resolution(video_path_abs)
+    
     # 水印参数
     show_watermark = watermark_show_var.get()
     watermark_text = watermark_text_var.get()
     watermark_alpha = watermark_alpha_var.get()  # 0-100
     watermark_color = watermark_color_var.get()  # "#RRGGBB"
-    watermark_fontsize = watermark_fontsize_var.get()
+    watermark_fontsize_base = watermark_fontsize_var.get()
     watermark_ff_color = hex_color_to_drawtext(watermark_color)
     alpha_value = round(watermark_alpha / 100, 2)  # 0=不透明, 1=全透明
+    
+    # 根据视频高度动态调整水印字体大小（以1080p为基准）
+    if height:
+        watermark_fontsize = int((height / 1080) * watermark_fontsize_base)
+    else:
+        watermark_fontsize = watermark_fontsize_base
 
     vf_filters = []
     if show_sub2:
@@ -344,18 +354,30 @@ def merge_videos():
             f"subtitles=filename='{sub1_path_ff}':force_style='{style1}'"
         )
     if show_watermark:
-        watermark_filter = (
+        # 水印文字（第一行，在上）
+        watermark_text_filter = (
             f"drawtext=text='{watermark_text}':"
             f"fontcolor={watermark_ff_color}@{alpha_value}:"
             f"fontsize={watermark_fontsize}:font='Microsoft YaHei':"
             f"x=w-tw-30:y=30:borderw=2:bordercolor=black"
         )
-        vf_filters.append(watermark_filter)
+        vf_filters.append(watermark_text_filter)
+        
+        # 日期水印（第二行，在下）
+        show_date = watermark_show_date_var.get()
+        if show_date:
+            watermark_date = watermark_date_var.get()
+            # 日期显示在文字下方，y坐标增加字体大小+10的间距
+            date_y_position = 30 + watermark_fontsize + 10
+            watermark_date_filter = (
+                f"drawtext=text='{watermark_date}':"
+                f"fontcolor={watermark_ff_color}@{alpha_value}:"
+                f"fontsize={watermark_fontsize}:font='Microsoft YaHei':"
+                f"x=w-tw-30:y={date_y_position}:borderw=2:bordercolor=black"
+            )
+            vf_filters.append(watermark_date_filter)
 
     vf = ",".join(vf_filters)
-
-    # 获取视频分辨率以设置合适的缓冲区大小
-    width, height = get_video_resolution(video_path_abs)
     
     # 根据分辨率设置缓冲区大小和最大码率
     if width and height:
@@ -489,8 +511,10 @@ root.geometry("900x650")
 watermark_text_var = tk.StringVar(value="字幕制作By老猿")
 watermark_alpha_var = tk.DoubleVar(value=60.0)
 watermark_color_var = tk.StringVar(value="#00ffff")
-watermark_fontsize_var = tk.IntVar(value=24)
+watermark_fontsize_var = tk.IntVar(value=48)
 watermark_show_var = tk.BooleanVar(value=True)
+watermark_show_date_var = tk.BooleanVar(value=False)
+watermark_date_var = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
 
 # 字幕参数变量
 sub1_fontsize_var = tk.IntVar(value=24)
@@ -597,7 +621,7 @@ entry_watermark = tk.Entry(frame_watermark, textvariable=watermark_text_var, wid
 entry_watermark.grid(row=0, column=1, padx=5)
 
 tk.Label(frame_watermark, text="字号:").grid(row=0, column=2, sticky="e")
-tk.Spinbox(frame_watermark, from_=10, to=60, width=4, textvariable=watermark_fontsize_var).grid(row=0, column=3, padx=2)
+tk.Spinbox(frame_watermark, from_=10, to=100, width=4, textvariable=watermark_fontsize_var).grid(row=0, column=3, padx=2)
 
 tk.Label(frame_watermark, text="透明度(%):").grid(row=0, column=4, sticky="e")
 scale_alpha = tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL, variable=watermark_alpha_var, length=100)
@@ -610,6 +634,15 @@ btn_color = tk.Button(frame_watermark, text="选择", command=choose_watermark_c
 btn_color.grid(row=0, column=8, padx=5)
 
 tk.Checkbutton(frame_watermark, text="显示", variable=watermark_show_var).grid(row=0, column=9, padx=10)
+
+# 水印第二行：日期选项
+tk.Checkbutton(frame_watermark, text="显示日期", variable=watermark_show_date_var).grid(row=1, column=0, sticky="e", padx=5)
+tk.Label(frame_watermark, text="日期:").grid(row=1, column=1, sticky="w")
+date_picker = DateEntry(frame_watermark, textvariable=watermark_date_var, width=12, 
+                       background='darkblue', foreground='white', borderwidth=2, 
+                       date_pattern='yyyy-mm-dd')
+date_picker.grid(row=1, column=2, columnspan=2, sticky="w", padx=5)
+tk.Label(frame_watermark, text="(日期将显示在文字上方)", font=("Arial", 8), fg="gray").grid(row=1, column=4, columnspan=2, sticky="w")
 
 # 进度条和时间显示
 frame_progress = tk.Frame(root)

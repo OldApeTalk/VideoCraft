@@ -19,6 +19,7 @@ class YouTubeDownloader:
         
         # Network configuration
         self.network_speed = "fast"  # fast, medium, slow
+        self.force_ipv4_var = tk.BooleanVar(value=True)
         
         # Progress update throttling - 避免事件队列堆积
         self.last_progress_update = {}  # {video_title: last_update_time}
@@ -93,6 +94,9 @@ class YouTubeDownloader:
         self.network_combo.current(0)
         self.network_combo.grid(row=4, column=0, sticky="w", pady=(0,5))
         tk.Label(options_frame, text="(选择网络速度以优化下载)", font=("Arial", 7), fg="gray").grid(row=5, column=0, sticky="w")
+
+        # IPv4 Option
+        tk.Checkbutton(options_frame, text="Force IPv4 (-4)", variable=self.force_ipv4_var, font=("Arial", 9)).grid(row=6, column=0, sticky="w", pady=(8,0))
         
         # Right Panel - Output and Download
         # Output Directory
@@ -142,6 +146,7 @@ class YouTubeDownloader:
     def get_video_list(self):
         urls = self.url_text.get("1.0", tk.END).strip().split('\n')
         urls = [url.strip() for url in urls if url.strip()]
+        force_ipv4 = self.force_ipv4_var.get()
         if not urls:
             messagebox.showerror("Error", "Please enter at least one URL")
             return
@@ -168,6 +173,9 @@ class YouTubeDownloader:
                     'file_access_retries': 5,  # 文件访问重试
                     'socket_timeout': 30,  # Socket超时30秒
                 }
+
+                if force_ipv4:
+                    ydl_opts['source_address'] = '0.0.0.0'
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     for url in urls:
@@ -261,6 +269,7 @@ class YouTubeDownloader:
             
         self.selected_videos = [self.video_list[i] for i in selected_indices]
         quality = self.quality_combo.get()
+        force_ipv4 = self.force_ipv4_var.get()
         
         self.download_btn.config(state="disabled")
         self.get_list_btn.config(state="disabled")
@@ -360,6 +369,11 @@ class YouTubeDownloader:
                         'noprogress': False,
                         'ignoreerrors': False,               # 不忽略错误
                     }
+
+                    if force_ipv4:
+                        ydl_opts['source_address'] = '0.0.0.0'
+
+                    self.root.after(0, lambda enabled=force_ipv4: self.log(f"Force IPv4: {'ON' if enabled else 'OFF'}"))
                     
                     try:
                         self.root.after(0, lambda vt=video_title: self.log(f"Initializing yt-dlp for: {vt}"))
