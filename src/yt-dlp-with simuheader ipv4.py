@@ -27,6 +27,31 @@ class YouTubeDownloader:
         
         # Create GUI elements
         self.create_widgets()
+
+    def resolve_video_url(self, entry, source_url):
+        """Resolve a playlist entry into a concrete single-video URL."""
+        if not isinstance(entry, dict):
+            return None
+
+        webpage_url = entry.get('webpage_url')
+        if isinstance(webpage_url, str) and webpage_url.startswith('http'):
+            return webpage_url
+
+        entry_url = entry.get('url')
+        if isinstance(entry_url, str):
+            if entry_url.startswith('http'):
+                return entry_url
+            if 'youtube.com' in source_url or 'youtu.be' in source_url:
+                if entry_url.startswith('/watch'):
+                    return f"https://www.youtube.com{entry_url}"
+                return f"https://www.youtube.com/watch?v={entry_url}"
+
+        entry_id = entry.get('id')
+        if isinstance(entry_id, str) and entry_id:
+            if 'youtube.com' in source_url or 'youtu.be' in source_url:
+                return f"https://www.youtube.com/watch?v={entry_id}"
+
+        return None
         
     def create_widgets(self):
         # Create main frames for left and right panels
@@ -183,14 +208,19 @@ class YouTubeDownloader:
                             info = ydl.extract_info(url, download=False)
                             if 'entries' in info:
                                 # It's a playlist
-                                for entry in info['entries']:
+                                for entry_idx, entry in enumerate(info['entries'], start=1):
                                     if entry:
+                                        resolved_url = self.resolve_video_url(entry, url)
+                                        if not resolved_url:
+                                            continue
                                         self.video_list.append({
                                             'title': entry.get('title', 'Unknown Title'),
-                                            'url': entry.get('webpage_url', entry.get('url', url)),
+                                            'url': resolved_url,
                                             'duration': entry.get('duration', 0),
                                             'uploader': entry.get('uploader', info.get('uploader', 'Unknown')),
-                                            'playlist': info.get('title', 'Unknown Playlist')
+                                            'playlist': info.get('title', 'Unknown Playlist'),
+                                            'source_url': url,
+                                            'playlist_index': entry.get('playlist_index', entry_idx)
                                         })
                             else:
                                 # Single video
@@ -210,14 +240,19 @@ class YouTubeDownloader:
                                 info = ydl_flat.extract_info(url, download=False)
                                 if 'entries' in info:
                                     # It's a playlist
-                                    for entry in info['entries']:
+                                    for entry_idx, entry in enumerate(info['entries'], start=1):
                                         if entry:
+                                            resolved_url = self.resolve_video_url(entry, url)
+                                            if not resolved_url:
+                                                continue
                                             self.video_list.append({
                                                 'title': entry.get('title', f"Video {entry.get('id', 'Unknown')}"),
-                                                'url': entry.get('url', url),
+                                                'url': resolved_url,
                                                 'duration': 0,  # Not available in flat mode
                                                 'uploader': info.get('uploader', 'Unknown'),
-                                                'playlist': info.get('title', 'Unknown Playlist')
+                                                'playlist': info.get('title', 'Unknown Playlist'),
+                                                'source_url': url,
+                                                'playlist_index': entry.get('playlist_index', entry_idx)
                                             })
                                 else:
                                     # Single video
@@ -280,6 +315,8 @@ class YouTubeDownloader:
             try:
                 self.root.after(0, lambda: self.log("Download thread started successfully"))
                 self.root.after(0, lambda: self.log("Checking FFmpeg installation..."))
+                failed_videos = []
+                downloaded_count = 0
                 # Check FFmpeg
                 try:
                     result = subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True, timeout=10)
@@ -299,17 +336,17 @@ class YouTubeDownloader:
                     self.root.after(0, lambda vt=video_title, n=idx, t=total: self.log(f"Starting download {n}/{t}: {vt}"))
                     
                     # Map quality to format - 修复格式选择逻辑
-                    # 使用 bestvideo+bestaudio 确保获取最高质量的音视频流
+                    # 使用跨站点兼容的回退链：优先分离流，其次单文件 best
                     if quality == "best":
-                        format_str = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+                        format_str = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
                     elif quality == "1080p":
-                        format_str = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+                        format_str = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
                     elif quality == "720p":
-                        format_str = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]"
+                        format_str = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
                     elif quality == "480p":
-                        format_str = "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]"
+                        format_str = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
                     elif quality == "360p":
-                        format_str = "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]"
+                        format_str = "bestvideo[height<=360]+bestaudio/best[height<=360]/best"
                     else:
                         format_str = "bestvideo+bestaudio/best"
                     
@@ -370,6 +407,17 @@ class YouTubeDownloader:
                         'ignoreerrors': False,               # 不忽略错误
                     }
 
+                    source_url = video.get('source_url')
+                    playlist_index = video.get('playlist_index')
+                    if source_url and playlist_index:
+                        ydl_opts['noplaylist'] = False
+                        ydl_opts['playlist_items'] = str(playlist_index)
+                        target_url = source_url
+                        self.root.after(0, lambda pi=playlist_index: self.log(f"Playlist mode: downloading selected item #{pi} only"))
+                    else:
+                        ydl_opts['noplaylist'] = True
+                        target_url = video['url']
+
                     if force_ipv4:
                         ydl_opts['source_address'] = '0.0.0.0'
 
@@ -379,8 +427,9 @@ class YouTubeDownloader:
                         self.root.after(0, lambda vt=video_title: self.log(f"Initializing yt-dlp for: {vt}"))
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             self.root.after(0, lambda vt=video_title: self.log(f"Extracting info for: {vt}"))
-                            info = ydl.extract_info(video['url'], download=True)
+                            info = ydl.extract_info(target_url, download=True)
                             video_file = ydl.prepare_filename(info)
+                            downloaded_count += 1
                         
                         self.root.after(0, lambda vf=video_file, vt=video_title: self.log(f"Downloaded: {vt} -> {vf}"))
                         
@@ -410,11 +459,19 @@ class YouTubeDownloader:
                     
                     except Exception as video_error:
                         error_msg = f"Failed to download {video_title}: {str(video_error)}"
+                        failed_videos.append(video_title)
                         self.root.after(0, lambda em=error_msg: self.log(em))
                         continue  # Continue with next video
-                
-                self.root.after(0, lambda: self.log("All downloads completed!"))
-                self.root.after(0, lambda: messagebox.showinfo("Success", "All downloads completed!"))
+
+                total_count = len(self.selected_videos)
+                if failed_videos:
+                    summary_msg = f"Completed with issues: {downloaded_count}/{total_count} succeeded, {len(failed_videos)} failed."
+                    self.root.after(0, lambda sm=summary_msg: self.log(sm))
+                    self.root.after(0, lambda sm=summary_msg: messagebox.showwarning("Completed with Issues", sm))
+                else:
+                    summary_msg = f"All downloads completed successfully ({downloaded_count}/{total_count})."
+                    self.root.after(0, lambda sm=summary_msg: self.log(sm))
+                    self.root.after(0, lambda sm=summary_msg: messagebox.showinfo("Success", sm))
                 
             except Exception as e:
                 error_msg = f"Download process failed: {str(e)}"
