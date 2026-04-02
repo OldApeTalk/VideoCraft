@@ -2,13 +2,15 @@
 # 1、音频提取mp3，可以选择不同的码率
 # 2、转换mp3的码率
 # 3、调整音量，范围+-20dB，支持音频和视频文件
-# 4、提取视频片段，根据起始和结束时间提取视频片段
+# 4、提取视频片段，根据起始和结束时间提取视频片段，可同时提取对应字幕
+# 5、自动分割视频
 #
 # This collection includes video processing tools, and of course includes some small audio functions
 # 1. Audio extraction to MP3, can choose different bitrates
 # 2. Convert MP3 bitrate
 # 3. Adjust volume, range +-20dB, supports audio and video files
-# 4. Extract video clip, extract video segment based on start and end time
+# 4. Extract video clip, extract video segment based on start and end time, with optional subtitle extraction
+# 5. Auto split video
 
 import os
 import tkinter as tk
@@ -318,6 +320,124 @@ def extract_video_clip(input_video, output_video, start_time, end_time, progress
         messagebox.showerror("错误", "提取失败")
 
 
+def extract_subtitle_clip(input_srt, output_srt, start_time_str, end_time_str):
+    """
+    根据起止时间提取字幕片段，并重新计算时间戳（偏移到从0开始）
+    
+    Args:
+        input_srt: 输入字幕文件路径 (.srt)
+        output_srt: 输出字幕文件路径 (.srt)
+        start_time_str: 起始时间，格式：HH:MM:SS 或 HH:MM:SS.mmm
+        end_time_str: 结束时间，格式：HH:MM:SS 或 HH:MM:SS.mmm
+    
+    Returns:
+        (success, message, count) - 是否成功、消息、提取的字幕条数
+    """
+    def parse_time_to_seconds(time_str):
+        """将 HH:MM:SS 或 HH:MM:SS.mmm 格式转为秒"""
+        parts = time_str.strip().split(':')
+        if len(parts) == 3:
+            h, m, s = parts
+            return float(h) * 3600 + float(m) * 60 + float(s)
+        return 0
+
+    def parse_srt_timestamp(ts):
+        """将 SRT 时间戳 (HH:MM:SS,mmm) 转为秒"""
+        ts = ts.strip().replace(',', '.')
+        parts = ts.split(':')
+        if len(parts) == 3:
+            h, m, s = parts
+            return float(h) * 3600 + float(m) * 60 + float(s)
+        return 0
+
+    def seconds_to_srt_timestamp(total_seconds):
+        """将秒数转为 SRT 时间戳格式 (HH:MM:SS,mmm)"""
+        if total_seconds < 0:
+            total_seconds = 0
+        h = int(total_seconds // 3600)
+        m = int((total_seconds % 3600) // 60)
+        s = total_seconds % 60
+        return f"{h:02d}:{m:02d}:{s:06.3f}".replace('.', ',')
+
+    try:
+        start_seconds = parse_time_to_seconds(start_time_str)
+        end_seconds = parse_time_to_seconds(end_time_str)
+
+        # 读取 SRT 文件
+        encodings = ['utf-8', 'utf-8-sig', 'gbk', 'gb2312', 'latin-1']
+        content = None
+        for enc in encodings:
+            try:
+                with open(input_srt, 'r', encoding=enc) as f:
+                    content = f.read()
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        
+        if content is None:
+            return (False, "无法读取字幕文件，编码不支持", 0)
+
+        # 解析 SRT 条目
+        # SRT 格式: 序号\n时间戳\n文本\n\n
+        blocks = re.split(r'\n\s*\n', content.strip())
+        extracted = []
+
+        for block in blocks:
+            lines = block.strip().split('\n')
+            if len(lines) < 2:
+                continue
+            
+            # 查找时间戳行 (包含 -->)
+            ts_line_idx = None
+            for i, line in enumerate(lines):
+                if '-->' in line:
+                    ts_line_idx = i
+                    break
+            
+            if ts_line_idx is None:
+                continue
+
+            ts_match = re.match(
+                r'(\d{2}:\d{2}:\d{2}[,\.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,\.]\d{3})', 
+                lines[ts_line_idx].strip()
+            )
+            if not ts_match:
+                continue
+
+            sub_start = parse_srt_timestamp(ts_match.group(1))
+            sub_end = parse_srt_timestamp(ts_match.group(2))
+            text_lines = lines[ts_line_idx + 1:]
+
+            # 字幕与提取范围有交集则保留
+            if sub_end <= start_seconds or sub_start >= end_seconds:
+                continue
+
+            # 裁剪并偏移时间戳
+            new_start = max(sub_start, start_seconds) - start_seconds
+            new_end = min(sub_end, end_seconds) - start_seconds
+
+            extracted.append({
+                'start': new_start,
+                'end': new_end,
+                'text': '\n'.join(text_lines)
+            })
+
+        if not extracted:
+            return (True, "指定时间范围内没有找到字幕", 0)
+
+        # 写入新的 SRT 文件
+        with open(output_srt, 'w', encoding='utf-8') as f:
+            for idx, item in enumerate(extracted, 1):
+                f.write(f"{idx}\n")
+                f.write(f"{seconds_to_srt_timestamp(item['start'])} --> {seconds_to_srt_timestamp(item['end'])}\n")
+                f.write(f"{item['text']}\n\n")
+
+        return (True, f"成功提取 {len(extracted)} 条字幕", len(extracted))
+
+    except Exception as e:
+        return (False, f"字幕提取出错: {str(e)}", 0)
+
+
 class VideoToolsGUI:
     def __init__(self, root):
         self.root = root
@@ -533,27 +653,39 @@ class VideoToolsGUI:
         self.clip_mode_var.trace_add('write', lambda *args: update_mode_hint())
         update_mode_hint()  # 初始化显示
 
-        # 输出文件
-        tk.Label(tab, text="输出视频文件:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        # 输入字幕文件（可选）
+        tk.Label(tab, text="输入字幕文件:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        srt_input_frame = tk.Frame(tab)
+        srt_input_frame.grid(row=4, column=1, sticky="w")
+        self.clip_srt_input_var = tk.StringVar()
+        tk.Entry(srt_input_frame, textvariable=self.clip_srt_input_var, width=40).pack(side=tk.LEFT)
+        tk.Button(srt_input_frame, text="浏览", command=lambda: self.select_file(
+            self.clip_srt_input_var,
+            [("字幕文件", "*.srt")]
+        )).pack(side=tk.LEFT, padx=5)
+        tk.Label(srt_input_frame, text="(可选)", font=("Arial", 9), fg="gray").pack(side=tk.LEFT)
+
+        # 输出视频文件
+        tk.Label(tab, text="输出视频文件:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
         self.clip_output_var = tk.StringVar()
-        tk.Entry(tab, textvariable=self.clip_output_var, width=50).grid(row=4, column=1, sticky="w")
+        tk.Entry(tab, textvariable=self.clip_output_var, width=50).grid(row=5, column=1, sticky="w")
         tk.Button(tab, text="浏览", command=lambda: self.save_file(
             self.clip_output_var,
             [("视频文件", "*.mp4"), ("所有视频", "*.avi *.mkv *.mov")],
             ".mp4"
-        )).grid(row=4, column=2, padx=10)
+        )).grid(row=5, column=2, padx=10)
 
         # 执行按钮
         self.clip_btn = tk.Button(tab, text="开始提取", command=self.execute_extract_clip, width=20)
-        self.clip_btn.grid(row=5, column=1, pady=25)
+        self.clip_btn.grid(row=6, column=1, pady=25)
 
         # 进度条
         self.clip_progress = ttk.Progressbar(tab, orient="horizontal", length=500, mode="determinate")
-        self.clip_progress.grid(row=6, column=0, columnspan=3, pady=10, padx=20)
+        self.clip_progress.grid(row=7, column=0, columnspan=3, pady=10, padx=20)
 
         # 状态提示
         self.clip_status_var = tk.StringVar()
-        tk.Label(tab, textvariable=self.clip_status_var, fg="blue").grid(row=7, column=0, columnspan=3)
+        tk.Label(tab, textvariable=self.clip_status_var, fg="blue").grid(row=8, column=0, columnspan=3)
 
     def create_auto_split_tab(self):
         """创建自动分割视频标签页"""
@@ -755,6 +887,7 @@ class VideoToolsGUI:
         start_time = self.clip_start_var.get()
         end_time = self.clip_end_var.get()
         accurate_mode = (self.clip_mode_var.get() == "accurate")
+        input_srt = self.clip_srt_input_var.get().strip()
 
         if not input_file or not output_file:
             messagebox.showerror("错误", "请选择输入和输出文件")
@@ -764,6 +897,11 @@ class VideoToolsGUI:
         time_pattern = r'^\d{1,2}:\d{2}:\d{2}(\.\d{1,3})?$'
         if not re.match(time_pattern, start_time) or not re.match(time_pattern, end_time):
             messagebox.showerror("错误", "时间格式不正确，请使用 HH:MM:SS 或 HH:MM:SS.mmm 格式")
+            return
+
+        # 验证字幕文件（如果提供了）
+        if input_srt and not os.path.isfile(input_srt):
+            messagebox.showerror("错误", "指定的字幕文件不存在")
             return
 
         self.clip_btn.config(state="disabled")
@@ -777,8 +915,22 @@ class VideoToolsGUI:
 
         def run():
             extract_video_clip(input_file, output_file, start_time, end_time, update_progress, accurate_mode)
+            
+            # 如果提供了字幕文件，同时提取对应字幕
+            srt_msg = ""
+            if input_srt:
+                # 自动生成输出字幕文件名（与输出视频同名，扩展名改为.srt）
+                output_srt = os.path.splitext(output_file)[0] + '.srt'
+                success, msg, count = extract_subtitle_clip(input_srt, output_srt, start_time, end_time)
+                if success and count > 0:
+                    srt_msg = f"\n字幕：{msg}，已保存到 {os.path.basename(output_srt)}"
+                elif success:
+                    srt_msg = f"\n字幕：{msg}"
+                else:
+                    srt_msg = f"\n字幕提取失败：{msg}"
+            
             self.clip_btn.config(state="normal")
-            self.clip_status_var.set(f"✓ 视频片段提取完成！({mode_text})")
+            self.clip_status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}")
 
         threading.Thread(target=run, daemon=True).start()
 

@@ -508,7 +508,7 @@ root.title("双语字幕工具（分割与烧录）")
 root.geometry("900x650")
 
 # 新增：水印参数变量
-watermark_text_var = tk.StringVar(value="字幕制作By老猿")
+watermark_text_var = tk.StringVar(value="字幕By老猿@OldApeTalk")
 watermark_alpha_var = tk.DoubleVar(value=60.0)
 watermark_color_var = tk.StringVar(value="#00ffff")
 watermark_fontsize_var = tk.IntVar(value=48)
@@ -617,7 +617,8 @@ frame_watermark = tk.LabelFrame(root, text="水印设置（右上角）", padx=1
 frame_watermark.grid(row=4, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
 tk.Label(frame_watermark, text="水印文字:").grid(row=0, column=0, sticky="e")
-entry_watermark = tk.Entry(frame_watermark, textvariable=watermark_text_var, width=25)
+entry_watermark = ttk.Combobox(frame_watermark, textvariable=watermark_text_var, width=25,
+                               values=["字幕By老猿@OldApeTalk", "字幕制作By 老猿"])
 entry_watermark.grid(row=0, column=1, padx=5)
 
 tk.Label(frame_watermark, text="字号:").grid(row=0, column=2, sticky="e")

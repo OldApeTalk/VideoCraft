@@ -6,6 +6,30 @@ import ffmpeg
 import subprocess
 import json
 
+def normalize_timestamp(raw_time):
+    """规范化时间戳，支持 H:MM:SS、HH:MM:SS、MM:SS，并容错重复冒号。"""
+    if not raw_time:
+        return None
+
+    # 兼容类似 0::01:00 这种输入
+    candidate = re.sub(r':{2,}', ':', raw_time.strip())
+    parts = candidate.split(':')
+
+    if len(parts) not in (2, 3) or not all(part.isdigit() for part in parts):
+        return None
+
+    nums = [int(part) for part in parts]
+    if len(nums) == 3:
+        h, m, s = nums
+        if m >= 60 or s >= 60:
+            return None
+        return f"{h}:{m:02d}:{s:02d}"
+
+    m, s = nums
+    if s >= 60:
+        return None
+    return f"{m}:{s:02d}"
+
 def parse_timestamps_and_titles(file_path):
     """解析时间戳和标题"""
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -17,14 +41,20 @@ def parse_timestamps_and_titles(file_path):
 
     for line in lines:
         line = line.strip()
-        # 匹配时间戳格式 (HH:MM:SS 或 MM:SS)
-        time_match = re.match(r'(\d{2}:\d{2}:\d{2}|\d{2}:\d{2})', line)
+        # 匹配行首的时间串，再进行规范化校验
+        time_match = re.match(r'^([0-9:]+)', line)
         if time_match:
+            raw_time = time_match.group(1)
+            normalized_time = normalize_timestamp(raw_time)
+        else:
+            normalized_time = None
+
+        if normalized_time:
             if current_time is not None:
                 # 保存上一段
                 segments.append((current_time, current_title))
-            current_time = time_match.group(0)
-            current_title = line[len(current_time):].strip()
+            current_time = normalized_time
+            current_title = line[len(raw_time):].strip()
         # 跳过内容行（非时间戳行）
 
     # 添加最后一段
@@ -35,7 +65,11 @@ def parse_timestamps_and_titles(file_path):
 
 def time_to_seconds(time_str):
     """将时间戳转换为秒"""
-    parts = time_str.split(':')
+    normalized = normalize_timestamp(time_str)
+    if not normalized:
+        return 0
+
+    parts = normalized.split(':')
     if len(parts) == 3:  # HH:MM:SS
         h, m, s = map(int, parts)
         return h * 3600 + m * 60 + s
