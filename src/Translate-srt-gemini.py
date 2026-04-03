@@ -7,6 +7,7 @@ import time
 import asyncio
 import threading
 import google.generativeai as genai
+from ai_router import router, TIER_PREMIUM, TIER_STANDARD, TIER_ECONOMY
 
 # 尝试导入pydub，如果不可用则设置为None
 # 注意：当前Live API实现仍使用文本翻译，pydub仅为未来音频处理功能预留
@@ -217,61 +218,59 @@ def split_audio_by_size(audio_path, max_size_kb=100):
 class TranslateApp:
     def __init__(self, master):
         self.master = master
-        master.title("SRT字幕批量翻译工具（Gemini）")
-        master.geometry("700x460")
+        master.title("SRT 字幕批量翻译")
+        master.geometry("700x430")
         master.resizable(False, False)
 
-        # 获取可用模型列表
-        self.available_models = self.get_available_models()
+        # ── Row 0: AI 档位选择 + Router 管理 ──────────────────────────────────
+        tk.Label(master, text="AI 档位:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        self.tier_var = tk.StringVar(value=TIER_STANDARD)
+        tier_frame = tk.Frame(master)
+        tier_frame.grid(row=0, column=1, sticky="w")
+        ttk.Radiobutton(tier_frame, text="高档 (最强)", variable=self.tier_var,
+                        value=TIER_PREMIUM).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Radiobutton(tier_frame, text="中档 (推荐)", variable=self.tier_var,
+                        value=TIER_STANDARD).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Radiobutton(tier_frame, text="低档 (经济)", variable=self.tier_var,
+                        value=TIER_ECONOMY).pack(side=tk.LEFT)
+        tk.Button(master, text="Router 管理", command=self.open_router_manager
+                  ).grid(row=0, column=2, padx=10)
 
-        # Gemini API Key 配置
-        tk.Label(master, text="Gemini API Key:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.api_key_var = tk.StringVar()
-        tk.Entry(master, textvariable=self.api_key_var, width=50, show='*').grid(row=0, column=1, sticky="w")
-        tk.Button(master, text="管理Key", command=self.configure_gemini_key).grid(row=0, column=2, padx=10)
-
-        # 模型选择
-        tk.Label(master, text="选择模型:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.model_var = tk.StringVar(value="gemini-2.5-flash" if "gemini-2.5-flash" in self.available_models else (self.available_models[0] if self.available_models else "gemini-2.5-flash"))
-        self.model_combo = ttk.Combobox(master, textvariable=self.model_var, values=self.available_models, state="readonly", width=25)
-        self.model_combo.grid(row=1, column=1, sticky="w", padx=(0,10))
-
-        # 模型说明
-        tk.Label(master, text="选择适合的模型进行翻译", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
-
-        # 源语言选择
-        tk.Label(master, text="源语言 (Source):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        # ── Row 1: 源语言 ──────────────────────────────────────────────────────
+        tk.Label(master, text="源语言 (Source):").grid(row=1, column=0, padx=10, pady=5, sticky="e")
         self.source_lang_var = tk.StringVar(value="English (英语)")
-        self.source_combo = ttk.Combobox(master, textvariable=self.source_lang_var, values=language_options, state="readonly", width=30)
-        self.source_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0,10))
+        self.source_combo = ttk.Combobox(master, textvariable=self.source_lang_var,
+                                         values=language_options, state="readonly", width=30)
+        self.source_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(0, 10))
 
-        # 目标语言选择
-        tk.Label(master, text="目标语言 (Target):").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        # ── Row 2: 目标语言 ────────────────────────────────────────────────────
+        tk.Label(master, text="目标语言 (Target):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
         self.target_lang_var = tk.StringVar(value="Chinese (中文)")
-        self.target_combo = ttk.Combobox(master, textvariable=self.target_lang_var, values=language_options, state="readonly", width=30)
-        self.target_combo.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0,10))
+        self.target_combo = ttk.Combobox(master, textvariable=self.target_lang_var,
+                                         values=language_options, state="readonly", width=30)
+        self.target_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
 
-        # 批次大小选择
-        tk.Label(master, text="每批次字幕条数:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        # ── Row 3: 批次大小 ────────────────────────────────────────────────────
+        tk.Label(master, text="每批次字幕条数:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
         self.batch_size_var = tk.StringVar(value="100")
         batch_size_frame = tk.Frame(master)
-        batch_size_frame.grid(row=4, column=1, columnspan=2, sticky="w", padx=(0,10))
-        ttk.Radiobutton(batch_size_frame, text="30", variable=self.batch_size_var, value="30").pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(batch_size_frame, text="50", variable=self.batch_size_var, value="50").pack(side=tk.LEFT, padx=5)
+        batch_size_frame.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        ttk.Radiobutton(batch_size_frame, text="30",  variable=self.batch_size_var, value="30" ).pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(batch_size_frame, text="50",  variable=self.batch_size_var, value="50" ).pack(side=tk.LEFT, padx=5)
         ttk.Radiobutton(batch_size_frame, text="100", variable=self.batch_size_var, value="100").pack(side=tk.LEFT, padx=5)
-        tk.Label(batch_size_frame, text="(批次越大速度越快，但可能影响准确性)", font=("Arial", 8), fg="gray").pack(side=tk.LEFT, padx=5)
+        tk.Label(batch_size_frame, text="(批次越大越快，但可能影响准确性)",
+                 font=("Arial", 8), fg="gray").pack(side=tk.LEFT, padx=5)
 
-        # SRT文件选择
-        tk.Label(master, text="原始SRT文件:").grid(row=5, column=0, padx=10, pady=10, sticky="e")
+        # ── Row 4: SRT 文件 ────────────────────────────────────────────────────
+        tk.Label(master, text="原始SRT文件:").grid(row=4, column=0, padx=10, pady=10, sticky="e")
         self.srt_path_var = tk.StringVar()
-        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=5, column=1, sticky="w")
-        tk.Button(master, text="浏览", command=self.select_srt).grid(row=5, column=2, padx=10)
+        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=4, column=1, sticky="w")
+        tk.Button(master, text="浏览", command=self.select_srt).grid(row=4, column=2, padx=10)
 
-        # Prompt编辑
-        tk.Label(master, text="Prompt提示语:").grid(row=6, column=0, padx=10, pady=5, sticky="ne")
+        # ── Row 5: Prompt 编辑 ─────────────────────────────────────────────────
+        tk.Label(master, text="Prompt提示语:").grid(row=5, column=0, padx=10, pady=5, sticky="ne")
         self.translate_prompt_text = tk.Text(master, height=10, width=50, wrap=tk.WORD)
-        self.translate_prompt_text.grid(row=6, column=1, columnspan=2, sticky="w", padx=(0,10))
-        # 设置默认prompt
+        self.translate_prompt_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0, 10))
         default_translate_prompt = """You are a professional SRT subtitle translator. Your task is to translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
 
 The subtitles are provided in a special numbered format with 【number】 markers (【1】subtitle, 【2】subtitle, etc.). You must return the translated subtitles in the EXACT SAME special numbered format.
@@ -295,50 +294,18 @@ Input subtitles ({{batch_size}} subtitles):
 Return the translated subtitles in the same special 【number】 format with {{batch_size}} subtitles:"""
         self.translate_prompt_text.insert(tk.END, default_translate_prompt)
 
-        # 翻译按钮
+        # ── Row 6: 翻译按钮 ────────────────────────────────────────────────────
         self.trans_btn = tk.Button(master, text="开始翻译", command=self.translate_srt, width=20)
-        self.trans_btn.grid(row=7, column=1, pady=25)
+        self.trans_btn.grid(row=6, column=1, pady=20)
 
-        # 进度/提示
+        # ── Row 7: 状态栏 ──────────────────────────────────────────────────────
         self.status_var = tk.StringVar()
-        tk.Label(master, textvariable=self.status_var, fg="blue").grid(row=8, column=0, columnspan=3, pady=10)
+        tk.Label(master, textvariable=self.status_var, fg="blue").grid(
+            row=7, column=0, columnspan=3, pady=5)
 
-    def get_available_models(self):
-        """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
-        default_models = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
-        
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-        if os.path.exists(gemini_key_path):
-            try:
-                with open(gemini_key_path, 'r') as f:
-                    api_key = f.read().strip()
-                genai.configure(api_key=api_key)
-                models = genai.list_models()
-                # 只选择支持 generateContent 且为 2.5 版本的模型
-                model_names = [m.name.split('/')[-1] for m in models if 'generateContent' in m.supported_generation_methods and '2.5' in m.name]
-                if model_names:
-                    sorted_models = sorted(model_names)
-                    print("可用 2.5 版本模型列表:")
-                    for model in sorted_models:
-                        print(f"  - {model}")
-                    print("注意: 模型价格信息请参考 Google Cloud 定价页面 (https://cloud.google.com/vertex-ai/pricing)")
-                    return sorted_models
-            except Exception as e:
-                print(f"获取模型列表失败: {e}")
-        
-        print("使用默认 2.5 版本模型列表:")
-        for model in default_models:
-            print(f"  - {model}")
-        return default_models
-
-    def refresh_available_models(self):
-        """刷新可用模型列表并更新 Combobox"""
-        self.available_models = self.get_available_models()
-        self.model_combo['values'] = self.available_models
-        # 如果当前选择的模型不在新列表中，重置为第一个
-        if self.model_var.get() not in self.available_models:
-            self.model_var.set(self.available_models[0] if self.available_models else "gemini-2.5-flash")
+    def open_router_manager(self):
+        from router_manager import open_router_manager
+        open_router_manager(self.master)
 
     def get_lang_code(self, lang_str):
         """从语言选择字符串中提取语言代码（与 Speech2Text 保持一致）"""
@@ -355,35 +322,6 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 return code
         
         return 'en'  # 默认返回英语
-
-    def configure_gemini_key(self):
-        win = tk.Toplevel(self.master)
-        win.title("Gemini API Key 配置")
-        tk.Label(win, text="Gemini API Key:").pack(pady=10)
-        entry = tk.Entry(win, width=50)
-        entry.pack(pady=5)
-        # 预填已有key（使用绝对路径）
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-        if os.path.exists(gemini_key_path):
-            with open(gemini_key_path, 'r') as f:
-                entry.insert(0, f.read().strip())
-        def save():
-            key = entry.get().strip()
-            if key:
-                script_dir = os.path.dirname(os.path.abspath(__file__))
-                gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-                # 确保keys文件夹存在
-                os.makedirs(os.path.dirname(gemini_key_path), exist_ok=True)
-                with open(gemini_key_path, 'w') as f:
-                    f.write(key)
-                self.api_key_var.set(key)  # 更新界面显示
-                self.refresh_available_models()  # 刷新模型列表
-                messagebox.showinfo("Success", "API key saved!")
-                win.destroy()
-            else:
-                messagebox.showerror("Error", "请输入有效的API key")
-        tk.Button(win, text="保存", command=save).pack(pady=10)
 
     def select_srt(self):
         path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
@@ -414,19 +352,8 @@ Return the translated subtitles in the same special 【number】 format with {{b
             messagebox.showerror("Error", f"Failed to parse SRT file: {e}")
             return
             
-        # Gemini翻译逻辑：分批发送，每批最多2000字符，请求间隔6秒
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        gemini_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-        if not os.path.exists(gemini_key_path):
-            messagebox.showerror("错误", "请先配置Gemini Key")
-            return
-            
+        # Gemini翻译逻辑：分批发送，请求间隔6秒
         try:
-            with open(gemini_key_path, 'r') as f:
-                api_key = f.read().strip()
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(self.model_var.get())
-            
             # Gemini翻译逻辑
             source_lang_name = SUPPORTED_LANGUAGES.get(source_lang, ('Unknown', '未知'))[0]
             target_lang_name = SUPPORTED_LANGUAGES.get(target_lang, ('Unknown', '未知'))[0]
@@ -474,8 +401,7 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 prompt = prompt.replace("{batch_size}", str(batch_size))
                 prompt = prompt.replace("{numbered_input}", numbered_input)
 
-                response = model.generate_content(prompt)
-                translated_batch = response.text.strip()
+                translated_batch = router.complete(prompt, tier=self.tier_var.get())
 
                 # 处理可能的markdown代码块格式
                 if translated_batch.startswith('```'):

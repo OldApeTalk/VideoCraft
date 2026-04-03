@@ -70,37 +70,12 @@ def _read_api_key(provider_name):
 
 def ai_generate(provider_name, model_id, prompt):
     """
-    Unified AI generation entry point.
+    Unified AI generation entry point — delegates to the central AI Router.
     Supports Gemini (native SDK) and OpenAI-compatible providers.
     Returns the generated text string.
     """
-    api_key, err = _read_api_key(provider_name)
-    if err:
-        raise RuntimeError(err)
-
-    provider = AI_PROVIDERS[provider_name]
-
-    if provider["type"] == "gemini":
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_id)
-        response = model.generate_content(prompt)
-        return response.text.strip()
-
-    elif provider["type"] == "openai_compatible":
-        from openai import OpenAI
-        base_url = provider.get("base_url", "")
-        if not base_url:
-            raise RuntimeError("自定义提供商的 base_url 未配置")
-        client = OpenAI(api_key=api_key, base_url=base_url)
-        response = client.chat.completions.create(
-            model=model_id,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content.strip()
-
-    else:
-        raise RuntimeError(f"不支持的提供商类型: {provider['type']}")
+    from ai_router import router
+    return router.complete(prompt, provider=provider_name, model=model_id)
 
 # ===================== Business Logic Functions =====================
 
