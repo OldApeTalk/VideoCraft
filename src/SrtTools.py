@@ -1,45 +1,122 @@
-﻿import os
+import os
 import re
 import srt
-import google.generativeai as genai
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
 from datetime import datetime
 
-def generate_youtube_segments(srt_path, api_key_path=None, model_name='gemini-2.5-flash-lite', prompt=None):
+# ===================== Multi-AI Provider Configuration =====================
+
+def _keys_dir():
+    """Return the path to the keys/ directory next to src/."""
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'keys')
+
+AI_PROVIDERS = {
+    "Gemini": {
+        "type": "gemini",
+        "key_file": "Gemini.key",
+        "models": [
+            {"id": "gemini-2.5-pro",        "label": "Gemini 2.5 Pro (最强)"},
+            {"id": "gemini-2.5-flash",      "label": "Gemini 2.5 Flash (快速)"},
+            {"id": "gemini-2.5-flash-lite", "label": "Gemini 2.5 Flash Lite (经济)"},
+        ],
+        "default_model": "gemini-2.5-flash",
+    },
+    "Groq": {
+        "type": "openai_compatible",
+        "base_url": "https://api.groq.com/openai/v1",
+        "key_file": "Groq.key",
+        "models": [
+            {"id": "openai/gpt-oss-120b",                       "label": "GPT-OSS 120B (最强,推荐)"},
+            {"id": "llama-3.3-70b-versatile",                    "label": "Llama 3.3 70B (稳定)"},
+            {"id": "openai/gpt-oss-20b",                         "label": "GPT-OSS 20B (极速)"},
+            {"id": "qwen/qwen3-32b",                             "label": "Qwen3 32B (Preview)"},
+            {"id": "meta-llama/llama-4-scout-17b-16e-instruct",  "label": "Llama 4 Scout 17B (Preview)"},
+            {"id": "llama-3.1-8b-instant",                       "label": "Llama 3.1 8B (轻量)"},
+        ],
+        "default_model": "openai/gpt-oss-120b",
+    },
+    "DeepSeek": {
+        "type": "openai_compatible",
+        "base_url": "https://api.deepseek.com",
+        "key_file": "DeepSeek.key",
+        "models": [
+            {"id": "deepseek-chat",     "label": "DeepSeek V3.2 (通用)"},
+            {"id": "deepseek-reasoner", "label": "DeepSeek V3.2 推理 (Thinking)"},
+        ],
+        "default_model": "deepseek-chat",
+    },
+    "自定义(OpenAI兼容)": {
+        "type": "openai_compatible",
+        "base_url": "",
+        "key_file": "Custom.key",
+        "models": [],
+        "default_model": "",
+    },
+}
+
+def _read_api_key(provider_name):
+    """Read API key from the provider's key file. Returns (key, error_msg)."""
+    provider = AI_PROVIDERS[provider_name]
+    key_path = os.path.join(_keys_dir(), provider["key_file"])
+    if not os.path.exists(key_path):
+        return None, f"API Key 文件不存在: {provider['key_file']}\n请先在「管理Key」中配置"
+    with open(key_path, 'r', encoding='utf-8') as f:
+        key = f.read().strip()
+    if not key:
+        return None, f"API Key 为空: {provider['key_file']}"
+    return key, None
+
+def ai_generate(provider_name, model_id, prompt):
+    """
+    Unified AI generation entry point.
+    Supports Gemini (native SDK) and OpenAI-compatible providers.
+    Returns the generated text string.
+    """
+    api_key, err = _read_api_key(provider_name)
+    if err:
+        raise RuntimeError(err)
+
+    provider = AI_PROVIDERS[provider_name]
+
+    if provider["type"] == "gemini":
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_id)
+        response = model.generate_content(prompt)
+        return response.text.strip()
+
+    elif provider["type"] == "openai_compatible":
+        from openai import OpenAI
+        base_url = provider.get("base_url", "")
+        if not base_url:
+            raise RuntimeError("自定义提供商的 base_url 未配置")
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        response = client.chat.completions.create(
+            model=model_id,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content.strip()
+
+    else:
+        raise RuntimeError(f"不支持的提供商类型: {provider['type']}")
+
+# ===================== Business Logic Functions =====================
+
+def generate_youtube_segments(srt_path, provider_name='Gemini', model_name='gemini-2.5-flash', prompt=None):
     '''
     根据SRT字幕文件生成YouTube分段描述
 
     Args:
         srt_path (str): SRT文件路径
-        api_key_path (str): Gemini API key文件路径
-        model_name (str): 使用的Gemini模型名称
+        provider_name (str): AI提供商名称
+        model_name (str): 模型名称
         prompt (str): 自定义提示语，如果为None则使用默认提示语
 
     Returns:
         str: 生成的YouTube分段描述
     '''
-    # 设置默认API key路径
-    if api_key_path is None:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-    
-    # 检查API key文件
-    if not os.path.exists(api_key_path):
-        raise FileNotFoundError(f'Gemini API key文件 \'{api_key_path}\' 不存在，请先配置API key')
-
-    # 读取API key
-    with open(api_key_path, 'r', encoding='utf-8') as f:
-        api_key = f.read().strip()
-
-    if not api_key:
-        raise ValueError('API key为空，请检查配置文件')
-
-    # 配置Gemini
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-
     # 读取并解析SRT文件
     if not os.path.exists(srt_path):
         raise FileNotFoundError(f'SRT文件 \'{srt_path}\' 不存在')
@@ -91,13 +168,12 @@ xx:xx 标题
         full_prompt = prompt.replace("{subtitle_content}", subtitle_content)
         prompt = full_prompt
 
-    # 调用Gemini API
+    # 调用AI生成
     try:
-        response = model.generate_content(prompt)
-        segments = response.text.strip()
+        segments = ai_generate(provider_name, model_name, prompt)
         return segments
     except Exception as e:
-        raise RuntimeError(f'调用Gemini API失败: {e}')
+        raise RuntimeError(f'调用AI生成失败 ({provider_name}/{model_name}): {e}')
 
 def extract_paragraphs_from_segments(srt_path, segments_path):
     """
@@ -183,39 +259,19 @@ def extract_paragraphs_from_segments(srt_path, segments_path):
 
     return output.strip()
 
-def generate_video_titles(subs_path, prompt, api_key_path=None, model_name='gemini-2.5-flash-lite'):
+def generate_video_titles(subs_path, prompt, provider_name='Gemini', model_name='gemini-2.5-flash'):
     """
     根据subs文件内容生成视频标题
 
     Args:
         subs_path (str): Subs文件路径
         prompt (str): 生成标题的prompt
-        api_key_path (str): Gemini API key文件路径
-        model_name (str): 使用的Gemini模型名称
+        provider_name (str): AI提供商名称
+        model_name (str): 模型名称
 
     Returns:
         str: 生成的标题内容
     """
-    # 设置默认API key路径
-    if api_key_path is None:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-    
-    # 检查API key文件
-    if not os.path.exists(api_key_path):
-        raise FileNotFoundError(f'Gemini API key文件 \'{api_key_path}\' 不存在，请先配置API key')
-
-    # 读取API key
-    with open(api_key_path, 'r', encoding='utf-8') as f:
-        api_key = f.read().strip()
-
-    if not api_key:
-        raise ValueError('API key为空，请检查配置文件')
-
-    # 配置Gemini
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-
     # 读取subs文件内容
     with open(subs_path, 'r', encoding='utf-8') as f:
         subs_content = f.read()
@@ -223,13 +279,12 @@ def generate_video_titles(subs_path, prompt, api_key_path=None, model_name='gemi
     # 构建完整的prompt
     full_prompt = f"{prompt}\n\n以下是视频的分段描述内容：\n\n{subs_content}\n\n请根据以上内容生成合适的视频标题。"
 
-    # 调用Gemini API
+    # 调用AI生成
     try:
-        response = model.generate_content(full_prompt)
-        titles = response.text.strip()
+        titles = ai_generate(provider_name, model_name, full_prompt)
         return titles
     except Exception as e:
-        raise RuntimeError(f'调用Gemini API失败: {e}')
+        raise RuntimeError(f'调用AI生成失败 ({provider_name}/{model_name}): {e}')
 
 def extract_all_subtitles(srt_path):
     """
@@ -290,38 +345,23 @@ def parse_segments_paragraphs_content(content):
 
     return segments
 
-def refine_segment_descriptions(paragraphs_path, prompt, api_key_path=None, model_name='gemini-2.5-flash-lite'):
+def refine_segment_descriptions(paragraphs_path, prompt, provider_name='Gemini', model_name='gemini-2.5-flash'):
     """
-    Refine all segments generated by Tab 3 in one Gemini request.
+    Refine all segments generated by Tab 3 in one AI request.
 
     Args:
         paragraphs_path (str): Input paragraph file path (output from Tab 3).
         prompt (str): Refinement prompt. Recommended placeholder: {all_segments_content}.
             Also supports {segments_content}. Legacy placeholders
             ({segment_time}/{segment_title}/{segment_content}) are auto-adapted.
-        api_key_path (str): Gemini API key file path.
-        model_name (str): Gemini model name.
+        provider_name (str): AI provider name (key in AI_PROVIDERS).
+        model_name (str): Model name for the provider.
 
     Returns:
         str: Refined segment text generated by the model.
     """
     # NOTE: This feature has not been fully end-to-end tested yet.
     # We will continue to iterate and fix issues found in real usage.
-    # 设置默认API key路径
-    if api_key_path is None:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-
-    # 检查API key文件
-    if not os.path.exists(api_key_path):
-        raise FileNotFoundError(f'Gemini API key文件 \'{api_key_path}\' 不存在，请先配置API key')
-
-    # 读取API key
-    with open(api_key_path, 'r', encoding='utf-8') as f:
-        api_key = f.read().strip()
-
-    if not api_key:
-        raise ValueError('API key为空，请检查配置文件')
 
     # 检查输入文件
     if not os.path.exists(paragraphs_path):
@@ -332,13 +372,9 @@ def refine_segment_descriptions(paragraphs_path, prompt, api_key_path=None, mode
 
     segments = parse_segments_paragraphs_content(paragraphs_content)
     if not segments:
-        raise ValueError('未能从输入文件中解析到有效分段，请确认文件为“提取段落内容”标签页输出格式')
+        raise ValueError('未能从输入文件中解析到有效分段，请确认文件为"提取段落内容"标签页输出格式')
 
-    # 配置Gemini
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-
-    # Build one combined input so Gemini can refine all segments in a single request.
+    # Build one combined input so AI can refine all segments in a single request.
     combined_segments = []
     for idx, segment in enumerate(segments, start=1):
         segment_content = segment['content'] or '(此时间段内无字幕内容)'
@@ -366,24 +402,24 @@ def refine_segment_descriptions(paragraphs_path, prompt, api_key_path=None, mode
     elif all_segments_content not in full_prompt:
         full_prompt = f"{full_prompt}\n\n以下是全部分段内容：\n{all_segments_content}"
 
-    try:
-        response = model.generate_content(full_prompt)
-        refined_text = response.text.strip()
-    except Exception as e:
-        raise RuntimeError(f'调用Gemini精炼全部分段失败: {e}')
+    refined_text = ai_generate(provider_name, model_name, full_prompt)
 
     if not refined_text:
-        raise RuntimeError('Gemini返回为空，未生成精炼结果')
+        raise RuntimeError('AI返回为空，未生成精炼结果')
 
     return refined_text
-
 # ===================== GUI 主界面 =====================
 class YouTubeSegmentsApp:
     def __init__(self, master):
         self.master = master
-        master.title("YouTube工具箱（Gemini）")
+        master.title("YouTube工具箱（多AI提供商）")
         master.geometry("750x450")
         master.resizable(False, False)
+
+        # Provider / model state
+        self.provider_var = tk.StringVar(value=list(AI_PROVIDERS.keys())[0])
+        self.model_var = tk.StringVar()
+        self._sync_model_list()  # populate model list for initial provider
 
         # 创建标签页
         self.notebook = ttk.Notebook(master)
@@ -409,23 +445,20 @@ class YouTubeSegmentsApp:
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="生成分段描述")
 
-        # 获取可用模型列表
-        self.available_models = self.get_available_models()
-
-        # Gemini API Key 配置
-        tk.Label(tab, text="Gemini API Key:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.api_key_var = tk.StringVar()
-        tk.Entry(tab, textvariable=self.api_key_var, width=50, show='*').grid(row=0, column=1, sticky="w")
-        tk.Button(tab, text="管理Key", command=self.configure_gemini_key).grid(row=0, column=2, padx=10)
+        # AI 提供商选择
+        tk.Label(tab, text="AI 提供商:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        self.provider_combo = ttk.Combobox(tab, textvariable=self.provider_var,
+                                           values=list(AI_PROVIDERS.keys()), state="readonly", width=20)
+        self.provider_combo.grid(row=0, column=1, sticky="w")
+        self.provider_combo.bind("<<ComboboxSelected>>", self._on_provider_changed)
+        tk.Button(tab, text="管理Key", command=self.configure_api_key).grid(row=0, column=2, padx=10)
 
         # 模型选择
         tk.Label(tab, text="选择模型:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.model_var = tk.StringVar(value="gemini-2.5-flash-lite" if "gemini-2.5-flash-lite" in self.available_models else (self.available_models[0] if self.available_models else "gemini-2.5-flash-lite"))
-        self.model_combo = ttk.Combobox(tab, textvariable=self.model_var, values=self.available_models, state="readonly", width=25)
+        self.model_combo = ttk.Combobox(tab, textvariable=self.model_var,
+                                        values=self._get_model_ids(), state="readonly", width=35)
         self.model_combo.grid(row=1, column=1, sticky="w", padx=(0,10))
-
-        # 模型说明
-        tk.Label(tab, text="选择适合的模型进行分段生成", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
+        tk.Label(tab, text="切换提供商自动刷新模型列表", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
 
         # SRT文件选择
         tk.Label(tab, text="SRT字幕文件:").grid(row=2, column=0, padx=10, pady=10, sticky="e")
@@ -559,11 +592,12 @@ xx:xx 标题
         tk.Entry(tab, textvariable=self.refine_input_var, width=50).grid(row=0, column=1, sticky="w")
         tk.Button(tab, text="浏览", command=self.select_refine_input).grid(row=0, column=2, padx=10)
 
-        # Model selector (shares the same model variable with segment generation tab)
+        # Model selector (shares the same provider/model with segment generation tab)
         tk.Label(tab, text="选择模型:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.refine_model_combo = ttk.Combobox(tab, textvariable=self.model_var, values=self.available_models, state="readonly", width=25)
+        self.refine_model_combo = ttk.Combobox(tab, textvariable=self.model_var,
+                                               values=self._get_model_ids(), state="readonly", width=35)
         self.refine_model_combo.grid(row=1, column=1, sticky="w", padx=(0,10))
-        tk.Label(tab, text="与“生成分段描述”共享模型配置", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
+        tk.Label(tab, text="与“生成分段描述”共享提供商/模型", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
 
         # Prompt编辑
         tk.Label(tab, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
@@ -665,69 +699,78 @@ xx:xx 标题
         scrollbar_y.config(command=self.subtitles_text_display.yview)
         scrollbar_x.config(command=self.subtitles_text_display.xview)
 
-    def get_available_models(self):
-        """获取可用的 Gemini 模型列表，仅显示 2.5 版本"""
-        default_models = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
-        
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-        if os.path.exists(api_key_path):
-            try:
-                with open(api_key_path, 'r') as f:
-                    api_key = f.read().strip()
-                genai.configure(api_key=api_key)
-                models = genai.list_models()
-                # 只选择支持 generateContent 且为 2.5 版本的模型
-                model_names = [m.name.split('/')[-1] for m in models if 'generateContent' in m.supported_generation_methods and '2.5' in m.name]
-                if model_names:
-                    sorted_models = sorted(model_names)
-                    print("可用 2.5 版本模型列表:")
-                    for model in sorted_models:
-                        print(f"  - {model}")
-                    print("注意: 模型价格信息请参考 Google Cloud 定价页面 (https://cloud.google.com/vertex-ai/pricing)")
-                    return sorted_models
-            except Exception as e:
-                print(f"获取模型列表失败: {e}")
-        
-        print("使用默认 2.5 版本模型列表:")
-        for model in default_models:
-            print(f"  - {model}")
-        return default_models
+    def _get_model_ids(self):
+        """Return list of model IDs for the currently selected provider."""
+        provider = AI_PROVIDERS.get(self.provider_var.get())
+        if not provider:
+            return []
+        return [m["id"] for m in provider["models"]]
 
-    def refresh_available_models(self):
-        """刷新可用模型列表并更新 Combobox"""
-        self.available_models = self.get_available_models()
-        self.model_combo['values'] = self.available_models
-        # 如果当前选择的模型不在新列表中，重置为第一个
-        if self.model_var.get() not in self.available_models:
-            self.model_var.set(self.available_models[0] if self.available_models else "gemini-2.5-flash")
+    def _sync_model_list(self, event=None):
+        """Update model_var and all model comboboxes when provider changes."""
+        provider = AI_PROVIDERS.get(self.provider_var.get())
+        if not provider:
+            return
+        model_ids = [m["id"] for m in provider["models"]]
+        default = provider.get("default_model", model_ids[0] if model_ids else "")
+        self.model_var.set(default)
+        # Update all model comboboxes if they exist
+        for combo_attr in ("model_combo", "refine_model_combo"):
+            combo = getattr(self, combo_attr, None)
+            if combo:
+                combo["values"] = model_ids
 
-    def configure_gemini_key(self):
+    def _on_provider_changed(self, event=None):
+        """Handle provider combobox selection change."""
+        self._sync_model_list()
+
+    def configure_api_key(self):
+        """Open a dialog to view/edit the API key for the current provider."""
+        provider_name = self.provider_var.get()
+        provider = AI_PROVIDERS[provider_name]
+        key_path = os.path.join(_keys_dir(), provider["key_file"])
+
         win = tk.Toplevel(self.master)
-        win.title("Gemini API Key 配置")
-        tk.Label(win, text="Gemini API Key:").pack(pady=10)
+        win.title(f"{provider_name} API Key 配置")
+        tk.Label(win, text=f"{provider_name} API Key:").pack(pady=10)
         entry = tk.Entry(win, width=50)
         entry.pack(pady=5)
-        # 预填已有key
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-        if os.path.exists(api_key_path):
-            with open(api_key_path, 'r') as f:
+        # Pre-fill existing key
+        if os.path.exists(key_path):
+            with open(key_path, 'r', encoding='utf-8') as f:
                 entry.insert(0, f.read().strip())
+
+        # For custom provider, also allow editing base_url
+        if provider_name == "自定义(OpenAI兼容)":
+            tk.Label(win, text="Base URL:").pack(pady=(10, 0))
+            url_entry = tk.Entry(win, width=50)
+            url_entry.pack(pady=5)
+            url_entry.insert(0, provider.get("base_url", ""))
+
+            tk.Label(win, text="模型ID (逗号分隔):").pack(pady=(10, 0))
+            models_entry = tk.Entry(win, width=50)
+            models_entry.pack(pady=5)
+            models_entry.insert(0, ",".join(m["id"] for m in provider["models"]))
+
         def save():
             key = entry.get().strip()
-            if key:
-                script_dir = os.path.dirname(os.path.abspath(__file__))
-                api_key_path = os.path.join(os.path.dirname(script_dir), 'keys', 'Gemini.key')
-                os.makedirs(os.path.dirname(api_key_path), exist_ok=True)
-                with open(api_key_path, 'w') as f:
-                    f.write(key)
-                self.api_key_var.set(key)  # 更新界面显示
-                self.refresh_available_models()  # 刷新模型列表
-                messagebox.showinfo("Success", "API key saved!")
-                win.destroy()
-            else:
+            if not key:
                 messagebox.showerror("Error", "请输入有效的API key")
+                return
+            os.makedirs(os.path.dirname(key_path), exist_ok=True)
+            with open(key_path, 'w', encoding='utf-8') as f:
+                f.write(key)
+            # Update custom provider config if applicable
+            if provider_name == "自定义(OpenAI兼容)":
+                provider["base_url"] = url_entry.get().strip()
+                model_ids = [m.strip() for m in models_entry.get().split(",") if m.strip()]
+                provider["models"] = [{"id": mid, "label": mid} for mid in model_ids]
+                if model_ids:
+                    provider["default_model"] = model_ids[0]
+                self._sync_model_list()
+            messagebox.showinfo("Success", f"{provider_name} API key 已保存!")
+            win.destroy()
+
         tk.Button(win, text="保存", command=save).pack(pady=10)
 
     def select_srt(self):
@@ -783,7 +826,7 @@ xx:xx 标题
         # 在后台线程中运行生成任务
         def run_generation():
             try:
-                segments = generate_youtube_segments(srt_path, model_name=self.model_var.get(), prompt=prompt)
+                segments = generate_youtube_segments(srt_path, provider_name=self.provider_var.get(), model_name=self.model_var.get(), prompt=prompt)
                 
                 # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:
@@ -945,7 +988,7 @@ xx:xx 标题
         # Run in background thread to keep GUI responsive.
         def run_refinement():
             try:
-                refined_text = refine_segment_descriptions(input_path, prompt, model_name=self.model_var.get())
+                refined_text = refine_segment_descriptions(input_path, prompt, provider_name=self.provider_var.get(), model_name=self.model_var.get())
 
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(refined_text)
@@ -1008,7 +1051,7 @@ xx:xx 标题
         # 在后台线程中运行生成任务
         def run_title_generation():
             try:
-                titles = generate_video_titles(subs_path, prompt, model_name=self.model_var.get())
+                titles = generate_video_titles(subs_path, prompt, provider_name=self.provider_var.get(), model_name=self.model_var.get())
 
                 # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:
