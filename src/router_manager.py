@@ -88,7 +88,14 @@ class RouterManagerWindow:
         for name, cfg in router._providers.items():
             self._build_provider_row(tab, name, cfg)
 
-        ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=8)
+        ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=(8, 4))
+
+        # ASR Providers 区域
+        tk.Label(tab, text="ASR Providers", font=("", 9, "bold"), fg="#444").pack(anchor="w", pady=(0, 4))
+        for name, cfg in router._asr_providers.items():
+            self._build_asr_provider_row(tab, name, cfg)
+
+        ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=(4, 8))
         tk.Label(tab,
                  text="Key 保存在本地 keys/ 目录，不会上传至网络。"
                       "点击「编辑」可查看或修改。",
@@ -115,6 +122,66 @@ class RouterManagerWindow:
         tk.Button(row, text="编辑", width=6,
                   command=lambda n=name, c=cfg: self._open_edit_dialog(n, c)
                   ).pack(side="left", padx=8)
+
+    def _build_asr_provider_row(self, parent, name, cfg):
+        row = tk.Frame(parent)
+        row.pack(fill="x", pady=5)
+
+        display = cfg.get("name", name)
+        tk.Label(row, text=display, width=10, anchor="w").pack(side="left")
+
+        status_text, status_color = self._key_status(cfg)
+        tk.Label(row, text=status_text, width=24, anchor="w",
+                 fg=status_color, font=("", 9)).pack(side="left")
+
+        # 无启用/禁用复选框（ASR 暂时不做 enabled 切换）
+        tk.Label(row, width=9).pack(side="left")   # 占位对齐
+        tk.Button(row, text="编辑", width=6,
+                  command=lambda n=name, c=cfg: self._open_asr_edit_dialog(n, c)
+                  ).pack(side="left", padx=8)
+
+    def _open_asr_edit_dialog(self, name, cfg):
+        dlg = tk.Toplevel(self.win)
+        dlg.title(f"编辑 {cfg.get('name', name)}")
+        dlg.geometry("500x180")
+        dlg.resizable(False, False)
+        dlg.grab_set()
+
+        tk.Label(dlg, text="API Key:", anchor="e", width=12).grid(
+            row=0, column=0, padx=10, pady=16, sticky="e")
+        key_var = tk.StringVar()
+        key_entry = tk.Entry(dlg, textvariable=key_var, width=38, show="*")
+        key_entry.grid(row=0, column=1, columnspan=2, pady=16, sticky="w")
+
+        key_path = os.path.join(_keys_dir(), cfg.get("key_file", ""))
+        if key_path and os.path.exists(key_path):
+            with open(key_path, "r", encoding="utf-8") as f:
+                key_var.set(f.read().strip())
+
+        show_var = tk.BooleanVar(value=False)
+        def toggle_show():
+            key_entry.config(show="" if show_var.get() else "*")
+        ttk.Checkbutton(dlg, text="显示", variable=show_var,
+                        command=toggle_show).grid(row=0, column=3, padx=6)
+
+        def save():
+            key = key_var.get().strip()
+            if not key:
+                messagebox.showerror("错误", "API Key 不能为空", parent=dlg)
+                return
+            kp = os.path.join(_keys_dir(), cfg.get("key_file", ""))
+            if kp:
+                os.makedirs(os.path.dirname(kp), exist_ok=True)
+                with open(kp, "w", encoding="utf-8") as f:
+                    f.write(key)
+            messagebox.showinfo("已保存", f"{cfg.get('name', name)} Key 已保存", parent=dlg)
+            self._rebuild_keys_tab()
+            dlg.destroy()
+
+        btn_row = tk.Frame(dlg)
+        btn_row.grid(row=1, column=0, columnspan=4, pady=14)
+        tk.Button(btn_row, text="保存", command=save, width=10).pack(side="left", padx=10)
+        tk.Button(btn_row, text="取消", command=dlg.destroy, width=10).pack(side="left")
 
     def _key_status(self, cfg):
         """返回 (显示文本, 颜色)。"""

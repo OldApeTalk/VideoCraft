@@ -113,6 +113,20 @@ _DEFAULT_TIER_ROUTING = {
     TIER_ECONOMY:  {"provider": "Gemini", "model": "gemini-2.5-flash-lite"},
 }
 
+# ── 默认 ASR Provider 配置 ────────────────────────────────────────────────────
+# 与 LLM providers 分开，避免混入 tier routing 逻辑
+# 未来可在此添加更多 ASR 提供商（如 OpenAI Whisper、Groq Audio 等）
+
+_DEFAULT_ASR_PROVIDERS = {
+    "lemonfox": {
+        "name":        "LemonFox",
+        "enabled":     True,
+        "key_file":    "lemonfox.key",
+        "base_url":    "https://api.lemonfox.ai/v1/audio/transcriptions",
+        "description": "LemonFox Whisper ASR API",
+    },
+}
+
 # 兼容 SrtTools 的中文 provider 名
 _COMPAT_NAMES = {
     "自定义(OpenAI兼容)": "Custom",
@@ -134,10 +148,11 @@ class AIRouter:
     """
 
     def __init__(self):
-        self._lock          = threading.Lock()
-        self._providers:     dict = {}
-        self._tier_routing:  dict = {}
-        self._stats:         dict = {}
+        self._lock           = threading.Lock()
+        self._providers:      dict = {}
+        self._asr_providers:  dict = {}
+        self._tier_routing:   dict = {}
+        self._stats:          dict = {}
         self._load_config()
 
     # ── 公开 API ──────────────────────────────────────────────────────────────
@@ -221,6 +236,40 @@ class AIRouter:
     def reload_config(self):
         """重新从 providers.json 加载配置（热重载）。"""
         self._load_config()
+
+    # ── ASR 公开 API ──────────────────────────────────────────────────────────
+
+    def get_asr_key(self, provider: str) -> str | None:
+        """返回指定 ASR provider 的 API key。key 未配置时返回 None。"""
+        cfg = self._asr_providers.get(provider)
+        if cfg is None:
+            return None
+        return self._read_key(cfg)
+
+    def get_asr_config(self, provider: str) -> dict | None:
+        """返回指定 ASR provider 的完整配置（深拷贝）。"""
+        cfg = self._asr_providers.get(provider)
+        return copy.deepcopy(cfg) if cfg else None
+
+    def get_available_asr_providers(self) -> list:
+        """返回已启用的 ASR providers 列表，附带 key 是否存在的状态。"""
+        result = []
+        for name, cfg in self._asr_providers.items():
+            result.append({
+                "name":     name,
+                "display":  cfg.get("name", name),
+                "enabled":  cfg.get("enabled", True),
+                "has_key":  self._read_key(cfg) is not None,
+                "base_url": cfg.get("base_url", ""),
+            })
+        return result
+
+    def update_asr_provider(self, provider: str, **kwargs):
+        """更新 ASR provider 的配置字段并持久化。"""
+        if provider not in self._asr_providers:
+            raise RuntimeError(f"未知 ASR provider: {provider!r}")
+        self._asr_providers[provider].update(kwargs)
+        self._save_config()
 
     def set_provider_enabled(self, provider: str, enabled: bool):
         """运行时启用/禁用某个 provider，并持久化。"""
@@ -372,11 +421,13 @@ class AIRouter:
         if os.path.exists(cfg_path):
             with open(cfg_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            self._providers    = data.get("providers",    {})
-            self._tier_routing = data.get("tier_routing", copy.deepcopy(_DEFAULT_TIER_ROUTING))
+            self._providers      = data.get("providers",      {})
+            self._asr_providers  = data.get("asr_providers",  copy.deepcopy(_DEFAULT_ASR_PROVIDERS))
+            self._tier_routing   = data.get("tier_routing",   copy.deepcopy(_DEFAULT_TIER_ROUTING))
         else:
-            self._providers    = copy.deepcopy(_DEFAULT_PROVIDERS)
-            self._tier_routing = copy.deepcopy(_DEFAULT_TIER_ROUTING)
+            self._providers      = copy.deepcopy(_DEFAULT_PROVIDERS)
+            self._asr_providers  = copy.deepcopy(_DEFAULT_ASR_PROVIDERS)
+            self._tier_routing   = copy.deepcopy(_DEFAULT_TIER_ROUTING)
             self._save_config()     # 首次运行写出默认配置
 
         # 初始化统计条目
@@ -392,8 +443,9 @@ class AIRouter:
         os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump({
-                "tier_routing": self._tier_routing,
-                "providers":    self._providers,
+                "tier_routing":  self._tier_routing,
+                "providers":     self._providers,
+                "asr_providers": self._asr_providers,
             }, f, ensure_ascii=False, indent=2)
 
     @staticmethod

@@ -119,9 +119,7 @@ for code in un_languages + other_languages:
     eng, chn = language_dict[code]
     language_options.append(f"{eng} ({chn})")
 
-# 使用绝对路径
-script_dir = os.path.dirname(os.path.abspath(__file__))
-KEY_FILE = os.path.join(os.path.dirname(script_dir), 'keys', 'lemonfox.key')
+from ai_router import router
 
 def select_mp3_file():
     """选择音频/视频文件"""
@@ -133,36 +131,6 @@ def select_mp3_file():
         entry_mp3_path.delete(0, tk.END)
         entry_mp3_path.insert(0, file_path)
 
-def load_key():
-    """加载保存的API Key"""
-    if os.path.exists(KEY_FILE):
-        with open(KEY_FILE, "r") as f:
-            key = f.read().strip()
-            entry_api_key.delete(0, tk.END)
-            entry_api_key.insert(0, key)
-
-def save_key():
-    """保存API Key到文件"""
-    api_key = entry_api_key.get().strip()
-    if not api_key:
-        messagebox.showerror("Error", "请输入有效的API Key。")
-        return
-    # 确保keys文件夹存在（使用绝对路径）
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    key_file = os.path.join(os.path.dirname(script_dir), 'keys', 'lemonfox.key')
-    os.makedirs(os.path.dirname(key_file), exist_ok=True)
-    with open(key_file, "w") as f:
-        f.write(api_key)
-    messagebox.showinfo("Success", "API Key 已保存。")
-
-def delete_key():
-    """删除API Key文件"""
-    if os.path.exists(KEY_FILE):
-        os.remove(KEY_FILE)
-        entry_api_key.delete(0, tk.END)
-        messagebox.showinfo("成功", "API Key 文件已删除。")
-    else:
-        messagebox.showinfo("信息", "没有找到 API Key 文件。")
 
 def clean_srt_content(srt_content):
     """清理API返回的SRT内容"""
@@ -270,14 +238,14 @@ def transcribe_audio():
     """执行转录并生成原始SRT（不拆分）"""
     mp3_path = entry_mp3_path.get()
     selected_language = combo_language.get()
-    api_key = entry_api_key.get().strip()
+    api_key = router.get_asr_key("lemonfox")
 
     if not mp3_path or not os.path.exists(mp3_path):
         messagebox.showerror("Error", "请选择有效的MP3文件。")
         return
-    
+
     if not api_key:
-        messagebox.showerror("Error", "请输入有效的API Key。")
+        messagebox.showerror("Error", "LemonFox API Key 未配置，请在 AI Router 管理界面中设置。")
         return
 
     # 解析语言
@@ -366,32 +334,6 @@ entry_mp3_path.pack()
 button_select_mp3 = tk.Button(root, text="浏览", command=select_mp3_file)
 button_select_mp3.pack(pady=5)
 
-# API Key输入
-label_api_key = tk.Label(root, text="LemonFox API Key:")
-label_api_key.pack(pady=5)
-api_key_var = tk.StringVar()
-entry_api_key = tk.Entry(root, width=60, textvariable=api_key_var, show="*")
-entry_api_key.pack(pady=5)
-
-def toggle_key_visibility():
-    if entry_api_key.cget('show') == '*':
-        entry_api_key.config(show='')
-        button_toggle_key.config(text="隐藏 Key")
-    else:
-        entry_api_key.config(show='*')
-        button_toggle_key.config(text="显示 Key")
-
-button_toggle_key = tk.Button(root, text="显示 Key", command=toggle_key_visibility)
-button_toggle_key.pack(pady=2)
-
-# Key管理按钮
-frame_key_buttons = tk.Frame(root)
-frame_key_buttons.pack(pady=5)
-button_save_key = tk.Button(frame_key_buttons, text="保存 Key", command=save_key)
-button_save_key.pack(side=tk.LEFT, padx=5)
-button_delete_key = tk.Button(frame_key_buttons, text="删除 Key", command=delete_key)
-button_delete_key.pack(side=tk.LEFT, padx=5)
-
 # 语言选择
 label_language = tk.Label(root, text="选择语言:")
 label_language.pack(pady=5)
@@ -413,8 +355,5 @@ label_log = tk.Label(root, text="日志:")
 label_log.pack(pady=5)
 log_text = tk.Text(root, height=8, width=70)
 log_text.pack(pady=5, padx=10)
-
-# 加载保存的Key
-load_key()
 
 root.mainloop()
