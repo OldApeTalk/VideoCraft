@@ -36,7 +36,7 @@ PYTHON_DIR = os.path.join(DIST_DIR, "python")
 GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 
 # Folders / files to copy into the distribution
-COPY_DIRS = ["src", "doc"]
+COPY_DIRS = ["src"]
 COPY_FILES = ["requirements.txt", "LICENSE", "README.markdown"]
 # keys/ is handled separately — only the README is copied, NOT actual .key files
 
@@ -199,6 +199,14 @@ def main():
             shutil.copy2(src, DIST_DIR)
             print(f"  {f}")
 
+    # Add src/ to the ._pth so local modules (project, operations, etc.) are importable
+    with open(pth_path, 'r') as f:
+        pth_content = f.read()
+    if '../src' not in pth_content:
+        with open(pth_path, 'a') as f:
+            f.write('../src\n')
+        print(f"  Added ../src to {pth_files[0]}")
+
     # Create keys/ with README only — NEVER ship actual API keys
     keys_dst = os.path.join(DIST_DIR, "keys")
     os.makedirs(keys_dst, exist_ok=True)
@@ -230,20 +238,19 @@ def main():
 def create_launchers(dist_dir):
     """Create .bat launcher scripts."""
 
-    # Main launcher
+    # Main launcher — VideoCraftHub is the primary entry point
     bat = os.path.join(dist_dir, "VideoCraft.bat")
     with open(bat, 'w') as f:
         f.write('@echo off\r\n')
         f.write('title VideoCraft\r\n')
         f.write('cd /d "%~dp0"\r\n')
-        f.write('python\\python.exe src\\VideoCraft.py %*\r\n')
-    print(f"  Created VideoCraft.bat")
+        f.write('python\\python.exe src\\VideoCraftHub.py %*\r\n')
+    print(f"  Created VideoCraft.bat  (-> VideoCraftHub.py)")
 
-    # Individual module launchers
+    # Standalone module launchers (each has its own __main__ entry)
     modules = {
-        "SrtTools": "SrtTools.py",
+        "SrtTools":  "SrtTools.py",
         "VideoTools": "VideoTools.py",
-        "SubtitleTool": "SubtitleTool.py",
         "SplitVideo": "SplitVideo0.2.py",
     }
     for name, script in modules.items():
