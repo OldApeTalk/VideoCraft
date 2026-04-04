@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import requests
@@ -355,5 +356,9 @@ label_log = tk.Label(root, text="日志:")
 label_log.pack(pady=5)
 log_text = tk.Text(root, height=8, width=70)
 log_text.pack(pady=5, padx=10)
+
+if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
+    entry_mp3_path.delete(0, tk.END)
+    entry_mp3_path.insert(0, sys.argv[1])
 
 root.mainloop()

@@ -216,7 +216,7 @@ def split_audio_by_size(audio_path, max_size_kb=100):
 
 # ===================== GUI 主界面 =====================
 class TranslateApp:
-    def __init__(self, master):
+    def __init__(self, master, initial_file: str = None):
         self.master = master
         master.title("SRT 字幕批量翻译")
         master.geometry("700x430")
@@ -302,6 +302,9 @@ Return the translated subtitles in the same special 【number】 format with {{b
         self.status_var = tk.StringVar()
         tk.Label(master, textvariable=self.status_var, fg="blue").grid(
             row=7, column=0, columnspan=3, pady=5)
+
+        if initial_file:
+            self.srt_path_var.set(initial_file)
 
     def open_router_manager(self):
         from router_manager import open_router_manager

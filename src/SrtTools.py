@@ -6,80 +6,12 @@ from tkinter import filedialog, messagebox, ttk
 import threading
 from datetime import datetime
 
-# ===================== Multi-AI Provider Configuration =====================
-
-def _keys_dir():
-    """Return the path to the keys/ directory next to src/."""
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'keys')
-
-AI_PROVIDERS = {
-    "Gemini": {
-        "type": "gemini",
-        "key_file": "Gemini.key",
-        "models": [
-            {"id": "gemini-2.5-pro",        "label": "Gemini 2.5 Pro (最强)"},
-            {"id": "gemini-2.5-flash",      "label": "Gemini 2.5 Flash (快速)"},
-            {"id": "gemini-2.5-flash-lite", "label": "Gemini 2.5 Flash Lite (经济)"},
-        ],
-        "default_model": "gemini-2.5-flash",
-    },
-    "Groq": {
-        "type": "openai_compatible",
-        "base_url": "https://api.groq.com/openai/v1",
-        "key_file": "Groq.key",
-        "models": [
-            {"id": "openai/gpt-oss-120b",                       "label": "GPT-OSS 120B (最强,推荐)"},
-            {"id": "llama-3.3-70b-versatile",                    "label": "Llama 3.3 70B (稳定)"},
-            {"id": "openai/gpt-oss-20b",                         "label": "GPT-OSS 20B (极速)"},
-            {"id": "qwen/qwen3-32b",                             "label": "Qwen3 32B (Preview)"},
-            {"id": "meta-llama/llama-4-scout-17b-16e-instruct",  "label": "Llama 4 Scout 17B (Preview)"},
-            {"id": "llama-3.1-8b-instant",                       "label": "Llama 3.1 8B (轻量)"},
-        ],
-        "default_model": "openai/gpt-oss-120b",
-    },
-    "DeepSeek": {
-        "type": "openai_compatible",
-        "base_url": "https://api.deepseek.com",
-        "key_file": "DeepSeek.key",
-        "models": [
-            {"id": "deepseek-chat",     "label": "DeepSeek V3.2 (通用)"},
-            {"id": "deepseek-reasoner", "label": "DeepSeek V3.2 推理 (Thinking)"},
-        ],
-        "default_model": "deepseek-chat",
-    },
-    "自定义(OpenAI兼容)": {
-        "type": "openai_compatible",
-        "base_url": "",
-        "key_file": "Custom.key",
-        "models": [],
-        "default_model": "",
-    },
-}
-
-def _read_api_key(provider_name):
-    """Read API key from the provider's key file. Returns (key, error_msg)."""
-    provider = AI_PROVIDERS[provider_name]
-    key_path = os.path.join(_keys_dir(), provider["key_file"])
-    if not os.path.exists(key_path):
-        return None, f"API Key 文件不存在: {provider['key_file']}\n请先在「管理Key」中配置"
-    with open(key_path, 'r', encoding='utf-8') as f:
-        key = f.read().strip()
-    if not key:
-        return None, f"API Key 为空: {provider['key_file']}"
-    return key, None
-
-def ai_generate(provider_name, model_id, prompt):
-    """
-    Unified AI generation entry point — delegates to the central AI Router.
-    Supports Gemini (native SDK) and OpenAI-compatible providers.
-    Returns the generated text string.
-    """
-    from ai_router import router
-    return router.complete(prompt, provider=provider_name, model=model_id)
+# ===================== AI Router (统一路由) =====================
+# AI 调用统一由 ai_router.router 处理，档位配置见 AI Router 管理界面
 
 # ===================== Business Logic Functions =====================
 
-def generate_youtube_segments(srt_path, provider_name='Gemini', model_name='gemini-2.5-flash', prompt=None):
+def generate_youtube_segments(srt_path, prompt=None, tier=None):
     '''
     根据SRT字幕文件生成YouTube分段描述
 
@@ -144,11 +76,12 @@ xx:xx 标题
         prompt = full_prompt
 
     # 调用AI生成
+    from ai_router import router, TIER_PREMIUM
+    _tier = tier or TIER_PREMIUM
     try:
-        segments = ai_generate(provider_name, model_name, prompt)
-        return segments
+        return router.complete(prompt, tier=_tier)
     except Exception as e:
-        raise RuntimeError(f'调用AI生成失败 ({provider_name}/{model_name}): {e}')
+        raise RuntimeError(f'调用AI生成失败 (tier={_tier}): {e}')
 
 def extract_paragraphs_from_segments(srt_path, segments_path):
     """
@@ -234,7 +167,7 @@ def extract_paragraphs_from_segments(srt_path, segments_path):
 
     return output.strip()
 
-def generate_video_titles(subs_path, prompt, provider_name='Gemini', model_name='gemini-2.5-flash'):
+def generate_video_titles(subs_path, prompt, tier=None):
     """
     根据subs文件内容生成视频标题
 
@@ -255,11 +188,12 @@ def generate_video_titles(subs_path, prompt, provider_name='Gemini', model_name=
     full_prompt = f"{prompt}\n\n以下是视频的分段描述内容：\n\n{subs_content}\n\n请根据以上内容生成合适的视频标题。"
 
     # 调用AI生成
+    from ai_router import router, TIER_PREMIUM
+    _tier = tier or TIER_PREMIUM
     try:
-        titles = ai_generate(provider_name, model_name, full_prompt)
-        return titles
+        return router.complete(full_prompt, tier=_tier)
     except Exception as e:
-        raise RuntimeError(f'调用AI生成失败 ({provider_name}/{model_name}): {e}')
+        raise RuntimeError(f'调用AI生成失败 (tier={_tier}): {e}')
 
 def extract_all_subtitles(srt_path):
     """
@@ -320,7 +254,7 @@ def parse_segments_paragraphs_content(content):
 
     return segments
 
-def refine_segment_descriptions(paragraphs_path, prompt, provider_name='Gemini', model_name='gemini-2.5-flash'):
+def refine_segment_descriptions(paragraphs_path, prompt, tier=None):
     """
     Refine all segments generated by Tab 3 in one AI request.
 
@@ -329,7 +263,7 @@ def refine_segment_descriptions(paragraphs_path, prompt, provider_name='Gemini',
         prompt (str): Refinement prompt. Recommended placeholder: {all_segments_content}.
             Also supports {segments_content}. Legacy placeholders
             ({segment_time}/{segment_title}/{segment_content}) are auto-adapted.
-        provider_name (str): AI provider name (key in AI_PROVIDERS).
+        tier (str): AI 档位，默认 "premium"（高档）。
         model_name (str): Model name for the provider.
 
     Returns:
@@ -377,7 +311,9 @@ def refine_segment_descriptions(paragraphs_path, prompt, provider_name='Gemini',
     elif all_segments_content not in full_prompt:
         full_prompt = f"{full_prompt}\n\n以下是全部分段内容：\n{all_segments_content}"
 
-    refined_text = ai_generate(provider_name, model_name, full_prompt)
+    from ai_router import router, TIER_PREMIUM
+    _tier = tier or TIER_PREMIUM
+    refined_text = router.complete(full_prompt, tier=_tier)
 
     if not refined_text:
         raise RuntimeError('AI返回为空，未生成精炼结果')
@@ -387,14 +323,9 @@ def refine_segment_descriptions(paragraphs_path, prompt, provider_name='Gemini',
 class YouTubeSegmentsApp:
     def __init__(self, master):
         self.master = master
-        master.title("YouTube工具箱（多AI提供商）")
+        master.title("YouTube工具箱")
         master.geometry("750x450")
         master.resizable(False, False)
-
-        # Provider / model state
-        self.provider_var = tk.StringVar(value=list(AI_PROVIDERS.keys())[0])
-        self.model_var = tk.StringVar()
-        self._sync_model_list()  # populate model list for initial provider
 
         # 创建标签页
         self.notebook = ttk.Notebook(master)
@@ -420,31 +351,21 @@ class YouTubeSegmentsApp:
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="生成分段描述")
 
-        # AI 提供商选择
-        tk.Label(tab, text="AI 提供商:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.provider_combo = ttk.Combobox(tab, textvariable=self.provider_var,
-                                           values=list(AI_PROVIDERS.keys()), state="readonly", width=20)
-        self.provider_combo.grid(row=0, column=1, sticky="w")
-        self.provider_combo.bind("<<ComboboxSelected>>", self._on_provider_changed)
-        tk.Button(tab, text="管理Key", command=self.configure_api_key).grid(row=0, column=2, padx=10)
-
-        # 模型选择
-        tk.Label(tab, text="选择模型:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.model_combo = ttk.Combobox(tab, textvariable=self.model_var,
-                                        values=self._get_model_ids(), state="readonly", width=35)
-        self.model_combo.grid(row=1, column=1, sticky="w", padx=(0,10))
-        tk.Label(tab, text="切换提供商自动刷新模型列表", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
+        # AI 档位信息
+        tk.Label(tab, text="AI 档位:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(tab, text="高档 (Premium) — 最强模型", fg="#228B22", font=("Arial", 9)).grid(row=0, column=1, sticky="w")
+        tk.Button(tab, text="AI Router 管理", command=self._open_router_manager).grid(row=0, column=2, padx=10)
 
         # SRT文件选择
-        tk.Label(tab, text="SRT字幕文件:").grid(row=2, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(tab, text="SRT字幕文件:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
         self.srt_path_var = tk.StringVar()
-        tk.Entry(tab, textvariable=self.srt_path_var, width=50).grid(row=2, column=1, sticky="w")
-        tk.Button(tab, text="浏览", command=self.select_srt).grid(row=2, column=2, padx=10)
+        tk.Entry(tab, textvariable=self.srt_path_var, width=50).grid(row=1, column=1, sticky="w")
+        tk.Button(tab, text="浏览", command=self.select_srt).grid(row=1, column=2, padx=10)
 
         # Prompt编辑
-        tk.Label(tab, text="Prompt提示语:").grid(row=3, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(tab, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
         self.segments_prompt_text = tk.Text(tab, height=8, width=50, wrap=tk.WORD)
-        self.segments_prompt_text.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0,10))
+        self.segments_prompt_text.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0,10))
         # 设置默认prompt
         default_segments_prompt = """# 生成时间戳分段
 
@@ -474,18 +395,18 @@ xx:xx 标题
         self.segments_prompt_text.insert(tk.END, default_segments_prompt)
 
         # 输出文件选择
-        tk.Label(tab, text="输出文件:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(tab, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
         self.output_path_var = tk.StringVar(value="subs.txt")
-        tk.Entry(tab, textvariable=self.output_path_var, width=50).grid(row=4, column=1, sticky="w")
-        tk.Button(tab, text="浏览", command=self.select_output).grid(row=4, column=2, padx=10)
+        tk.Entry(tab, textvariable=self.output_path_var, width=50).grid(row=3, column=1, sticky="w")
+        tk.Button(tab, text="浏览", command=self.select_output).grid(row=3, column=2, padx=10)
 
         # 生成按钮
         self.generate_btn = tk.Button(tab, text="生成分段描述", command=self.generate_segments, width=20)
-        self.generate_btn.grid(row=5, column=1, pady=25)
+        self.generate_btn.grid(row=4, column=1, pady=25)
 
         # 进度/提示
         self.status_var = tk.StringVar()
-        tk.Label(tab, textvariable=self.status_var, fg="blue").grid(row=6, column=0, columnspan=3, pady=10)
+        tk.Label(tab, textvariable=self.status_var, fg="blue").grid(row=5, column=0, columnspan=3, pady=10)
 
     def create_paragraphs_tab(self):
         """创建段落提取标签页"""
@@ -529,10 +450,15 @@ xx:xx 标题
         tk.Entry(tab, textvariable=self.titles_subs_var, width=50).grid(row=0, column=1, sticky="w")
         tk.Button(tab, text="浏览", command=self.select_titles_subs).grid(row=0, column=2, padx=10)
 
+        # AI 档位信息
+        tk.Label(tab, text="AI 档位:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(tab, text="高档 (Premium) — 最强模型", fg="#228B22", font=("Arial", 9)).grid(row=1, column=1, sticky="w")
+        tk.Button(tab, text="AI Router 管理", command=self._open_router_manager).grid(row=1, column=2, padx=10)
+
         # Prompt编辑
-        tk.Label(tab, text="Prompt提示语:").grid(row=1, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(tab, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
         self.prompt_text = tk.Text(tab, height=6, width=50, wrap=tk.WORD)
-        self.prompt_text.grid(row=1, column=1, columnspan=2, sticky="w", padx=(0,10))
+        self.prompt_text.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0,10))
         # 设置默认prompt
         default_prompt = """## 生成标题
 
@@ -543,18 +469,18 @@ xx:xx 标题
         self.prompt_text.insert(tk.END, default_prompt)
 
         # 输出文件选择
-        tk.Label(tab, text="输出文件:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(tab, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
         self.titles_output_var = tk.StringVar(value="titles.txt")
-        tk.Entry(tab, textvariable=self.titles_output_var, width=50).grid(row=2, column=1, sticky="w")
-        tk.Button(tab, text="浏览", command=self.select_titles_output).grid(row=2, column=2, padx=10)
+        tk.Entry(tab, textvariable=self.titles_output_var, width=50).grid(row=3, column=1, sticky="w")
+        tk.Button(tab, text="浏览", command=self.select_titles_output).grid(row=3, column=2, padx=10)
 
         # 生成按钮
         self.titles_btn = tk.Button(tab, text="生成标题", command=self.generate_titles, width=20)
-        self.titles_btn.grid(row=3, column=1, pady=25)
+        self.titles_btn.grid(row=4, column=1, pady=25)
 
         # 进度/提示
         self.titles_status_var = tk.StringVar()
-        tk.Label(tab, textvariable=self.titles_status_var, fg="blue").grid(row=4, column=0, columnspan=3, pady=10)
+        tk.Label(tab, textvariable=self.titles_status_var, fg="blue").grid(row=5, column=0, columnspan=3, pady=10)
 
     def create_refine_tab(self):
         """创建分段精炼标签页"""
@@ -567,12 +493,10 @@ xx:xx 标题
         tk.Entry(tab, textvariable=self.refine_input_var, width=50).grid(row=0, column=1, sticky="w")
         tk.Button(tab, text="浏览", command=self.select_refine_input).grid(row=0, column=2, padx=10)
 
-        # Model selector (shares the same provider/model with segment generation tab)
-        tk.Label(tab, text="选择模型:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.refine_model_combo = ttk.Combobox(tab, textvariable=self.model_var,
-                                               values=self._get_model_ids(), state="readonly", width=35)
-        self.refine_model_combo.grid(row=1, column=1, sticky="w", padx=(0,10))
-        tk.Label(tab, text="与“生成分段描述”共享提供商/模型", fg="blue", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
+        # AI 档位信息
+        tk.Label(tab, text="AI 档位:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(tab, text="高档 (Premium) — 最强模型", fg="#228B22", font=("Arial", 9)).grid(row=1, column=1, sticky="w")
+        tk.Button(tab, text="AI Router 管理", command=self._open_router_manager).grid(row=1, column=2, padx=10)
 
         # Prompt编辑
         tk.Label(tab, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
@@ -674,79 +598,10 @@ xx:xx 标题
         scrollbar_y.config(command=self.subtitles_text_display.yview)
         scrollbar_x.config(command=self.subtitles_text_display.xview)
 
-    def _get_model_ids(self):
-        """Return list of model IDs for the currently selected provider."""
-        provider = AI_PROVIDERS.get(self.provider_var.get())
-        if not provider:
-            return []
-        return [m["id"] for m in provider["models"]]
-
-    def _sync_model_list(self, event=None):
-        """Update model_var and all model comboboxes when provider changes."""
-        provider = AI_PROVIDERS.get(self.provider_var.get())
-        if not provider:
-            return
-        model_ids = [m["id"] for m in provider["models"]]
-        default = provider.get("default_model", model_ids[0] if model_ids else "")
-        self.model_var.set(default)
-        # Update all model comboboxes if they exist
-        for combo_attr in ("model_combo", "refine_model_combo"):
-            combo = getattr(self, combo_attr, None)
-            if combo:
-                combo["values"] = model_ids
-
-    def _on_provider_changed(self, event=None):
-        """Handle provider combobox selection change."""
-        self._sync_model_list()
-
-    def configure_api_key(self):
-        """Open a dialog to view/edit the API key for the current provider."""
-        provider_name = self.provider_var.get()
-        provider = AI_PROVIDERS[provider_name]
-        key_path = os.path.join(_keys_dir(), provider["key_file"])
-
-        win = tk.Toplevel(self.master)
-        win.title(f"{provider_name} API Key 配置")
-        tk.Label(win, text=f"{provider_name} API Key:").pack(pady=10)
-        entry = tk.Entry(win, width=50)
-        entry.pack(pady=5)
-        # Pre-fill existing key
-        if os.path.exists(key_path):
-            with open(key_path, 'r', encoding='utf-8') as f:
-                entry.insert(0, f.read().strip())
-
-        # For custom provider, also allow editing base_url
-        if provider_name == "自定义(OpenAI兼容)":
-            tk.Label(win, text="Base URL:").pack(pady=(10, 0))
-            url_entry = tk.Entry(win, width=50)
-            url_entry.pack(pady=5)
-            url_entry.insert(0, provider.get("base_url", ""))
-
-            tk.Label(win, text="模型ID (逗号分隔):").pack(pady=(10, 0))
-            models_entry = tk.Entry(win, width=50)
-            models_entry.pack(pady=5)
-            models_entry.insert(0, ",".join(m["id"] for m in provider["models"]))
-
-        def save():
-            key = entry.get().strip()
-            if not key:
-                messagebox.showerror("Error", "请输入有效的API key")
-                return
-            os.makedirs(os.path.dirname(key_path), exist_ok=True)
-            with open(key_path, 'w', encoding='utf-8') as f:
-                f.write(key)
-            # Update custom provider config if applicable
-            if provider_name == "自定义(OpenAI兼容)":
-                provider["base_url"] = url_entry.get().strip()
-                model_ids = [m.strip() for m in models_entry.get().split(",") if m.strip()]
-                provider["models"] = [{"id": mid, "label": mid} for mid in model_ids]
-                if model_ids:
-                    provider["default_model"] = model_ids[0]
-                self._sync_model_list()
-            messagebox.showinfo("Success", f"{provider_name} API key 已保存!")
-            win.destroy()
-
-        tk.Button(win, text="保存", command=save).pack(pady=10)
+    def _open_router_manager(self):
+        """打开 AI Router 管理界面。"""
+        from router_manager import open_router_manager
+        open_router_manager(self.master)
 
     def select_srt(self):
         path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
@@ -801,7 +656,7 @@ xx:xx 标题
         # 在后台线程中运行生成任务
         def run_generation():
             try:
-                segments = generate_youtube_segments(srt_path, provider_name=self.provider_var.get(), model_name=self.model_var.get(), prompt=prompt)
+                segments = generate_youtube_segments(srt_path, prompt=prompt)
                 
                 # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:
@@ -963,7 +818,7 @@ xx:xx 标题
         # Run in background thread to keep GUI responsive.
         def run_refinement():
             try:
-                refined_text = refine_segment_descriptions(input_path, prompt, provider_name=self.provider_var.get(), model_name=self.model_var.get())
+                refined_text = refine_segment_descriptions(input_path, prompt)
 
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(refined_text)
@@ -1026,7 +881,7 @@ xx:xx 标题
         # 在后台线程中运行生成任务
         def run_title_generation():
             try:
-                titles = generate_video_titles(subs_path, prompt, provider_name=self.provider_var.get(), model_name=self.model_var.get())
+                titles = generate_video_titles(subs_path, prompt)
 
                 # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:

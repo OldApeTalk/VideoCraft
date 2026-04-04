@@ -302,7 +302,7 @@ class VideoCraftHub:
         if op.handler in ("quick", "common"):
             self._run_quick(op, file_path)
         else:
-            self.open_tool(op.tool_key)
+            self.open_tool(op.tool_key, initial_file=file_path)
 
     def _run_quick(self, op, file_path: str):
         def task():
@@ -323,7 +323,7 @@ class VideoCraftHub:
 
     # ── 工具启动 ──────────────────────────────────────────────────────────────
 
-    def open_tool(self, key: str):
+    def open_tool(self, key: str, initial_file: str = None):
         cfg = TOOL_MAP.get(key)
         if cfg is None:
             messagebox.showerror("错误", f"未知工具：{key}")
@@ -335,11 +335,11 @@ class VideoCraftHub:
             return
 
         if cfg["class"] is None:
-            self._open_subprocess(file_path)
+            self._open_subprocess(file_path, initial_file=initial_file)
         else:
-            self._open_toplevel(file_path, cfg["class"])
+            self._open_toplevel(file_path, cfg["class"], initial_file=initial_file)
 
-    def _open_toplevel(self, file_path: str, class_name: str):
+    def _open_toplevel(self, file_path: str, class_name: str, initial_file: str = None):
         try:
             mod_name = os.path.splitext(os.path.basename(file_path))[0]
             spec = importlib.util.spec_from_file_location(mod_name, file_path)
@@ -348,18 +348,21 @@ class VideoCraftHub:
             cls  = getattr(mod, class_name)
             win  = tk.Toplevel(self.root)
             win.transient(self.root)           # 保持在 Hub 之上，对话框关闭后不被遮挡
-            app  = cls(win)
+            app  = cls(win, initial_file=initial_file) if initial_file else cls(win)
             self._tool_instances.append(app)   # 持有引用，防止 GC
             win.bind("<Destroy>", lambda e, a=app: self._tool_instances.remove(a)
                      if a in self._tool_instances else None)
         except Exception as e:
             messagebox.showerror("启动失败", str(e))
 
-    def _open_subprocess(self, file_path: str):
+    def _open_subprocess(self, file_path: str, initial_file: str = None):
         venv_python = os.path.join(_SRC, "..", "myenv", "Scripts", "python.exe")
         python = venv_python if os.path.exists(venv_python) else sys.executable
         try:
-            subprocess.Popen([python, file_path])
+            cmd = [python, file_path]
+            if initial_file:
+                cmd.append(initial_file)
+            subprocess.Popen(cmd)
         except Exception as e:
             messagebox.showerror("启动失败", str(e))
 

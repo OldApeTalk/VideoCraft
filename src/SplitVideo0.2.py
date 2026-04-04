@@ -148,7 +148,7 @@ def split_video(video_path, segments, output_dir, status_var=None):
             print(f"错误：切分失败 - {title}，原因：{e.stderr.decode()}")
 
 class SplitVideoApp:
-    def __init__(self, master):
+    def __init__(self, master, initial_file: str = None):
         self.master = master
         master.title("视频分段切割工具")
         master.geometry("650x300")
@@ -178,6 +178,10 @@ class SplitVideoApp:
 
         # 开始切割按钮
         tk.Button(master, text="开始切割", command=self.start_split, width=20).grid(row=3, column=1, pady=20)
+
+        if initial_file:
+            self.video_path_var.set(initial_file)
+            self.output_dir_var.set(os.path.dirname(initial_file))
 
     def select_video(self):
         path = filedialog.askopenfilename(title="选择视频文件", filetypes=[("Video files", "*.mp4 *.mkv *.avi"), ("All files", "*.*")])

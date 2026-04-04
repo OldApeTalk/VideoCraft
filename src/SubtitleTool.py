@@ -7,6 +7,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, colorchooser, ttk
 import os
+import sys
 import subprocess
 import threading
 import time
@@ -544,6 +545,11 @@ def update_split_settings():
         sub2_max_chars_var.set(50)
         sub1_fontsize_var.set(24)
         sub2_fontsize_var.set(24)
+    elif orientation_var.get() == "square":
+        sub1_max_chars_var.set(10)
+        sub2_max_chars_var.set(25)
+        sub1_fontsize_var.set(20)
+        sub2_fontsize_var.set(16)
     else:
         sub1_max_chars_var.set(10)
         sub2_max_chars_var.set(25)
@@ -562,17 +568,18 @@ frame_orientation.grid(row=1, column=0, columnspan=3, padx=15, pady=5, sticky="w
 
 tk.Radiobutton(frame_orientation, text="横屏", variable=orientation_var, value="horizontal", command=update_split_settings).grid(row=0, column=0, padx=20)
 tk.Radiobutton(frame_orientation, text="竖屏", variable=orientation_var, value="vertical", command=update_split_settings).grid(row=0, column=1, padx=20)
+tk.Radiobutton(frame_orientation, text="方形", variable=orientation_var, value="square", command=update_split_settings).grid(row=0, column=2, padx=20)
 
 # 编码速度设置（放在屏幕方向设置的右侧）
-tk.Label(frame_orientation, text="  |  编码速度:").grid(row=0, column=2, padx=(40, 5), sticky="e")
-encode_preset_combo = ttk.Combobox(frame_orientation, textvariable=encode_preset_var, 
+tk.Label(frame_orientation, text="  |  编码速度:").grid(row=0, column=3, padx=(40, 5), sticky="e")
+encode_preset_combo = ttk.Combobox(frame_orientation, textvariable=encode_preset_var,
                                    values=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium"],
                                    width=12, state="readonly")
-encode_preset_combo.grid(row=0, column=3, padx=5)
+encode_preset_combo.grid(row=0, column=4, padx=5)
 
 # 添加提示标签
-tk.Label(frame_orientation, text="(高分辨率建议: veryfast或更快)", 
-         font=("Arial", 8), fg="gray").grid(row=0, column=4, padx=5)
+tk.Label(frame_orientation, text="(高分辨率建议: veryfast或更快)",
+         font=("Arial", 8), fg="gray").grid(row=0, column=5, padx=5)
 
 # 字幕1（底部，中文，在英文字幕之上）
 frame_sub1 = tk.LabelFrame(root, text="中文字幕（底部，之上）", padx=5, pady=5)
@@ -667,5 +674,15 @@ btn_merge.grid(row=6, column=1, pady=25)
 
 # 初始化分割设置
 update_split_settings()
+
+if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
+    _initial = sys.argv[1]
+    _ext = os.path.splitext(_initial)[1].lower()
+    if _ext == ".srt":
+        entry_sub1.delete(0, tk.END)
+        entry_sub1.insert(0, _initial)
+    elif _ext in (".mp4", ".mkv", ".avi", ".mov"):
+        entry_video.delete(0, tk.END)
+        entry_video.insert(0, _initial)
 
 root.mainloop()
