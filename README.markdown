@@ -1,66 +1,168 @@
 # VideoCraft
 
-VideoCraft is an open-source Python tool for seamless video processing. It provides a GUI with modular tabs: Download, Transcribe & Translate, and Merge.
+> 视频创作者的全套工具箱 —— 下载、转录、翻译、烧录字幕，一站搞定。
 
-## Features
-- Download videos from YouTube using `yt-dlp`.
-- Transcribe audio to subtitles using `whisper`.
-- Translate subtitles into multiple languages using `deep-translator` (DeepL API).
-- Merge subtitles with videos using `ffmpeg-python`.
-- **NEW**: SRT Tools - Generate YouTube segments, extract paragraph content, and create video titles using Gemini AI.
+[![最新版本](https://img.shields.io/github/v/release/OldApeTalk/VideoCraft?include_prereleases&label=下载最新版本)](https://github.com/OldApeTalk/VideoCraft/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](https://github.com/OldApeTalk/VideoCraft/releases/latest)
 
-## SRT Tools (New Feature)
-A comprehensive SRT subtitle processing tool with four main functions:
-1. **Generate YouTube Segments**: Create timestamp-based video segments from SRT files (`subs.txt`)
-2. **Extract Paragraph Content**: Extract text content for each time segment (`subs-segment.txt`)
-3. **Generate Video Titles**: Create engaging video titles based on segment descriptions (`titles.txt`)
-4. **Extract All Subtitles**: Extract all subtitle text with one subtitle per line (`AllSubtitles.txt`)
+---
 
-Run the SRT Tools GUI:
-```bash
-python src/SrtTools.py
+## 这是什么？
+
+VideoCraft 是一款面向视频创作者的本地工具集，VS Code 风格界面，将视频处理全流程整合到一个窗口：
+
+**视频下载 → 语音转字幕 → 字幕翻译 → 烧录字幕**
+
+同时提供视频剪辑、音频处理、AI 内容生成等十余种辅助工具。
+
+**无需安装 Python，解压即用（Windows 10/11 x64）。**
+
+---
+
+## ⚡ 无需任何 API Key 即可使用的强大功能
+
+以下功能**完全免费、开箱即用**，无需注册任何账号或填写任何 Key。
+
+> 市面上同类工具（视频剪切、音频提取、字幕烧录等）多以订阅制或按次付费方式提供，VideoCraft 将它们打包在一起，完全免费。
+
+| 功能 | 说明 |
+|------|------|
+| 📥 **视频下载**（内置 yt-dlp） | 封装业界最强开源下载工具 [yt-dlp](https://github.com/yt-dlp/yt-dlp)，图形界面操作，支持数百个视频平台，无需命令行 |
+| 🔤 **字幕烧录** | 将 SRT 字幕硬烧到视频，支持字体、颜色、大小、位置等样式配置 |
+| ✂️ **按时间戳分割视频** | 按章节时间戳批量切割视频片段 |
+| 🎵 **提取 MP3 音频** | 从视频中提取音频，支持 128k / 192k / 256k / 320k 多种码率 |
+| 🔊 **调整音量** | 视频/音频音量精确调节（±20dB） |
+| 📐 **视频片段提取** | 按时间范围精确截取片段，可同步截取对应字幕 |
+| 🔀 **自动均分视频** | 将视频自动分割为指定数量的片段，支持关键帧对齐 |
+| 🔄 **MP3 码率转换** | 快速转换 MP3 文件码率 |
+| 📝 **提取字幕文字** | 从 SRT 文件一键导出纯文本 |
+| 📋 **按时间戳提取段落** | 根据分段文件提取各段落对应字幕内容 |
+
+---
+
+## 🤖 绑定 AI Key 后解锁更多强大功能
+
+AI 功能需要用户自行提供对应服务的 API Key（按用量向第三方付费）。**VideoCraft 本身永久免费，不收取任何中间费用。**
+
+| 功能 | 需要的 Key | 说明 |
+|------|-----------|------|
+| 🎙️ **语音转字幕** | Lemonfox | 音视频文件自动生成 SRT 字幕，支持 40+ 语言 |
+| 🌐 **字幕翻译** | Gemini / Groq / DeepSeek（任选其一）| 将 SRT 字幕翻译为任意语言 |
+| 📌 **生成视频分段** | Gemini | 根据字幕自动生成时间戳+标题分段 |
+| ✨ **精炼分段描述** | Gemini | AI 优化分段标题的表达质量 |
+| 🏷️ **生成视频标题** | Gemini | 基于字幕内容生成吸引眼球的标题 |
+| 🗣️ **文字转视频** | Gemini + Google Cloud TTS | 文本合成语音并生成视频 |
+
+---
+
+## 📦 下载与安装
+
+### 第一步：下载 VideoCraft
+
+前往 **[Releases 页面](https://github.com/OldApeTalk/VideoCraft/releases/latest)**，下载最新版本的 `VideoCraft-portable-vX.X.X.zip`。
+
+### 第二步：解压
+
+解压到任意目录，**路径中不要包含中文或空格**：
+
+| | 示例 |
+|---|---|
+| ✅ 正确 | `D:\Tools\VideoCraft` |
+| ✅ 正确 | `C:\VideoCraft` |
+| ❌ 错误 | `D:\我的工具\VideoCraft`（含中文） |
+| ❌ 错误 | `D:\My Tools\VideoCraft`（含空格） |
+
+### 第三步：安装 FFmpeg（必需）
+
+VideoCraft 的视频处理功能依赖 [FFmpeg](https://ffmpeg.org)，需要单独安装：
+
+1. 前往 [FFmpeg Builds](https://github.com/BtbN/FFmpeg-Builds/releases) 下载 `ffmpeg-master-latest-win64-gpl.zip`
+2. 解压后，将其中的 `bin` 目录完整路径添加到系统环境变量 `PATH`
+
+**验证安装**：打开命令提示符，输入以下命令，看到版本号即表示成功：
+```
+ffmpeg -version
 ```
 
-## Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/YourGitHubUsername/VideoCraft.git
-   cd VideoCraft
-   ```
-2. Create and activate a Conda environment:
-   ```bash
-   conda create -n ai_coding python=3.8
-   conda activate ai_coding
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-   - Use a mirror if needed: `pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
-4. Ensure FFmpeg is installed and accessible in PATH (download from https://ffmpeg.org).
-5. Obtain a DeepL API key from https://www.deepl.com/pro-api and set it in `translate.py`. Note: Free tier includes 50,000 characters/month (each letter, space, or punctuation counts as one character). For optimization, filter non-text lines in subtitles.
+### 第四步：启动
 
-## Usage
-Run the GUI:
-```bash
-python src/main.py
+双击解压目录中的 **`VideoCraft.bat`**，主界面启动。
+
+---
+
+### 🔑 配置 API Key（可选，解锁 AI 功能）
+
+在解压目录的 `keys\` 文件夹下，新建对应的文本文件，将 API Key 粘贴为文件内容保存即可：
+
+| 文件名 | 获取地址 | 对应功能 |
+|--------|---------|---------|
+| `lemonfox.key` | [lemonfox.ai](https://lemonfox.ai) | 语音转字幕 |
+| `Gemini.key` | [aistudio.google.com](https://aistudio.google.com) | 翻译 / 分段 / 标题生成（有免费额度） |
+| `Groq.key` | [console.groq.com](https://console.groq.com) | 翻译备用（**免费额度较多，推荐入门**） |
+| `DeepSeek.key` | [platform.deepseek.com](https://platform.deepseek.com) | 翻译备用（价格极低） |
+
+> 💡 翻译功能只需配置一个 Key 即可，推荐先用 **Groq**（免费额度充足）或 **Gemini**。
+> Key 文件内容只需一行，粘贴 Key 字符串保存即可。
+
+---
+
+## 🗺️ 功能介绍
+
+### 主界面
+
+VS Code 风格布局：**左侧文件浏览器** + **顶部菜单栏** + **右侧工具区**。
+
+在左侧文件浏览器中右键点击视频、音频或 SRT 文件，可快速调用对应处理工具，无需手动选择文件路径。
+
+---
+
+### 核心工作流：视频 → 双语字幕视频
+
 ```
-- Click "Download" to open the download interface.
-- Click "Transcribe" to transcribe audio to subtitles.
-- Click "Translate" to translate subtitles to a target language.
-- Click "Merge" to merge subtitles with a video.
+① 下载视频      菜单 → 下载 → 粘贴视频链接
+② 语音转字幕    右键视频文件 → 语音转字幕         （需 Lemonfox Key）
+③ 翻译字幕      右键 SRT 文件 → 翻译字幕          （需翻译 Key）
+④ 烧录字幕      右键 SRT 文件 → 烧录到视频
+```
 
-## Development
-- Refer to [DESIGN_SPEC.md](DESIGN_SPEC.md) for architecture and requirements.
-- Use VSCode with the `ai_coding` Conda environment (select interpreter: `~/anaconda3/envs/ai_coding/bin/python`).
-- Create feature branches (e.g., `feature/download-tab`) and submit Pull Requests to `main`.
-- Test changes with `pytest tests/` (to be implemented).
+---
 
-## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+### 视频工具
 
-## Contact
-For questions or inquiries, contact [@YourGitHubUsername](https://github.com/YourGitHubUsername) or email [videocraft.project@gmail.com](mailto:videocraft.project@gmail.com).
+| 工具 | 入口 | 说明 |
+|------|------|------|
+| 视频下载 | 菜单 → 下载 | 内置 yt-dlp，支持数百平台 |
+| 提取 MP3 | 菜单 → 视频 → 提取 MP3 | 从视频/音频中提取 MP3 |
+| 调整音量 | 菜单 → 视频 → 调整音量 | ±20dB 精确调节 |
+| MP3 码率转换 | 菜单 → 视频 → 码率转换 | 快速转换码率 |
+| 视频片段提取 | 菜单 → 视频 → 片段提取 | 按时间范围截取，可同步截取字幕 |
+| 自动均分视频 | 菜单 → 视频 → 自动分割 | 均分为指定段数，支持关键帧对齐 |
+| 按时间戳分割 | 菜单 → 视频 → 视频分段 | 按章节时间戳批量切割 |
+| 字幕烧录 | 菜单 → 视频 → 字幕烧录 | 硬烧 SRT 字幕到视频 |
 
-## License
-VideoCraft is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+---
+
+### SRT 字幕工具
+
+| 工具 | 说明 | 需要 Key |
+|------|------|:-------:|
+| 提取字幕文字 | 导出 SRT 为纯文本（`AllSubtitles.txt`） | — |
+| 按时间戳提取段落 | 提取各段落对应字幕内容 | — |
+| 语音转字幕 | 音视频自动转录为 SRT | Lemonfox |
+| 字幕翻译 | 将 SRT 翻译为目标语言 | 翻译 Key |
+| 生成视频分段 | AI 生成时间戳 + 标题 | Gemini |
+| 精炼分段描述 | AI 优化分段标题 | Gemini |
+| 生成视频标题 | AI 生成吸引眼球的标题 | Gemini |
+
+---
+
+### AI 路由配置
+
+菜单 → **AI → Router Manager** 可配置各 AI 提供商的优先级和质量档位（Premium / Standard / Economy）。系统按优先级自动选择可用模型，主力不可用时自动切换备用，无需手动干预。
+
+---
+
+## 📄 License
+
+[MIT License](LICENSE) — 免费使用，欢迎贡献。
