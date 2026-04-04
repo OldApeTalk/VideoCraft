@@ -34,9 +34,19 @@ TOOL_MAP = {
     "speech2text": {"file": "Speech2Text-lemonfoxAPI-Online.py", "class": None},
     "translate":   {"file": "Translate-srt-gemini.py",          "class": "TranslateApp"},
     "subtitle":    {"file": "SubtitleTool.py",                   "class": None},
-    "srttools":    {"file": "SrtTools.py",                       "class": "YouTubeSegmentsApp"},
+    "srttools":               {"file": "SrtTools.py", "class": "YouTubeSegmentsApp"},
+    "srt-extract-subtitles":  {"file": "SrtTools.py", "class": "SrtExtractSubtitlesApp"},
+    "srt-gen-segments":       {"file": "SrtTools.py", "class": "SrtGenerateSegmentsApp"},
+    "srt-extract-paragraphs": {"file": "SrtTools.py", "class": "SrtExtractParagraphsApp"},
+    "srt-refine":             {"file": "SrtTools.py", "class": "SrtRefineSegmentsApp"},
+    "srt-gen-titles":         {"file": "SrtTools.py", "class": "SrtGenerateTitlesApp"},
     "splitvideo":  {"file": "SplitVideo0.2.py",                  "class": "SplitVideoApp"},
-    "videotools":  {"file": "VideoTools.py",                     "class": "VideoToolsGUI"},
+    "videotools":       {"file": "VideoTools.py", "class": "VideoToolsGUI"},
+    "extract-audio":    {"file": "VideoTools.py", "class": "ExtractAudioApp"},
+    "convert-bitrate":  {"file": "VideoTools.py", "class": "ConvertBitrateApp"},
+    "adjust-volume":    {"file": "VideoTools.py", "class": "AdjustVolumeApp"},
+    "extract-clip":     {"file": "VideoTools.py", "class": "ExtractClipApp"},
+    "auto-split":       {"file": "VideoTools.py", "class": "AutoSplitApp"},
     "text2video":  {"file": "text2Video.py",                     "class": "Text2VideoApp"},
 }
 
@@ -95,23 +105,41 @@ class VideoCraftHub:
         tr_menu.add_command(label="Gemini 翻译",
                             command=lambda: self.open_tool("translate"))
 
-        # 字幕
-        sub_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="字幕", menu=sub_menu)
-        sub_menu.add_command(label="字幕烧录",
-                             command=lambda: self.open_tool("subtitle"))
-        sub_menu.add_command(label="SRT 工具",
-                             command=lambda: self.open_tool("srttools"))
-        sub_menu.add_command(label="视频分段",
-                             command=lambda: self.open_tool("splitvideo"))
-
         # 视频
         vid_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="视频", menu=vid_menu)
-        vid_menu.add_command(label="视频工具",
-                             command=lambda: self.open_tool("videotools"))
+        vid_menu.add_command(label="字幕烧录",
+                             command=lambda: self.open_tool("subtitle"))
+        vid_menu.add_command(label="视频分段",
+                             command=lambda: self.open_tool("splitvideo"))
+        vid_menu.add_separator()
+        vid_menu.add_command(label="提取 MP3",
+                             command=lambda: self.open_tool("extract-audio"))
+        vid_menu.add_command(label="调整音量",
+                             command=lambda: self.open_tool("adjust-volume"))
+        vid_menu.add_command(label="视频片段提取",
+                             command=lambda: self.open_tool("extract-clip"))
+        vid_menu.add_command(label="自动分割视频",
+                             command=lambda: self.open_tool("auto-split"))
+        vid_menu.add_command(label="码率转换",
+                             command=lambda: self.open_tool("convert-bitrate"))
+        vid_menu.add_separator()
         vid_menu.add_command(label="文字转视频",
                              command=lambda: self.open_tool("text2video"))
+
+        # 字幕
+        sub_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="字幕", menu=sub_menu)
+        sub_menu.add_command(label="提取字幕文字",
+                             command=lambda: self.open_tool("srt-extract-subtitles"))
+        sub_menu.add_command(label="生成分段描述",
+                             command=lambda: self.open_tool("srt-gen-segments"))
+        sub_menu.add_command(label="提取段落内容",
+                             command=lambda: self.open_tool("srt-extract-paragraphs"))
+        sub_menu.add_command(label="精炼分段",
+                             command=lambda: self.open_tool("srt-refine"))
+        sub_menu.add_command(label="生成标题",
+                             command=lambda: self.open_tool("srt-gen-titles"))
 
         # AI
         ai_menu = tk.Menu(menubar, tearoff=0)

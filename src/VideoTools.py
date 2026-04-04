@@ -438,6 +438,502 @@ def extract_subtitle_clip(input_srt, output_srt, start_time_str, end_time_str):
         return (False, f"字幕提取出错: {str(e)}", 0)
 
 
+# ===================== 独立操作窗口（每个 Tab 拆为单窗口）=====================
+
+class ExtractAudioApp:
+    """Tab 1：提取 MP3 — 独立窗口版。"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("提取 MP3")
+        master.geometry("620x280")
+        self.input_var = tk.StringVar()
+        self.output_var = tk.StringVar()
+        self.bitrate_var = tk.StringVar(value="128k")
+        self.status_var = tk.StringVar()
+        if initial_file:
+            self.input_var.set(initial_file)
+            self.output_var.set(os.path.splitext(initial_file)[0] + ".mp3")
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="输入视频文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="输出MP3文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="选择码率:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        br_frame = tk.Frame(f)
+        br_frame.grid(row=2, column=1, sticky="w")
+        ttk.Combobox(br_frame, textvariable=self.bitrate_var,
+                     values=["64k", "128k", "192k", "256k", "320k"],
+                     state="readonly", width=15).pack(side=tk.LEFT)
+        tk.Label(br_frame, text="(推荐: 128k 或 192k)", font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
+
+        self._btn = tk.Button(f, text="开始提取", command=self._run, width=20)
+        self._btn.grid(row=3, column=1, pady=25)
+
+        self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
+        self._progress.grid(row=4, column=0, columnspan=3, pady=10, padx=20)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(row=5, column=0, columnspan=3)
+
+    def _select_input(self):
+        path = filedialog.askopenfilename(
+            filetypes=[("视频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
+        if path:
+            self.input_var.set(path)
+            self.output_var.set(os.path.splitext(path)[0] + ".mp3")
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(defaultextension=".mp3",
+                                            filetypes=[("MP3文件", "*.mp3")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        src, dst = self.input_var.get(), self.output_var.get()
+        if not src or not dst:
+            messagebox.showerror("错误", "请选择输入和输出文件")
+            return
+        self._btn.config(state="disabled")
+        self._progress["value"] = 0
+        self.status_var.set("正在提取音频...")
+
+        def _progress_cb(v):
+            self._progress["value"] = v
+            self.master.update_idletasks()
+
+        def _work():
+            extract_audio_to_mp3(src, dst, self.bitrate_var.get(), _progress_cb)
+            self._btn.config(state="normal")
+            self.status_var.set("提取完成！")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+class ConvertBitrateApp:
+    """Tab 2：码率转换 — 独立窗口版。"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("码率转换")
+        master.geometry("620x280")
+        self.input_var = tk.StringVar()
+        self.output_var = tk.StringVar()
+        self.bitrate_var = tk.StringVar(value="192k")
+        self.status_var = tk.StringVar()
+        if initial_file:
+            self.input_var.set(initial_file)
+            base, ext = os.path.splitext(initial_file)
+            self.output_var.set(base + "_converted" + ext)
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="输入MP3文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="输出MP3文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="目标码率:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        br_frame = tk.Frame(f)
+        br_frame.grid(row=2, column=1, sticky="w")
+        ttk.Combobox(br_frame, textvariable=self.bitrate_var,
+                     values=["64k", "128k", "192k", "256k", "320k"],
+                     state="readonly", width=15).pack(side=tk.LEFT)
+        tk.Label(br_frame, text="(选择要转换到的码率)", font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
+
+        self._btn = tk.Button(f, text="开始转换", command=self._run, width=20)
+        self._btn.grid(row=3, column=1, pady=25)
+
+        self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
+        self._progress.grid(row=4, column=0, columnspan=3, pady=10, padx=20)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(row=5, column=0, columnspan=3)
+
+    def _select_input(self):
+        path = filedialog.askopenfilename(filetypes=[("MP3文件", "*.mp3")])
+        if path:
+            self.input_var.set(path)
+            base, ext = os.path.splitext(path)
+            self.output_var.set(base + "_converted" + ext)
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(defaultextension=".mp3",
+                                            filetypes=[("MP3文件", "*.mp3")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        src, dst = self.input_var.get(), self.output_var.get()
+        if not src or not dst:
+            messagebox.showerror("错误", "请选择输入和输出文件")
+            return
+        self._btn.config(state="disabled")
+        self._progress["value"] = 0
+        self.status_var.set("正在转换码率...")
+
+        def _progress_cb(v):
+            self._progress["value"] = v
+            self.master.update_idletasks()
+
+        def _work():
+            convert_mp3_bitrate(src, dst, self.bitrate_var.get(), _progress_cb)
+            self._btn.config(state="normal")
+            self.status_var.set("转换完成！")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+class AdjustVolumeApp:
+    """Tab 3：调整音量 — 独立窗口版。"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("调整音量")
+        master.geometry("620x320")
+        self.input_var = tk.StringVar()
+        self.output_var = tk.StringVar()
+        self.volume_var = tk.DoubleVar(value=0.0)
+        self.status_var = tk.StringVar()
+        if initial_file:
+            self.input_var.set(initial_file)
+            base, ext = os.path.splitext(initial_file)
+            self.output_var.set(base + "_vol" + ext)
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="输入文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="输出文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="音量调整:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        vol_frame = tk.Frame(f)
+        vol_frame.grid(row=2, column=1, sticky="w", pady=10)
+        self._vol_label = tk.Label(vol_frame, text="0.0 dB", font=("Arial", 10, "bold"))
+        self._vol_label.pack()
+        tk.Scale(vol_frame, from_=-20, to=20, orient=tk.HORIZONTAL, resolution=0.5,
+                 variable=self.volume_var, length=400,
+                 command=lambda v: self._vol_label.config(text=f"{float(v):.1f} dB")).pack()
+        tk.Label(vol_frame, text="(-20dB ~ +20dB，正值增大音量，负值减小音量)",
+                 font=("Arial", 8), fg="gray").pack()
+
+        self._btn = tk.Button(f, text="开始调整", command=self._run, width=20)
+        self._btn.grid(row=3, column=1, pady=20)
+
+        self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
+        self._progress.grid(row=4, column=0, columnspan=3, pady=10, padx=20)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(row=5, column=0, columnspan=3)
+
+    def _select_input(self):
+        path = filedialog.askopenfilename(
+            filetypes=[("视频/音频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.mp3 *.wav *.flac")])
+        if path:
+            self.input_var.set(path)
+            base, ext = os.path.splitext(path)
+            self.output_var.set(base + "_vol" + ext)
+
+    def _select_output(self):
+        src = self.input_var.get()
+        if src and src.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv')):
+            ft, defext = [("视频文件", "*.mp4")], ".mp4"
+        else:
+            ft, defext = [("音频文件", "*.mp3")], ".mp3"
+        path = filedialog.asksaveasfilename(defaultextension=defext, filetypes=ft)
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        src, dst = self.input_var.get(), self.output_var.get()
+        if not src or not dst:
+            messagebox.showerror("错误", "请选择输入和输出文件")
+            return
+        db = self.volume_var.get()
+        self._btn.config(state="disabled")
+        self._progress["value"] = 0
+        self.status_var.set(f"正在调整音量 ({db:+.1f} dB)...")
+
+        def _progress_cb(v):
+            self._progress["value"] = v
+            self.master.update_idletasks()
+
+        def _work():
+            adjust_volume(src, dst, db, _progress_cb)
+            self._btn.config(state="normal")
+            self.status_var.set("音量调整完成！")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+class ExtractClipApp:
+    """Tab 4：视频片段提取 — 独立窗口版。"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("视频片段提取")
+        master.geometry("650x420")
+        self.input_var = tk.StringVar()
+        self.output_var = tk.StringVar()
+        self.start_var = tk.StringVar(value="00:00:00")
+        self.end_var = tk.StringVar(value="00:00:10")
+        self.mode_var = tk.StringVar(value="accurate")
+        self.srt_input_var = tk.StringVar()
+        self.status_var = tk.StringVar()
+        if initial_file:
+            self.input_var.set(initial_file)
+            base, ext = os.path.splitext(initial_file)
+            self.output_var.set(base + "_clip" + ext)
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="输入视频文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="起始时间:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        sf = tk.Frame(f)
+        sf.grid(row=1, column=1, sticky="w")
+        tk.Entry(sf, textvariable=self.start_var, width=15).pack(side=tk.LEFT)
+        tk.Label(sf, text="(格式: HH:MM:SS 或 HH:MM:SS.mmm)",
+                 font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
+
+        tk.Label(f, text="结束时间:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        ef = tk.Frame(f)
+        ef.grid(row=2, column=1, sticky="w")
+        tk.Entry(ef, textvariable=self.end_var, width=15).pack(side=tk.LEFT)
+        tk.Label(ef, text="(格式: HH:MM:SS 或 HH:MM:SS.mmm)",
+                 font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
+
+        tk.Label(f, text="提取模式:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        mf = tk.Frame(f)
+        mf.grid(row=3, column=1, sticky="w")
+        tk.Radiobutton(mf, text="精确模式 (推荐)", variable=self.mode_var,
+                       value="accurate").pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(mf, text="快速模式", variable=self.mode_var,
+                       value="fast").pack(side=tk.LEFT, padx=5)
+        self._mode_hint = tk.Label(mf, text="", font=("Arial", 8), fg="gray")
+        self._mode_hint.pack(side=tk.LEFT, padx=10)
+        self.mode_var.trace_add('write', lambda *_: self._update_mode_hint())
+        self._update_mode_hint()
+
+        tk.Label(f, text="输入字幕文件:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        srtf = tk.Frame(f)
+        srtf.grid(row=4, column=1, sticky="w")
+        tk.Entry(srtf, textvariable=self.srt_input_var, width=40).pack(side=tk.LEFT)
+        tk.Button(srtf, text="浏览", command=lambda: self._select_srt()).pack(side=tk.LEFT, padx=5)
+        tk.Label(srtf, text="(可选)", font=("Arial", 9), fg="gray").pack(side=tk.LEFT)
+
+        tk.Label(f, text="输出视频文件:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=5, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=5, column=2, padx=10)
+
+        self._btn = tk.Button(f, text="开始提取", command=self._run, width=20)
+        self._btn.grid(row=6, column=1, pady=20)
+
+        self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
+        self._progress.grid(row=7, column=0, columnspan=3, pady=10, padx=20)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(row=8, column=0, columnspan=3)
+
+    def _update_mode_hint(self):
+        if self.mode_var.get() == "accurate":
+            self._mode_hint.config(text="精确剪切，时间准确，需重新编码（稍慢）", fg="green")
+        else:
+            self._mode_hint.config(text="快速剪切，可能受关键帧影响", fg="orange")
+
+    def _select_input(self):
+        path = filedialog.askopenfilename(
+            filetypes=[("视频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
+        if path:
+            self.input_var.set(path)
+            base, ext = os.path.splitext(path)
+            self.output_var.set(base + "_clip" + ext)
+
+    def _select_srt(self):
+        path = filedialog.askopenfilename(filetypes=[("字幕文件", "*.srt")])
+        if path:
+            self.srt_input_var.set(path)
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(
+            defaultextension=".mp4",
+            filetypes=[("视频文件", "*.mp4"), ("所有视频", "*.avi *.mkv *.mov")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        src, dst = self.input_var.get(), self.output_var.get()
+        start, end = self.start_var.get(), self.end_var.get()
+        if not src or not dst:
+            messagebox.showerror("错误", "请选择输入和输出文件")
+            return
+        time_pattern = r'^\d{1,2}:\d{2}:\d{2}(\.\d{1,3})?$'
+        if not re.match(time_pattern, start) or not re.match(time_pattern, end):
+            messagebox.showerror("错误", "时间格式不正确，请使用 HH:MM:SS 或 HH:MM:SS.mmm 格式")
+            return
+        input_srt = self.srt_input_var.get().strip()
+        if input_srt and not os.path.isfile(input_srt):
+            messagebox.showerror("错误", "指定的字幕文件不存在")
+            return
+        accurate = (self.mode_var.get() == "accurate")
+        mode_text = "精确模式" if accurate else "快速模式"
+        self._btn.config(state="disabled")
+        self._progress["value"] = 0
+        self.status_var.set(f"正在提取视频片段 ({mode_text})...")
+
+        def _progress_cb(v):
+            self._progress["value"] = v
+            self.master.update_idletasks()
+
+        def _work():
+            extract_video_clip(src, dst, start, end, _progress_cb, accurate)
+            srt_msg = ""
+            if input_srt:
+                out_srt = os.path.splitext(dst)[0] + '.srt'
+                ok, msg, count = extract_subtitle_clip(input_srt, out_srt, start, end)
+                srt_msg = f"\n字幕：{msg}" + (f"，已保存到 {os.path.basename(out_srt)}" if ok and count > 0 else "")
+            self._btn.config(state="normal")
+            self.status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+class AutoSplitApp:
+    """Tab 5：自动分割视频 — 独立窗口版。"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("自动分割视频")
+        master.geometry("650x380")
+        self.input_var = tk.StringVar()
+        self.output_dir_var = tk.StringVar()
+        self.segments_var = tk.IntVar(value=3)
+        self.keyframe_var = tk.BooleanVar(value=True)
+        self.status_var = tk.StringVar()
+        if initial_file:
+            self.input_var.set(initial_file)
+            self.output_dir_var.set(os.path.dirname(initial_file))
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="输入视频文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="输出目录:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_dir_var, width=50).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_dir).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="分割段数:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        seg_frame = tk.Frame(f)
+        seg_frame.grid(row=2, column=1, sticky="w")
+        tk.Spinbox(seg_frame, from_=2, to=20, textvariable=self.segments_var, width=10).pack(side=tk.LEFT)
+        tk.Label(seg_frame, text="(将视频均匀分割为几段，默认3段)",
+                 font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
+
+        tk.Label(f, text="分割模式:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        kf_frame = tk.Frame(f)
+        kf_frame.grid(row=3, column=1, sticky="w")
+        tk.Checkbutton(kf_frame, text="关键帧对齐 (推荐)",
+                       variable=self.keyframe_var).pack(side=tk.LEFT, padx=5)
+        self._kf_hint = tk.Label(kf_frame, text="", font=("Arial", 8), fg="gray")
+        self._kf_hint.pack(side=tk.LEFT, padx=10)
+        self.keyframe_var.trace_add('write', lambda *_: self._update_kf_hint())
+        self._update_kf_hint()
+
+        info = ("功能说明：\n"
+                "• 自动将视频均匀分割为指定的段数\n"
+                "• 关键帧对齐模式：在最近的关键帧处分割，速度快，无需重新编码\n"
+                "• 输出文件将自动命名为：原文件名_part01, _part02, ...\n"
+                "• 推荐使用关键帧对齐模式以获得最佳性能")
+        tk.Label(f, text=info, justify=tk.LEFT, font=("Arial", 9),
+                 fg="darkblue", bg="#f0f8ff").grid(row=4, column=0, columnspan=3, pady=10, padx=20)
+
+        self._btn = tk.Button(f, text="开始分割", command=self._run, width=20)
+        self._btn.grid(row=5, column=1, pady=20)
+
+        self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
+        self._progress.grid(row=6, column=0, columnspan=3, pady=10, padx=20)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(row=7, column=0, columnspan=3)
+
+    def _update_kf_hint(self):
+        if self.keyframe_var.get():
+            self._kf_hint.config(text="在关键帧处分割，速度快且无需重新编码", fg="green")
+        else:
+            self._kf_hint.config(text="按精确时间分割，可能稍慢", fg="orange")
+
+    def _select_input(self):
+        path = filedialog.askopenfilename(
+            filetypes=[("视频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
+        if path:
+            self.input_var.set(path)
+            self.output_dir_var.set(os.path.dirname(path))
+
+    def _select_dir(self):
+        d = filedialog.askdirectory()
+        if d:
+            self.output_dir_var.set(d)
+
+    def _run(self):
+        src = self.input_var.get()
+        out_dir = self.output_dir_var.get()
+        n = self.segments_var.get()
+        use_kf = self.keyframe_var.get()
+        if not src or not out_dir:
+            messagebox.showerror("错误", "请选择输入文件和输出目录")
+            return
+        if n < 2:
+            messagebox.showerror("错误", "分割段数至少为2段")
+            return
+        if not os.path.exists(out_dir):
+            try:
+                os.makedirs(out_dir)
+            except Exception:
+                messagebox.showerror("错误", "无法创建输出目录")
+                return
+        mode_text = "关键帧对齐" if use_kf else "精确时间"
+        self._btn.config(state="disabled")
+        self._progress["value"] = 0
+        self.status_var.set(f"正在分割视频为 {n} 段 ({mode_text})...")
+
+        def _progress_cb(v):
+            self._progress["value"] = v
+            self.master.update_idletasks()
+
+        def _work():
+            success, message, output_files = auto_split_video(src, out_dir, n, _progress_cb, use_kf)
+            self._btn.config(state="normal")
+            if success:
+                self.status_var.set(f"✓ 分割完成！已生成 {len(output_files)} 个文件")
+                result = f"✓ {message}\n生成了 {len(output_files)} 个文件：\n"
+                for fp in output_files:
+                    result += f"  • {os.path.basename(fp)}\n"
+                messagebox.showinfo("成功", result)
+            else:
+                self.status_var.set(f"✗ 分割失败：{message}")
+                messagebox.showerror("错误", message)
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+# ===================== GUI 主界面（保留，向后兼容）=====================
 class VideoToolsGUI:
     def __init__(self, root):
         self.root = root

@@ -1,10 +1,17 @@
 import os
 import re
 import srt
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
 from datetime import datetime
+
+# Hub 内嵌时 core 包在 src/ 下，独立运行时也在同一目录
+_SRC = os.path.dirname(os.path.abspath(__file__))
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+from core import srt_ops
 
 # ===================== AI Router (统一路由) =====================
 # AI 调用统一由 ai_router.router 处理，档位配置见 AI Router 管理界面
@@ -319,6 +326,562 @@ def refine_segment_descriptions(paragraphs_path, prompt, tier=None):
         raise RuntimeError('AI返回为空，未生成精炼结果')
 
     return refined_text
+# ===================== 独立操作窗口（每个 Tab 拆为单窗口）=====================
+
+def _open_router_manager_for(master):
+    from router_manager import open_router_manager
+    open_router_manager(master)
+
+def _resolve_output(input_path, output_var, default_name):
+    """若输出路径为相对路径，解析为与输入文件同目录的绝对路径并写回 StringVar。"""
+    output_path = output_var.get()
+    if not os.path.isabs(output_path):
+        output_path = os.path.join(os.path.dirname(input_path), output_path)
+        output_var.set(output_path)
+    return output_path
+
+def _ensure_dir(path):
+    d = os.path.dirname(path)
+    if d and not os.path.exists(d):
+        os.makedirs(d)
+
+
+class SrtExtractSubtitlesApp:
+    """Tab 1：提取字幕文字 — 独立窗口版。"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("提取字幕文字")
+        master.geometry("800x500")
+
+        self.srt_var = tk.StringVar()
+        self.output_var = tk.StringVar(value="AllSubtitles.txt")
+        self.status_var = tk.StringVar()
+
+        if initial_file:
+            self.srt_var.set(initial_file)
+            self.output_var.set(os.path.join(os.path.dirname(initial_file), "AllSubtitles.txt"))
+
+        self._build_ui()
+
+    def _build_ui(self):
+        master = self.master
+
+        # 左右分栏
+        left = tk.Frame(master)
+        left.pack(side=tk.LEFT, fill=tk.BOTH, padx=10, pady=10)
+        right = tk.Frame(master)
+        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 10), pady=10)
+
+        # 左侧控件
+        tk.Label(left, text="SRT字幕文件:").grid(row=0, column=0, padx=5, pady=10, sticky="e")
+        tk.Entry(left, textvariable=self.srt_var, width=40).grid(row=0, column=1, sticky="w")
+        tk.Button(left, text="浏览", command=self._select_srt).grid(row=0, column=2, padx=10)
+
+        tk.Label(left, text="输出文件:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        tk.Entry(left, textvariable=self.output_var, width=40).grid(row=1, column=1, sticky="w")
+        tk.Button(left, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+
+        self._btn = tk.Button(left, text="提取字幕文字", command=self._run, width=20)
+        self._btn.grid(row=2, column=1, pady=25)
+
+        tk.Label(left, textvariable=self.status_var, fg="blue").grid(row=3, column=0, columnspan=3, pady=10)
+
+        # 右侧预览
+        hdr = tk.Frame(right)
+        hdr.pack(fill=tk.X, pady=(0, 5))
+        tk.Label(hdr, text="提取的字幕内容:", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        tk.Button(hdr, text="拷贝内容", command=self._copy, width=12).pack(side=tk.RIGHT, padx=5)
+
+        tf = tk.Frame(right)
+        tf.pack(fill=tk.BOTH, expand=True)
+        sy = tk.Scrollbar(tf)
+        sy.pack(side=tk.RIGHT, fill=tk.Y)
+        sx = tk.Scrollbar(tf, orient=tk.HORIZONTAL)
+        sx.pack(side=tk.BOTTOM, fill=tk.X)
+        self._text = tk.Text(tf, wrap=tk.WORD, yscrollcommand=sy.set,
+                             xscrollcommand=sx.set, font=("Consolas", 10))
+        self._text.pack(fill=tk.BOTH, expand=True)
+        sy.config(command=self._text.yview)
+        sx.config(command=self._text.xview)
+
+    def _select_srt(self):
+        path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
+        if path:
+            self.srt_var.set(path)
+            self.output_var.set(os.path.join(os.path.dirname(path), "AllSubtitles.txt"))
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
+                                            filetypes=[("Text files", "*.txt")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        srt_path = self.srt_var.get()
+        if not srt_path or not os.path.exists(srt_path):
+            messagebox.showerror("错误", "请选择有效的SRT文件")
+            return
+        output_path = _resolve_output(srt_path, self.output_var, "AllSubtitles.txt")
+        try:
+            _ensure_dir(output_path)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            return
+
+        self.status_var.set("正在提取...")
+        self._btn.config(state="disabled")
+
+        def _work():
+            try:
+                text = extract_all_subtitles(srt_path)
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                self.status_var.set(f"✓ 完成: {os.path.basename(output_path)}")
+                self.master.after(0, lambda: (self._text.delete("1.0", tk.END),
+                                              self._text.insert("1.0", text)))
+            except Exception as e:
+                self.status_var.set(f"失败: {e}")
+            finally:
+                self._btn.config(state="normal")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _copy(self):
+        content = self._text.get("1.0", tk.END).strip()
+        if not content:
+            self.status_var.set("没有可拷贝的内容")
+            return
+        self.master.clipboard_clear()
+        self.master.clipboard_append(content)
+        self.master.update()
+        self.status_var.set("内容已拷贝到剪贴板 ✓")
+
+
+class SrtGenerateSegmentsApp:
+    """Tab 2：生成分段描述 — 独立窗口版。"""
+
+    _DEFAULT_PROMPT = """\
+# 生成时间戳分段
+
+【
+
+1、你知道youtube的视频分段的格式吧？请学习这种分段格式：
+
+xx:xx 标题
+
+xx:xx 标题
+
+xx:xx 标题
+
+2、请根据srt字幕内容，生成youtube分段描述（中文）
+
+3、如有记者提问，优先以记者提问内容作为标题
+
+4、时:分:秒，这是时间戳的基本格式，不要弄错了
+
+】
+
+以下是SRT字幕内容：
+
+{subtitle_content}
+
+请根据以上字幕内容生成YouTube分段描述，格式为每行一个分段，格式为：时:分:秒 标题"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("生成分段描述")
+        master.geometry("750x450")
+
+        self.srt_var = tk.StringVar()
+        self.output_var = tk.StringVar(value="subs.txt")
+        self.status_var = tk.StringVar()
+
+        if initial_file:
+            self.srt_var.set(initial_file)
+            self.output_var.set(os.path.join(os.path.dirname(initial_file), "subs.txt"))
+
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="AI 档位:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text="高档 (Premium) — 最强模型", fg="#228B22",
+                 font=("Arial", 9)).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="AI Router 管理",
+                  command=lambda: _open_router_manager_for(self.master)).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="SRT字幕文件:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.srt_var, width=50).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_srt).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        self._prompt = tk.Text(f, height=8, width=50, wrap=tk.WORD)
+        self._prompt.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        self._prompt.insert(tk.END, self._DEFAULT_PROMPT)
+
+        tk.Label(f, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=3, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=3, column=2, padx=10)
+
+        self._btn = tk.Button(f, text="生成分段描述", command=self._run, width=20)
+        self._btn.grid(row=4, column=1, pady=25)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(
+            row=5, column=0, columnspan=3, pady=10)
+
+    def _select_srt(self):
+        path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
+        if path:
+            self.srt_var.set(path)
+            self.output_var.set(os.path.join(os.path.dirname(path), "subs.txt"))
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
+                                            filetypes=[("Text files", "*.txt")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        srt_path = self.srt_var.get()
+        prompt = self._prompt.get("1.0", tk.END).strip()
+        if not srt_path or not os.path.exists(srt_path):
+            messagebox.showerror("错误", "请选择有效的SRT文件")
+            return
+        if not prompt:
+            messagebox.showerror("错误", "请输入Prompt提示语")
+            return
+        output_path = _resolve_output(srt_path, self.output_var, "subs.txt")
+        try:
+            _ensure_dir(output_path)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            return
+
+        self.status_var.set("正在生成分段描述...")
+        self._btn.config(state="disabled")
+
+        def _work():
+            try:
+                result = srt_ops.generate_youtube_segments(srt_path, prompt=prompt)
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(result)
+                self.status_var.set("生成完成")
+                messagebox.showinfo("Success", f"YouTube分段描述已保存到: {output_path}")
+            except Exception as e:
+                messagebox.showerror("错误", f"生成失败: {e}")
+                self.status_var.set("生成失败")
+            finally:
+                self._btn.config(state="normal")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+class SrtExtractParagraphsApp:
+    """Tab 3：提取段落内容 — 独立窗口版。"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("提取段落内容")
+        master.geometry("750x300")
+
+        self.srt_var = tk.StringVar()
+        self.segments_var = tk.StringVar()
+        self.output_var = tk.StringVar(value="subs-segment.txt")
+        self.status_var = tk.StringVar()
+
+        if initial_file:
+            self.srt_var.set(initial_file)
+            self.output_var.set(os.path.join(os.path.dirname(initial_file), "subs-segment.txt"))
+
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="SRT字幕文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.srt_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_srt).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="时间戳分割文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.segments_var, width=50).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_segments).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="输出文件:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=2, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=2, column=2, padx=10)
+
+        self._btn = tk.Button(f, text="提取段落内容", command=self._run, width=20)
+        self._btn.grid(row=3, column=1, pady=25)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(
+            row=4, column=0, columnspan=3, pady=10)
+
+    def _select_srt(self):
+        path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
+        if path:
+            self.srt_var.set(path)
+            self.output_var.set(os.path.join(os.path.dirname(path), "subs-segment.txt"))
+
+    def _select_segments(self):
+        path = filedialog.askopenfilename(title="选择时间戳分割文件",
+                                          filetypes=[("Text files", "*.txt")])
+        if path:
+            self.segments_var.set(path)
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
+                                            filetypes=[("Text files", "*.txt")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        srt_path = self.srt_var.get()
+        segments_path = self.segments_var.get()
+        if not srt_path or not os.path.exists(srt_path):
+            messagebox.showerror("错误", "请选择有效的SRT文件")
+            return
+        if not segments_path or not os.path.exists(segments_path):
+            messagebox.showerror("错误", "请选择有效的时间戳分割文件")
+            return
+        output_path = _resolve_output(srt_path, self.output_var, "subs-segment.txt")
+        try:
+            _ensure_dir(output_path)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            return
+
+        self.status_var.set("正在提取段落内容...")
+        self._btn.config(state="disabled")
+
+        def _work():
+            try:
+                result = srt_ops.extract_paragraphs_from_segments(srt_path, segments_path)
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(result)
+                self.status_var.set("提取完成")
+                messagebox.showinfo("Success", f"段落内容已保存到: {output_path}")
+            except Exception as e:
+                messagebox.showerror("错误", f"提取失败: {e}")
+                self.status_var.set("提取失败")
+            finally:
+                self._btn.config(state="normal")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+class SrtRefineSegmentsApp:
+    """Tab 4：精炼分段 — 独立窗口版。"""
+
+    _DEFAULT_PROMPT = """\
+## 精炼全部分段
+
+【
+请一次性对全部分段内容进行总结提炼，每个段落提炼后不超过128个字。
+对于问答段落，保留精炼后的问题和回答，保持问答说话人的视角，不要改为第三方转述。
+输出格式为：
+时间戳 标题
+精炼内容
+
+分段之间空一行，不要添加解释。
+】
+
+以下是全部分段内容：
+{all_segments_content}
+"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("精炼分段")
+        master.geometry("750x430")
+
+        self.input_var = tk.StringVar()
+        self.output_var = tk.StringVar(value="subs-segment-refined.txt")
+        self.status_var = tk.StringVar()
+
+        if initial_file:
+            self.input_var.set(initial_file)
+            self.output_var.set(
+                os.path.join(os.path.dirname(initial_file), "subs-segment-refined.txt"))
+
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="段落内容文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="AI 档位:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text="高档 (Premium) — 最强模型", fg="#228B22",
+                 font=("Arial", 9)).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="AI Router 管理",
+                  command=lambda: _open_router_manager_for(self.master)).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        self._prompt = tk.Text(f, height=8, width=50, wrap=tk.WORD)
+        self._prompt.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        self._prompt.insert(tk.END, self._DEFAULT_PROMPT)
+
+        tk.Label(f, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=3, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=3, column=2, padx=10)
+
+        self._btn = tk.Button(f, text="精炼分段描述", command=self._run, width=20)
+        self._btn.grid(row=4, column=1, pady=25)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(
+            row=5, column=0, columnspan=3, pady=10)
+
+    def _select_input(self):
+        path = filedialog.askopenfilename(title="选择段落内容文件",
+                                          filetypes=[("Text files", "*.txt")])
+        if path:
+            self.input_var.set(path)
+            self.output_var.set(
+                os.path.join(os.path.dirname(path), "subs-segment-refined.txt"))
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
+                                            filetypes=[("Text files", "*.txt")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        input_path = self.input_var.get()
+        prompt = self._prompt.get("1.0", tk.END).strip()
+        if not input_path or not os.path.exists(input_path):
+            messagebox.showerror("错误", "请选择有效的段落内容文件")
+            return
+        if not prompt:
+            messagebox.showerror("错误", "请输入Prompt提示语")
+            return
+        output_path = _resolve_output(input_path, self.output_var, "subs-segment-refined.txt")
+        try:
+            _ensure_dir(output_path)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            return
+
+        self.status_var.set("正在精炼分段描述...")
+        self._btn.config(state="disabled")
+
+        def _work():
+            try:
+                result = srt_ops.refine_segment_descriptions(input_path, prompt)
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(result)
+                self.status_var.set("精炼完成")
+                messagebox.showinfo("Success", f"精炼分段内容已保存到: {output_path}")
+            except Exception as e:
+                messagebox.showerror("错误", f"精炼失败: {e}")
+                self.status_var.set("精炼失败")
+            finally:
+                self._btn.config(state="normal")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
+class SrtGenerateTitlesApp:
+    """Tab 5：生成标题 — 独立窗口版。"""
+
+    _DEFAULT_PROMPT = """\
+## 生成标题
+
+【
+给这个视频起个合适的名字，新闻性十足、概括核心焦点，稍微长些没关系
+
+】"""
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("生成标题")
+        master.geometry("750x380")
+
+        self.subs_var = tk.StringVar()
+        self.output_var = tk.StringVar(value="titles.txt")
+        self.status_var = tk.StringVar()
+
+        if initial_file:
+            self.subs_var.set(initial_file)
+            self.output_var.set(os.path.join(os.path.dirname(initial_file), "titles.txt"))
+
+        self._build_ui()
+
+    def _build_ui(self):
+        f = self.master
+        tk.Label(f, text="Subs文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Entry(f, textvariable=self.subs_var, width=50).grid(row=0, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_subs).grid(row=0, column=2, padx=10)
+
+        tk.Label(f, text="AI 档位:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text="高档 (Premium) — 最强模型", fg="#228B22",
+                 font=("Arial", 9)).grid(row=1, column=1, sticky="w")
+        tk.Button(f, text="AI Router 管理",
+                  command=lambda: _open_router_manager_for(self.master)).grid(row=1, column=2, padx=10)
+
+        tk.Label(f, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        self._prompt = tk.Text(f, height=6, width=50, wrap=tk.WORD)
+        self._prompt.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        self._prompt.insert(tk.END, self._DEFAULT_PROMPT)
+
+        tk.Label(f, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Entry(f, textvariable=self.output_var, width=50).grid(row=3, column=1, sticky="w")
+        tk.Button(f, text="浏览", command=self._select_output).grid(row=3, column=2, padx=10)
+
+        self._btn = tk.Button(f, text="生成标题", command=self._run, width=20)
+        self._btn.grid(row=4, column=1, pady=25)
+
+        tk.Label(f, textvariable=self.status_var, fg="blue").grid(
+            row=5, column=0, columnspan=3, pady=10)
+
+    def _select_subs(self):
+        path = filedialog.askopenfilename(title="选择Subs文件",
+                                          filetypes=[("Text files", "*.txt")])
+        if path:
+            self.subs_var.set(path)
+            self.output_var.set(os.path.join(os.path.dirname(path), "titles.txt"))
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
+                                            filetypes=[("Text files", "*.txt")])
+        if path:
+            self.output_var.set(path)
+
+    def _run(self):
+        subs_path = self.subs_var.get()
+        prompt = self._prompt.get("1.0", tk.END).strip()
+        if not subs_path or not os.path.exists(subs_path):
+            messagebox.showerror("错误", "请选择有效的Subs文件")
+            return
+        if not prompt:
+            messagebox.showerror("错误", "请输入Prompt提示语")
+            return
+        output_path = _resolve_output(subs_path, self.output_var, "titles.txt")
+        try:
+            _ensure_dir(output_path)
+        except Exception as e:
+            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            return
+
+        self.status_var.set("正在生成标题...")
+        self._btn.config(state="disabled")
+
+        def _work():
+            try:
+                result = srt_ops.generate_video_titles(subs_path, prompt)
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(result)
+                self.status_var.set("生成完成")
+                messagebox.showinfo("Success", f"视频标题已保存到: {output_path}")
+            except Exception as e:
+                messagebox.showerror("错误", f"生成失败: {e}")
+                self.status_var.set("生成失败")
+            finally:
+                self._btn.config(state="normal")
+
+        threading.Thread(target=_work, daemon=True).start()
+
+
 # ===================== GUI 主界面 =====================
 class YouTubeSegmentsApp:
     def __init__(self, master):
