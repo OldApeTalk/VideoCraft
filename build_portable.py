@@ -24,7 +24,7 @@ import zipfile
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-PYTHON_VERSION = "3.14.3"
+PYTHON_VERSION = os.environ.get("VIDEOCRAFT_PYTHON_VERSION", "3.14.3")
 PYTHON_EMBED_URL = (
     f"https://www.python.org/ftp/python/{PYTHON_VERSION}/"
     f"python-{PYTHON_VERSION}-embed-amd64.zip"
