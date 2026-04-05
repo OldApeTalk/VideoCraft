@@ -22,87 +22,15 @@ except ImportError:
 from hub_logger import logger
 
 
-# ── 纯工具函数（无 GUI 依赖）────────────────────────────────────────────────
+# ── 纯工具函数（从 core 导入）───────────────────────────────────────────────
 
-def split_subtitle(sub, max_chars, is_chinese=False):
-    """Split a subtitle into multiple if it exceeds max_chars."""
-    content = sub.content.strip()
-    if len(content) <= max_chars:
-        return [sub]
-
-    new_subs = []
-    start = sub.start
-    end = sub.end
-    total_duration = (end - start).total_seconds()
-
-    if is_chinese:
-        breaks = [m.start() for m in re.finditer(r'[，。？！；]', content)] + [len(content)]
-    else:
-        breaks = [m.start() for m in re.finditer(r'[.?!,]', content)] + [len(content)]
-
-    current_pos = 0
-    while current_pos < len(content):
-        split_pos = current_pos + max_chars
-        if split_pos >= len(content):
-            split_pos = len(content)
-        else:
-            candidates = [b + 1 for b in breaks if current_pos < b + 1 <= split_pos]
-            if candidates:
-                split_pos = max(candidates)
-            else:
-                if not is_chinese:
-                    last_space = content.rfind(' ', current_pos, split_pos)
-                    if last_space > current_pos:
-                        split_pos = last_space + 1
-
-        part_content = content[current_pos:split_pos].strip()
-        if not part_content:
-            break
-
-        part_duration = (len(part_content) / len(content)) * total_duration
-        part_end = start + timedelta(seconds=part_duration)
-        new_subs.append(srt.Subtitle(index=len(new_subs) + 1, start=start,
-                                     end=part_end, content=part_content))
-        start = part_end
-        current_pos = split_pos
-
-    if new_subs:
-        new_subs[-1].end = end
-    return new_subs
-
-
-def process_srt_split(input_path, max_chars, is_chinese=False):
-    """Process SRT file to split subtitles, return the list of subtitles."""
-    with open(input_path, 'r', encoding='utf-8') as f:
-        subs = list(srt.parse(f))
-    new_subs = []
-    for sub in subs:
-        new_subs.extend(split_subtitle(sub, max_chars, is_chinese))
-    for i, sub in enumerate(new_subs, 1):
-        sub.index = i
-    return new_subs
-
-
-def escape_ffmpeg_path(path):
-    abs_path = os.path.abspath(path)
-    abs_path = abs_path.replace("\\", "/")
-    abs_path = abs_path.replace(":", "\\:")
-    return abs_path
-
-
-def hex_color_to_ass(color):
-    color = color.lstrip('#')
-    if len(color) != 6:
-        color = "FFFFFF"
-    r, g, b = color[0:2], color[2:4], color[4:6]
-    return f"&H00{b}{g}{r}&"
-
-
-def hex_color_to_drawtext(color):
-    color = color.lstrip('#')
-    if len(color) != 6:
-        color = "FFFFFF"
-    return f"#{color}"
+from core.subtitle_ops import (
+    split_subtitle,
+    process_srt_split,
+    escape_ffmpeg_path,
+    hex_color_to_ass,
+    hex_color_to_drawtext,
+)
 
 
 def get_video_resolution(video_path):

@@ -532,151 +532,223 @@ class SRTFromTextApp:
 # 工具3：音频 + 图片 合成视频
 # ══════════════════════════════════════════════════════════════════════════════
 
+from core.subtitle_ops import (
+    split_srt_to_file,
+    build_subtitle_style,
+    escape_ffmpeg_path,
+    LAYOUT_DEFAULTS,
+    hex_color_to_ass,
+)
+
+
 class AudioVideoApp:
     def __init__(self, master):
         self.master = master
         master.title("VideoCraft - 音频合成视频")
-        master.geometry("1000x680")
+        master.geometry("1060x760")
         master.resizable(True, True)
         self._build_ui()
 
     def _build_ui(self):
         tab = self.master
         left_frame = tk.Frame(tab)
-        left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        left_frame.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
         right_frame = tk.Frame(tab)
-        right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        right_frame.grid(row=0, column=1, padx=8, pady=8, sticky="nsew")
         tab.columnconfigure(0, weight=1)
         tab.columnconfigure(1, weight=1)
         tab.rowconfigure(0, weight=1)
 
         # ── 左侧：文件选择 + 视频参数 ──
-        file_frame = tk.LabelFrame(left_frame, text="文件选择", padx=10, pady=10)
-        file_frame.pack(fill="both", padx=5, pady=5)
-
-        tk.Label(file_frame, text="音频文件:").grid(row=0, column=0, padx=5, pady=8, sticky="e")
-        self.audio_path_var = tk.StringVar()
-        tk.Entry(file_frame, textvariable=self.audio_path_var, width=40, state='readonly').grid(
-            row=0, column=1, sticky="ew", padx=5)
-        tk.Button(file_frame, text="选择", command=self._select_audio, width=8).grid(row=0, column=2, padx=5)
-        self.audio_info_var = tk.StringVar(value="未选择音频文件")
-        tk.Label(file_frame, textvariable=self.audio_info_var, fg="gray",
-                 font=("Arial", 8)).grid(row=1, column=1, sticky="w", padx=5)
-
-        tk.Label(file_frame, text="图片文件:").grid(row=2, column=0, padx=5, pady=8, sticky="e")
-        self.image_path_var = tk.StringVar()
-        tk.Entry(file_frame, textvariable=self.image_path_var, width=40, state='readonly').grid(
-            row=2, column=1, sticky="ew", padx=5)
-        tk.Button(file_frame, text="选择", command=self._select_image, width=8).grid(row=2, column=2, padx=5)
-        self.image_info_var = tk.StringVar(value="未选择图片文件")
-        tk.Label(file_frame, textvariable=self.image_info_var, fg="gray",
-                 font=("Arial", 8)).grid(row=3, column=1, sticky="w", padx=5)
-
-        tk.Label(file_frame, text="字幕 SRT:").grid(row=4, column=0, padx=5, pady=8, sticky="e")
-        self.srt_path_var = tk.StringVar()
-        tk.Entry(file_frame, textvariable=self.srt_path_var, width=40, state='readonly').grid(
-            row=4, column=1, sticky="ew", padx=5)
-        tk.Button(file_frame, text="选择", command=self._select_srt, width=8).grid(row=4, column=2, padx=5)
-        tk.Label(file_frame, text="（可选）", fg="gray",
-                 font=("Arial", 8)).grid(row=5, column=1, sticky="w", padx=5)
-
-        tk.Label(file_frame, text="输出视频:").grid(row=6, column=0, padx=5, pady=8, sticky="e")
-        self.video_output_var = tk.StringVar(value="output.mp4")
-        tk.Entry(file_frame, textvariable=self.video_output_var, width=40).grid(
-            row=6, column=1, sticky="ew", padx=5)
-        tk.Button(file_frame, text="浏览", command=self._select_video_output, width=8).grid(
-            row=6, column=2, padx=5)
+        file_frame = tk.LabelFrame(left_frame, text="文件选择", padx=8, pady=8)
+        file_frame.pack(fill="both", padx=4, pady=4)
         file_frame.columnconfigure(1, weight=1)
 
-        config_frame = tk.LabelFrame(left_frame, text="视频配置", padx=10, pady=10)
-        config_frame.pack(fill="both", padx=5, pady=5)
+        def _file_row(parent, row, label, var, cmd, readonly=True, info_var=None):
+            tk.Label(parent, text=label).grid(row=row, column=0, padx=4, pady=6, sticky="e")
+            state = 'readonly' if readonly else 'normal'
+            tk.Entry(parent, textvariable=var, width=36, state=state).grid(
+                row=row, column=1, sticky="ew", padx=4)
+            tk.Button(parent, text="选择" if readonly else "浏览", command=cmd,
+                      width=7).grid(row=row, column=2, padx=4)
+            if info_var is not None:
+                tk.Label(parent, textvariable=info_var, fg="gray",
+                         font=("Arial", 8)).grid(row=row+1, column=1, sticky="w", padx=4)
 
-        tk.Label(config_frame, text="视频方向:", font=("Arial", 9, "bold")).grid(
-            row=0, column=0, padx=5, pady=5, sticky="w")
+        self.audio_path_var = tk.StringVar()
+        self.audio_info_var = tk.StringVar(value="未选择音频文件")
+        _file_row(file_frame, 0, "音频文件:", self.audio_path_var,
+                  self._select_audio, info_var=self.audio_info_var)
+
+        self.image_path_var = tk.StringVar()
+        self.image_info_var = tk.StringVar(value="未选择图片文件")
+        _file_row(file_frame, 2, "图片文件:", self.image_path_var,
+                  self._select_image, info_var=self.image_info_var)
+
+        self.srt_path_var = tk.StringVar()
+        _file_row(file_frame, 4, "字幕 SRT:", self.srt_path_var, self._select_srt)
+        tk.Label(file_frame, text="（可选）若已生成 SRT 可直接烧录",
+                 fg="gray", font=("Arial", 8)).grid(row=5, column=1, sticky="w", padx=4)
+
+        self.video_output_var = tk.StringVar(value="output.mp4")
+        _file_row(file_frame, 6, "输出视频:", self.video_output_var,
+                  self._select_video_output, readonly=False)
+
+        # 视频参数
+        cfg = tk.LabelFrame(left_frame, text="视频配置", padx=8, pady=8)
+        cfg.pack(fill="both", padx=4, pady=4)
+
+        tk.Label(cfg, text="视频方向:", font=("Arial", 9, "bold")).grid(
+            row=0, column=0, padx=4, pady=4, sticky="w")
         self.orientation_var = tk.StringVar(value="horizontal")
-        ori = tk.Frame(config_frame)
-        ori.grid(row=0, column=1, columnspan=2, sticky="w", padx=5)
-        tk.Radiobutton(ori, text="横屏 (16:9)", variable=self.orientation_var,
-                       value="horizontal", command=self._update_resolution).pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(ori, text="竖屏 (9:16)", variable=self.orientation_var,
-                       value="vertical", command=self._update_resolution).pack(side=tk.LEFT, padx=5)
+        ori_f = tk.Frame(cfg)
+        ori_f.grid(row=0, column=1, columnspan=2, sticky="w", padx=4)
+        tk.Radiobutton(ori_f, text="横屏 (16:9)", variable=self.orientation_var,
+                       value="horizontal", command=self._on_orientation).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(ori_f, text="竖屏 (9:16)", variable=self.orientation_var,
+                       value="vertical", command=self._on_orientation).pack(side=tk.LEFT, padx=5)
 
-        tk.Label(config_frame, text="分辨率:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        tk.Label(cfg, text="分辨率:").grid(row=1, column=0, padx=4, pady=4, sticky="e")
         self.resolution_var = tk.StringVar(value="1920x1080 (1080p)")
-        self.resolution_combo = ttk.Combobox(config_frame, textvariable=self.resolution_var,
-                                              state="readonly", width=30)
+        self.resolution_combo = ttk.Combobox(cfg, textvariable=self.resolution_var,
+                                              state="readonly", width=28)
         self._update_resolution()
-        self.resolution_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=5)
+        self.resolution_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=4)
 
-        tk.Label(config_frame, text="背景填充色:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        bg_inner = tk.Frame(config_frame)
-        bg_inner.grid(row=2, column=1, columnspan=2, sticky="w", padx=5)
+        tk.Label(cfg, text="背景填充色:").grid(row=2, column=0, padx=4, pady=4, sticky="e")
+        bg_f = tk.Frame(cfg)
+        bg_f.grid(row=2, column=1, columnspan=2, sticky="w", padx=4)
         self.bg_color_var = tk.StringVar(value="#000000")
-        tk.Entry(bg_inner, textvariable=self.bg_color_var, width=10, state='readonly').pack(side=tk.LEFT, padx=2)
-        self.bg_preview = tk.Canvas(bg_inner, width=25, height=20, bg="#000000",
-                                     relief=tk.SUNKEN, borderwidth=1)
+        tk.Entry(bg_f, textvariable=self.bg_color_var, width=9, state='readonly').pack(side=tk.LEFT, padx=2)
+        self.bg_preview = tk.Canvas(bg_f, width=22, height=18, bg="#000000",
+                                    relief=tk.SUNKEN, borderwidth=1)
         self.bg_preview.pack(side=tk.LEFT, padx=2)
-        tk.Button(bg_inner, text="选择", command=self._choose_bg, width=8).pack(side=tk.LEFT, padx=2)
+        tk.Button(bg_f, text="选择", command=self._choose_bg, width=7).pack(side=tk.LEFT, padx=2)
 
-        tk.Label(config_frame, text="帧率 (FPS):").grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        tk.Label(cfg, text="帧率:").grid(row=3, column=0, padx=4, pady=4, sticky="e")
         self.fps_var = tk.StringVar(value="30")
-        ttk.Combobox(config_frame, textvariable=self.fps_var, values=["24", "25", "30", "60"],
-                     state="readonly", width=10).grid(row=3, column=1, sticky="w", padx=5)
+        ttk.Combobox(cfg, textvariable=self.fps_var, values=["24", "25", "30", "60"],
+                     state="readonly", width=8).grid(row=3, column=1, sticky="w", padx=4)
 
-        tk.Label(config_frame, text="视频编码:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        tk.Label(cfg, text="视频编码:").grid(row=4, column=0, padx=4, pady=4, sticky="e")
         self.codec_var = tk.StringVar(value="libx264")
-        ttk.Combobox(config_frame, textvariable=self.codec_var,
+        ttk.Combobox(cfg, textvariable=self.codec_var,
                      values=["libx264 (H.264)", "libx265 (H.265/HEVC)", "mpeg4"],
-                     state="readonly", width=25).grid(row=4, column=1, columnspan=2, sticky="w", padx=5)
+                     state="readonly", width=22).grid(row=4, column=1, columnspan=2, sticky="w", padx=4)
 
-        # ── 右侧：水印 ──
-        wm_frame = tk.LabelFrame(right_frame, text="水印设置", padx=10, pady=10)
-        wm_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        # ── 右侧：字幕样式 + 水印 ──
+
+        # 字幕设置
+        sub_frame = tk.LabelFrame(right_frame, text="字幕设置", padx=8, pady=8)
+        sub_frame.pack(fill="both", padx=4, pady=4)
+        sub_frame.columnconfigure(1, weight=1)
+
+        self.sub_split_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(sub_frame, text="自动换行分割 SRT",
+                       variable=self.sub_split_var,
+                       font=("Arial", 9, "bold")).grid(
+            row=0, column=0, columnspan=3, sticky="w", pady=(0, 4))
+
+        tk.Label(sub_frame, text="每行最大字符:").grid(row=1, column=0, padx=4, pady=5, sticky="e")
+        self.sub_max_chars_var = tk.IntVar(value=20)
+        tk.Spinbox(sub_frame, textvariable=self.sub_max_chars_var,
+                   from_=5, to=80, width=6).grid(row=1, column=1, sticky="w", padx=4)
+        self.sub_maxchars_hint = tk.Label(sub_frame, text="(横屏推荐 20，竖屏推荐 10)",
+                                          fg="gray", font=("Arial", 8))
+        self.sub_maxchars_hint.grid(row=1, column=2, sticky="w")
+
+        self.sub_is_chinese_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(sub_frame, text="中文断句优先（按标点）",
+                       variable=self.sub_is_chinese_var).grid(
+            row=2, column=0, columnspan=3, sticky="w", padx=4, pady=2)
+
+        tk.Label(sub_frame, text="字幕颜色:").grid(row=3, column=0, padx=4, pady=5, sticky="e")
+        sub_color_f = tk.Frame(sub_frame)
+        sub_color_f.grid(row=3, column=1, columnspan=2, sticky="w", padx=4)
+        self.sub_color_var = tk.StringVar(value="#FFFFFF")
+        tk.Entry(sub_color_f, textvariable=self.sub_color_var, width=9, state='readonly').pack(side=tk.LEFT, padx=2)
+        self.sub_color_preview = tk.Canvas(sub_color_f, width=22, height=18, bg="#FFFFFF",
+                                            relief=tk.SUNKEN, borderwidth=1)
+        self.sub_color_preview.pack(side=tk.LEFT, padx=2)
+        tk.Button(sub_color_f, text="选择", command=self._choose_sub_color, width=7).pack(side=tk.LEFT, padx=2)
+
+        tk.Label(sub_frame, text="字幕字号:").grid(row=4, column=0, padx=4, pady=5, sticky="e")
+        self.sub_fontsize_var = tk.IntVar(value=28)
+        tk.Spinbox(sub_frame, textvariable=self.sub_fontsize_var,
+                   from_=10, to=72, width=6).grid(row=4, column=1, sticky="w", padx=4)
+        tk.Label(sub_frame, text="(横屏推荐 28，竖屏推荐 20)",
+                 fg="gray", font=("Arial", 8)).grid(row=4, column=2, sticky="w")
+
+        tk.Label(sub_frame, text="底部边距:").grid(row=5, column=0, padx=4, pady=5, sticky="e")
+        self.sub_margin_v_var = tk.IntVar(value=80)
+        tk.Spinbox(sub_frame, textvariable=self.sub_margin_v_var,
+                   from_=10, to=300, width=6).grid(row=5, column=1, sticky="w", padx=4)
+        tk.Label(sub_frame, text="像素（横屏推荐 80，竖屏推荐 60）",
+                 fg="gray", font=("Arial", 8)).grid(row=5, column=2, sticky="w")
+
+        # 水印设置
+        wm_frame = tk.LabelFrame(right_frame, text="水印设置", padx=8, pady=8)
+        wm_frame.pack(fill="both", padx=4, pady=4)
+        wm_frame.columnconfigure(1, weight=1)
+
         self.watermark_enabled_var = tk.BooleanVar(value=True)
         tk.Checkbutton(wm_frame, text="启用水印", variable=self.watermark_enabled_var,
-                       font=("Arial", 10, "bold")).grid(row=0, column=0, columnspan=3, padx=5, pady=10, sticky="w")
-        tk.Label(wm_frame, text="水印文字:").grid(row=1, column=0, padx=5, pady=8, sticky="e")
+                       font=("Arial", 9, "bold")).grid(
+            row=0, column=0, columnspan=3, sticky="w", pady=(0, 4))
+
+        tk.Label(wm_frame, text="水印文字:").grid(row=1, column=0, padx=4, pady=5, sticky="e")
         self.watermark_text_var = tk.StringVar(value="老猿世界观察")
-        tk.Entry(wm_frame, textvariable=self.watermark_text_var, width=32).grid(
-            row=1, column=1, columnspan=2, sticky="ew", padx=5)
-        wm_frame.columnconfigure(1, weight=1)
-        tk.Label(wm_frame, text="文字颜色:").grid(row=2, column=0, padx=5, pady=8, sticky="e")
-        wm_color = tk.Frame(wm_frame)
-        wm_color.grid(row=2, column=1, columnspan=2, sticky="w", padx=5)
+        tk.Entry(wm_frame, textvariable=self.watermark_text_var, width=28).grid(
+            row=1, column=1, columnspan=2, sticky="ew", padx=4)
+
+        tk.Label(wm_frame, text="文字颜色:").grid(row=2, column=0, padx=4, pady=5, sticky="e")
+        wm_color_f = tk.Frame(wm_frame)
+        wm_color_f.grid(row=2, column=1, columnspan=2, sticky="w", padx=4)
         self.watermark_color_var = tk.StringVar(value="#80ffff")
-        tk.Entry(wm_color, textvariable=self.watermark_color_var, width=10, state='readonly').pack(side=tk.LEFT, padx=2)
-        self.wm_color_preview = tk.Canvas(wm_color, width=25, height=20, bg="#80ffff",
+        tk.Entry(wm_color_f, textvariable=self.watermark_color_var, width=9, state='readonly').pack(side=tk.LEFT, padx=2)
+        self.wm_color_preview = tk.Canvas(wm_color_f, width=22, height=18, bg="#80ffff",
                                            relief=tk.SUNKEN, borderwidth=1)
         self.wm_color_preview.pack(side=tk.LEFT, padx=2)
-        tk.Button(wm_color, text="选择", command=self._choose_wm_color, width=8).pack(side=tk.LEFT, padx=2)
-        tk.Label(wm_frame, text="字体:").grid(row=3, column=0, padx=5, pady=8, sticky="e")
-        self.watermark_font_var = tk.StringVar(value="simsun.ttc (宋体)")
-        ttk.Combobox(wm_frame, textvariable=self.watermark_font_var,
-                     values=["arial.ttf", "simhei.ttf (黑体)", "simsun.ttc (宋体)",
-                             "msyh.ttc (微软雅黑)", "simkai.ttf (楷体)"],
-                     width=28).grid(row=3, column=1, columnspan=2, sticky="ew", padx=5)
-        tk.Label(wm_frame, text="透明度:").grid(row=4, column=0, padx=5, pady=8, sticky="e")
+        tk.Button(wm_color_f, text="选择", command=self._choose_wm_color, width=7).pack(side=tk.LEFT, padx=2)
+
+        tk.Label(wm_frame, text="透明度:").grid(row=3, column=0, padx=4, pady=5, sticky="e")
         self.watermark_opacity_var = tk.DoubleVar(value=0.5)
         tk.Scale(wm_frame, from_=0.1, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
-                 variable=self.watermark_opacity_var, length=240).grid(
-            row=4, column=1, columnspan=2, sticky="ew", padx=5)
-        tk.Label(wm_frame, text="位置:").grid(row=5, column=0, padx=5, pady=8, sticky="e")
+                 variable=self.watermark_opacity_var, length=200).grid(
+            row=3, column=1, columnspan=2, sticky="ew", padx=4)
+
+        tk.Label(wm_frame, text="位置:").grid(row=4, column=0, padx=4, pady=5, sticky="e")
         self.watermark_position_var = tk.StringVar(value="右上角 (topright)")
         ttk.Combobox(wm_frame, textvariable=self.watermark_position_var,
                      values=["右上角 (topright)", "左上角 (topleft)",
                              "右下角 (bottomright)", "左下角 (bottomleft)"],
-                     state="readonly", width=28).grid(row=5, column=1, columnspan=2, sticky="ew", padx=5)
+                     state="readonly", width=24).grid(row=4, column=1, columnspan=2, sticky="ew", padx=4)
 
-        # ── 底部 ──
+        # ── 底部：按钮 + 进度 ──
         bottom = tk.Frame(tab)
-        bottom.grid(row=1, column=0, columnspan=2, pady=10)
-        self.generate_btn = tk.Button(bottom, text="合成视频", command=self._start,
-                                      width=25, height=2, bg="#4CAF50", fg="white",
+        bottom.grid(row=1, column=0, columnspan=2, pady=8, sticky="ew")
+        bottom.columnconfigure(0, weight=1)
+
+        btn_row = tk.Frame(bottom)
+        btn_row.grid(row=0, column=0)
+        self.generate_btn = tk.Button(btn_row, text="合成视频", command=self._start,
+                                      width=22, height=2, bg="#4CAF50", fg="white",
                                       font=("Arial", 11, "bold"))
-        self.generate_btn.pack(pady=8)
+        self.generate_btn.pack(side=tk.LEFT, padx=10)
+        self.stop_btn = tk.Button(btn_row, text="停止", command=self._stop,
+                                  width=8, height=2, state="disabled")
+        self.stop_btn.pack(side=tk.LEFT, padx=4)
+
+        self.progress_var = tk.DoubleVar(value=0)
+        ttk.Progressbar(bottom, variable=self.progress_var, maximum=100, length=600).grid(
+            row=1, column=0, padx=12, pady=(6, 0), sticky="ew")
+
         self.status_var = tk.StringVar(value="")
         tk.Label(bottom, textvariable=self.status_var, fg="blue",
-                 font=("Arial", 10)).pack(pady=4)
+                 font=("Arial", 9), anchor="w").grid(
+            row=2, column=0, padx=12, pady=2, sticky="ew")
+
+        self._ffmpeg_proc = None
 
     def _select_audio(self):
         path = filedialog.askopenfilename(
@@ -686,8 +758,8 @@ class AudioVideoApp:
             self.audio_path_var.set(path)
             dur = self._get_duration(path)
             self.audio_info_var.set(
-                f"文件: {os.path.basename(path)} | 时长: {dur:.2f} 秒" if dur > 0
-                else f"文件: {os.path.basename(path)}")
+                f"{os.path.basename(path)} | {dur:.1f} 秒" if dur > 0
+                else os.path.basename(path))
 
     def _select_image(self):
         path = filedialog.askopenfilename(
@@ -696,12 +768,11 @@ class AudioVideoApp:
         if path:
             self.image_path_var.set(path)
             try:
-                from PIL import Image
-                img = Image.open(path)
-                self.image_info_var.set(
-                    f"文件: {os.path.basename(path)} | 尺寸: {img.width}x{img.height}")
+                from PIL import Image as _Img
+                img = _Img.open(path)
+                self.image_info_var.set(f"{os.path.basename(path)} | {img.width}×{img.height}")
             except Exception:
-                self.image_info_var.set(f"文件: {os.path.basename(path)}")
+                self.image_info_var.set(os.path.basename(path))
 
     def _select_srt(self):
         path = filedialog.askopenfilename(
@@ -717,6 +788,15 @@ class AudioVideoApp:
         if path:
             self.video_output_var.set(path)
 
+    def _on_orientation(self):
+        """方向切换时同步更新分辨率和字幕默认参数"""
+        self._update_resolution()
+        ori = self.orientation_var.get()
+        d = LAYOUT_DEFAULTS.get(ori, LAYOUT_DEFAULTS["horizontal"])
+        self.sub_max_chars_var.set(d["max_chars_zh"])
+        self.sub_fontsize_var.set(d["fontsize"])
+        self.sub_margin_v_var.set(d["margin_v"])
+
     def _update_resolution(self):
         if self.orientation_var.get() == "horizontal":
             opts = ["1920x1080 (1080p)", "1280x720 (720p)", "3840x2160 (4K)", "2560x1440 (2K)"]
@@ -731,25 +811,29 @@ class AudioVideoApp:
 
     def _choose_bg(self):
         from tkinter import colorchooser
-        color = colorchooser.askcolor(title="背景填充色", initialcolor=self.bg_color_var.get())
-        if color[1]:
-            self.bg_color_var.set(color[1])
-            self.bg_preview.config(bg=color[1])
+        c = colorchooser.askcolor(title="背景填充色", initialcolor=self.bg_color_var.get())
+        if c[1]:
+            self.bg_color_var.set(c[1]); self.bg_preview.config(bg=c[1])
+
+    def _choose_sub_color(self):
+        from tkinter import colorchooser
+        c = colorchooser.askcolor(title="字幕颜色", initialcolor=self.sub_color_var.get())
+        if c[1]:
+            self.sub_color_var.set(c[1]); self.sub_color_preview.config(bg=c[1])
 
     def _choose_wm_color(self):
         from tkinter import colorchooser
-        color = colorchooser.askcolor(title="水印文字颜色", initialcolor=self.watermark_color_var.get())
-        if color[1]:
-            self.watermark_color_var.set(color[1])
-            self.wm_color_preview.config(bg=color[1])
+        c = colorchooser.askcolor(title="水印颜色", initialcolor=self.watermark_color_var.get())
+        if c[1]:
+            self.watermark_color_var.set(c[1]); self.wm_color_preview.config(bg=c[1])
 
     def _get_duration(self, path):
         try:
-            result = subprocess.run(
+            r = subprocess.run(
                 ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                  '-of', 'default=noprint_wrappers=1:nokey=1', path],
                 capture_output=True, text=True, check=True)
-            return float(result.stdout.strip())
+            return float(r.stdout.strip())
         except Exception:
             return 0.0
 
@@ -765,49 +849,110 @@ class AudioVideoApp:
         if not output:
             mb.showerror("错误", "请指定输出视频文件路径"); return
         self.generate_btn.config(state="disabled")
-        self.status_var.set("正在生成视频...")
+        self.stop_btn.config(state="normal")
+        self.progress_var.set(0)
+        self.status_var.set("正在准备...")
         threading.Thread(target=self._generate,
                          args=(audio, image, output), daemon=True).start()
 
+    def _stop(self):
+        if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
+            self._ffmpeg_proc.terminate()
+            self.status_var.set("已停止")
+
     def _generate(self, audio, image, output):
+        tmp_srt = None
         try:
             res_str = self.resolution_var.get().split(" ")[0]
             width, height = map(int, res_str.split('x'))
             fps = int(self.fps_var.get())
             codec = self.codec_var.get().split(" ")[0]
             bg = self._hex_to_ffmpeg(self.bg_color_var.get())
+            orientation = self.orientation_var.get()
+
+            # 获取音频总时长，用于进度计算
+            total_dur = self._get_duration(audio)
 
             vf = [
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease",
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color={bg}",
             ]
+
+            # SRT 字幕处理
+            srt_path = self.srt_path_var.get().strip()
+            if srt_path and os.path.exists(srt_path):
+                burn_srt = srt_path
+                # 如果启用换行分割，先处理 SRT
+                if self.sub_split_var.get():
+                    self.status_var.set("正在分割字幕...")
+                    try:
+                        tmp_srt = srt_path.replace('.srt', '_tmp_split.srt')
+                        split_srt_to_file(
+                            srt_path,
+                            max_chars=self.sub_max_chars_var.get(),
+                            is_chinese=self.sub_is_chinese_var.get(),
+                            output_path=tmp_srt,
+                        )
+                        burn_srt = tmp_srt
+                    except Exception as e:
+                        self.status_var.set(f"字幕分割失败，使用原始 SRT：{e}")
+                        burn_srt = srt_path
+
+                # 构建字幕样式
+                style = build_subtitle_style(
+                    orientation=orientation,
+                    fontsize=self.sub_fontsize_var.get(),
+                    color=self.sub_color_var.get(),
+                    margin_v=self.sub_margin_v_var.get(),
+                )
+                srt_ff = escape_ffmpeg_path(burn_srt)
+                vf.append(f"subtitles='{srt_ff}':force_style='{style}'")
+
+            # 水印
             if self.watermark_enabled_var.get():
-                wf = self._build_watermark(width, height)
+                wf = self._build_watermark(height)
                 if wf:
                     vf.append(wf)
 
-            cmd = ['ffmpeg', '-loop', '1', '-i', image, '-i', audio]
+            cmd = [
+                'ffmpeg', '-loop', '1', '-i', image, '-i', audio,
+                '-vf', ",".join(vf),
+                '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
+                '-shortest', '-r', str(fps), '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart', '-y', output,
+            ]
 
-            srt = self.srt_path_var.get().strip()
-            if srt and os.path.exists(srt):
-                # 用 subtitles 滤镜烧录 SRT
-                srt_escaped = srt.replace('\\', '/').replace(':', '\\:')
-                vf.append(f"subtitles='{srt_escaped}'")
+            self.status_var.set("正在合成视频...")
+            import re as _re
+            self._ffmpeg_proc = subprocess.Popen(
+                cmd, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
 
-            cmd += ['-vf', ",".join(vf),
-                    '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
-                    '-shortest', '-r', str(fps), '-pix_fmt', 'yuv420p', '-y', output]
+            for line in self._ffmpeg_proc.stderr:
+                m = _re.search(r'time=(\d+):(\d+):([\d.]+)', line)
+                if m and total_dur > 0:
+                    elapsed = (int(m.group(1)) * 3600 +
+                               int(m.group(2)) * 60 +
+                               float(m.group(3)))
+                    self.progress_var.set(min(99, elapsed / total_dur * 100))
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(result.stderr)
+            self._ffmpeg_proc.wait()
+            if self._ffmpeg_proc.returncode != 0:
+                raise RuntimeError("ffmpeg 返回非零退出码，请检查参数")
+
+            self.progress_var.set(100)
             self.status_var.set(f"完成！已保存：{output}")
             __import__('tkinter').messagebox.showinfo("成功", f"视频已保存到：\n{output}")
+
         except Exception as e:
             self.status_var.set("生成失败")
             __import__('tkinter').messagebox.showerror("错误", f"视频生成失败：\n{e}")
         finally:
             self.generate_btn.config(state="normal")
+            self.stop_btn.config(state="disabled")
+            self._ffmpeg_proc = None
+            if tmp_srt and os.path.exists(tmp_srt):
+                try: os.unlink(tmp_srt)
+                except Exception: pass
 
     def _hex_to_ffmpeg(self, hex_color):
         h = hex_color.lstrip('#')
@@ -815,16 +960,11 @@ class AudioVideoApp:
             h = ''.join(c*2 for c in h)
         return f"0x{h.upper()}"
 
-    def _build_watermark(self, _width, height):
+    def _build_watermark(self, height):
         text = self.watermark_text_var.get().strip()
         if not text:
             return None
         color = self.watermark_color_var.get().lstrip('#')
-        font_raw = self.watermark_font_var.get()
-        font = font_raw.split(" ")[0] if " " in font_raw else font_raw
-        font_map = {'simhei.ttf': 'Microsoft YaHei', 'simsun.ttc': 'SimSun',
-                    'msyh.ttc': 'Microsoft YaHei', 'simkai.ttf': 'KaiTi', 'arial.ttf': 'Arial'}
-        font_name = font_map.get(font, 'Microsoft YaHei')
         font_size = int(36 * height / 1080)
         opacity = self.watermark_opacity_var.get()
         pos_raw = self.watermark_position_var.get()
@@ -839,7 +979,7 @@ class AudioVideoApp:
         x, y = coords.get(pos, coords["topright"])
         escaped = text.replace(":", "\\:").replace("'", "")
         return (f"drawtext=text='{escaped}':fontcolor={color}@{opacity}:"
-                f"fontsize={font_size}:font='{font_name}':x={x}:y={y}:"
+                f"fontsize={font_size}:font='Microsoft YaHei':x={x}:y={y}:"
                 f"borderw=2:bordercolor=black")
 
 
