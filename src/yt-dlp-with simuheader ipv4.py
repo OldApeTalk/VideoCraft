@@ -8,26 +8,31 @@ from urllib.parse import urlparse
 from hub_logger import logger
 
 class YouTubeDownloader:
-    def __init__(self, root):
+    def __init__(self, root, initial_file=None):
         self.root = root
         self.root.title("YouTube Downloader")
         self.root.geometry("1200x650")  # Wider window for horizontal layout
-        
+
         # Initialize yt-dlp
         self.ydl_opts = {}
         self.video_list = []  # List of videos from URLs/playlists
         self.selected_videos = []  # Selected videos for download
-        
+
         # Network configuration
         self.network_speed = "fast"  # fast, medium, slow
         self.force_ipv4_var = tk.BooleanVar(value=True)
-        
+
         # Progress update throttling - 避免事件队列堆积
         self.last_progress_update = {}  # {video_title: last_update_time}
         self.progress_update_interval = 0.5  # 最小更新间隔（秒）
-        
+
         # Create GUI elements
         self.create_widgets()
+
+        # Pre-fill output directory if provided
+        if initial_file and os.path.isdir(initial_file):
+            self.dir_entry.delete(0, tk.END)
+            self.dir_entry.insert(0, initial_file)
 
     def resolve_video_url(self, entry, source_url):
         """Resolve a playlist entry into a concrete single-video URL."""
@@ -432,8 +437,24 @@ class YouTubeDownloader:
                             video_file = ydl.prepare_filename(info)
                             downloaded_count += 1
                         
-                        self.root.after(0, lambda vf=video_file, vt=video_title: self.log(f"Downloaded: {vt} -> {vf}"))
-                        
+                        # 重命名为短标题格式
+                        try:
+                            raw_title = info.get('title', video_title)
+                            upload_date = info.get('upload_date', '')
+                            ext = os.path.splitext(video_file)[1].lstrip('.')
+                            new_name = _build_download_filename(raw_title, upload_date, quality, ext)
+                            # 清理文件名中的非法字符
+                            for ch in r'\/:*?"<>|':
+                                new_name = new_name.replace(ch, '_')
+                            new_path = os.path.join(output_dir, new_name)
+                            if os.path.abspath(video_file) != os.path.abspath(new_path):
+                                os.rename(video_file, new_path)
+                                video_file = new_path
+                        except Exception as rename_err:
+                            self.root.after(0, lambda e=str(rename_err): self.log(f"重命名失败（使用原名）: {e}"))
+
+                        self.root.after(0, lambda vf=video_file, vt=video_title: self.log(f"Downloaded: {vt} -> {os.path.basename(vf)}"))
+
                         # Extract MP3 if selected
                         if self.mp3_var.get():
                             self.root.after(0, lambda vt=video_title: self.log(f"Extracting MP3 for: {vt}"))
@@ -528,6 +549,21 @@ class YouTubeDownloader:
                 except:
                     pass
         return progress_hook
+
+def _short_title(title: str, max_len: int = 20, head: int = 10, tail: int = 10) -> str:
+    """超过 max_len 时截为 前head字符…后tail字符，保留两端关键信息。"""
+    if len(title) <= max_len:
+        return title
+    return title[:head] + "…" + title[-tail:]
+
+
+def _build_download_filename(title: str, upload_date: str, quality: str, ext: str) -> str:
+    """生成下载文件名：{短标题}_{日期}[_{画质}].{ext}"""
+    short = _short_title(title)
+    date_tag = f"_{upload_date}" if upload_date else ""
+    q_tag = f"_{quality}" if quality not in ("best", "1080p") else ""
+    return f"{short}{date_tag}{q_tag}.{ext.lstrip('.')}"
+
 
 if __name__ == "__main__":
     root = tk.Tk()

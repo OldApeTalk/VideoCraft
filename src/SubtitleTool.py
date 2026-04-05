@@ -33,6 +33,31 @@ from core.subtitle_ops import (
 )
 
 
+def _infer_lang_tag(srt_path: str) -> str:
+    """从 SRT 文件名末尾推断语言码（如 video_en.srt → 'en'），推断失败返回 'sub'。"""
+    if not srt_path:
+        return "sub"
+    base = os.path.splitext(os.path.basename(srt_path))[0]
+    parts = base.rsplit("_", 1)
+    if len(parts) == 2 and 1 <= len(parts[1]) <= 5 and parts[1].replace("-", "").isalpha():
+        return parts[1]
+    return "sub"
+
+
+def _build_sub_output_path(video_path: str, sub1_path: str, sub2_path: str = None) -> str:
+    """根据视频路径和字幕路径生成烧录后输出文件名（如 video_sub_zh+en.mp4）。"""
+    base = os.path.splitext(video_path)[0]
+    tag1 = _infer_lang_tag(sub1_path) if sub1_path else None
+    tag2 = _infer_lang_tag(sub2_path) if sub2_path else None
+    if tag1 and tag2:
+        return f"{base}_sub_{tag1}+{tag2}.mp4"
+    elif tag1:
+        return f"{base}_sub_{tag1}.mp4"
+    elif tag2:
+        return f"{base}_sub_{tag2}.mp4"
+    return f"{base}_sub.mp4"
+
+
 def get_video_resolution(video_path):
     """获取视频分辨率"""
     try:
@@ -364,7 +389,7 @@ class SubtitleToolApp:
         video_path_abs = os.path.abspath(video_path)
         sub1_path_ff   = escape_ffmpeg_path(temp_sub1_path)
         sub2_path_ff   = escape_ffmpeg_path(temp_sub2_path)
-        output_path    = os.path.splitext(video_path_abs)[0] + "_merged.mp4"
+        output_path    = _build_sub_output_path(video_path_abs, sub1_path if show_sub1 else None, sub2_path if show_sub2 else None)
 
         # 字幕样式
         font1 = "Microsoft YaHei"

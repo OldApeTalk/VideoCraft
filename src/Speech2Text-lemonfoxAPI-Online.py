@@ -224,46 +224,95 @@ class Speech2TextApp:
     def __init__(self, master, initial_file=None):
         self.master = master
         master.title("MP3 to SRT Converter using LemonFox API")
-        master.geometry("600x550")
+        master.geometry("600x580")
         self._build_ui()
         if initial_file and os.path.exists(initial_file):
             self.entry_mp3_path.delete(0, tk.END)
             self.entry_mp3_path.insert(0, initial_file)
+            self._auto_fill_output()
 
     def _build_ui(self):
         f = self.master
 
-        tk.Label(f, text="MP3 文件:").pack(pady=5)
-        self.entry_mp3_path = tk.Entry(f, width=60)
-        self.entry_mp3_path.pack()
-        tk.Button(f, text="浏览", command=self._select_mp3_file).pack(pady=5)
+        # 源文件
+        tk.Label(f, text="音视频文件:").pack(pady=(10, 2))
+        row1 = tk.Frame(f)
+        row1.pack(fill=tk.X, padx=10)
+        self.entry_mp3_path = tk.Entry(row1, width=52)
+        self.entry_mp3_path.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        tk.Button(row1, text="浏览", width=6,
+                  command=self._select_mp3_file).pack(side=tk.LEFT, padx=(4, 0))
 
-        tk.Label(f, text="选择语言:").pack(pady=5)
+        # 输出 SRT
+        tk.Label(f, text="输出 SRT 文件:").pack(pady=(8, 2))
+        row2 = tk.Frame(f)
+        row2.pack(fill=tk.X, padx=10)
+        self.entry_srt_path = tk.Entry(row2, width=52)
+        self.entry_srt_path.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        tk.Button(row2, text="浏览", width=6,
+                  command=self._select_srt_path).pack(side=tk.LEFT, padx=(4, 0))
+
+        # 语言
+        tk.Label(f, text="识别语言:").pack(pady=(8, 2))
         self.combo_language = tk.StringVar(value=language_options[0])
+        self.combo_language.trace_add("write", lambda *_: self._auto_fill_output())
         combo_menu = ttk.Combobox(f, textvariable=self.combo_language,
-                                  values=language_options, state="readonly", width=40)
+                                  values=language_options, state="readonly", width=50)
         combo_menu.pack(fill=tk.X, padx=10)
 
         self.translate_var = tk.BooleanVar()
         tk.Checkbutton(f, text="自动将识别的字幕转换为英语",
                        variable=self.translate_var).pack(pady=5)
 
-        tk.Button(f, text="转录为原始SRT", command=self._transcribe_audio,
-                  width=20).pack(pady=10)
+        tk.Button(f, text="转录为 SRT", command=self._transcribe_audio,
+                  width=20, bg="#0078d4", fg="white").pack(pady=10)
 
-        tk.Label(f, text="日志:").pack(pady=5)
+        tk.Label(f, text="日志:").pack(pady=(0, 2))
         self.log_text = tk.Text(f, height=8, width=70)
-        self.log_text.pack(pady=5, padx=10)
+        self.log_text.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
+
+    def _auto_fill_output(self):
+        """根据源文件路径和语言自动生成输出 SRT 路径（语言用 ISO 码）。"""
+        src = self.entry_mp3_path.get().strip()
+        if not src:
+            return
+        base = os.path.splitext(src)[0]
+        lang = self.combo_language.get()
+        if lang.startswith("Auto Detect"):
+            suffix = "auto"
+        else:
+            eng_name = lang.split(" (")[0]
+            suffix = next(
+                (code for code, (e, _) in language_dict.items() if e == eng_name),
+                eng_name.lower()[:2]
+            )
+        out = f"{base}_{suffix}.srt"
+        self.entry_srt_path.delete(0, tk.END)
+        self.entry_srt_path.insert(0, out)
 
     def _select_mp3_file(self):
         file_path = filedialog.askopenfilename(
-            title="Select Audio/Video File",
-            filetypes=[("Audio/Video Files", "*.mp3;*.mp4"),
-                       ("MP3 Files", "*.mp3"), ("MP4 Files", "*.mp4")]
+            title="选择音视频文件",
+            filetypes=[("Audio/Video Files", "*.mp3;*.mp4;*.wav;*.m4a;*.mkv"),
+                       ("All Files", "*.*")]
         )
         if file_path:
             self.entry_mp3_path.delete(0, tk.END)
             self.entry_mp3_path.insert(0, file_path)
+            self._auto_fill_output()
+
+    def _select_srt_path(self):
+        src = self.entry_mp3_path.get().strip()
+        init_dir = os.path.dirname(src) if src else ""
+        file_path = filedialog.asksaveasfilename(
+            title="保存 SRT 文件",
+            defaultextension=".srt",
+            filetypes=[("SRT Files", "*.srt")],
+            initialdir=init_dir,
+        )
+        if file_path:
+            self.entry_srt_path.delete(0, tk.END)
+            self.entry_srt_path.insert(0, file_path)
 
     def _log(self, msg: str):
         """向内部日志文本框写一行。"""
@@ -293,22 +342,10 @@ class Speech2TextApp:
             eng_name = selected_language.split(" (")[0].lower()
             api_lang = eng_name
 
-        # 生成默认文件名
-        if selected_language.startswith("Auto Detect"):
-            default_filename = "Auto_Detect.srt"
-        else:
-            eng_name = selected_language.split(" (")[0]
-            default_filename = f"{eng_name}.srt"
-
-        # 选择SRT保存路径
-        srt_path = filedialog.asksaveasfilename(
-            title="Save SRT File",
-            defaultextension=".srt",
-            initialfile=default_filename,
-            initialdir=os.path.dirname(mp3_path)
-        )
+        srt_path = self.entry_srt_path.get().strip()
         if not srt_path:
-            return  # 用户取消
+            self._log("⚠ 请指定输出 SRT 文件路径。\n")
+            return
 
         try:
             self._log("开始调用API进行转录...\n")
