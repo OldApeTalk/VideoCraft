@@ -1,10 +1,11 @@
 import os
 import re
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
 import ffmpeg
 import subprocess
 import json
+from hub_logger import logger
 
 def normalize_timestamp(raw_time):
     """规范化时间戳，支持 H:MM:SS、HH:MM:SS、MM:SS，并容错重复冒号。"""
@@ -203,23 +204,27 @@ class SplitVideoApp:
         desc_path = self.desc_path_var.get()
         output_dir = self.output_dir_var.get()
         if not video_path or not os.path.exists(video_path):
-            messagebox.showerror("错误", "请选择有效的视频文件")
+            self.status_var.set("⚠ 请选择有效的视频文件")
             return
         if not desc_path or not os.path.exists(desc_path):
-            messagebox.showerror("错误", "请选择有效的分段描述文件")
+            self.status_var.set("⚠ 请选择有效的分段描述文件")
             return
         if not output_dir:
-            messagebox.showerror("错误", "请选择输出目录")
+            self.status_var.set("⚠ 请选择输出目录")
             return
         segments = parse_timestamps_and_titles(desc_path)
         if not segments:
-            messagebox.showerror("错误", "未找到有效的时间戳和标题")
+            self.status_var.set("⚠ 未找到有效的时间戳和标题")
             return
         self.status_var.set("开始切割...")
         self.master.update()
-        split_video(video_path, segments, output_dir, self.status_var)
-        self.status_var.set("全部切割完成！")
-        messagebox.showinfo("完成", "视频分割已全部完成！")
+        try:
+            split_video(video_path, segments, output_dir, self.status_var)
+            self.status_var.set("全部切割完成！")
+            logger.info(f"视频分段切割完成 → {len(segments)} 段（{os.path.basename(video_path)}）")
+        except Exception as e:
+            self.status_var.set(f"✗ 切割失败")
+            logger.error(f"视频分段切割失败: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()

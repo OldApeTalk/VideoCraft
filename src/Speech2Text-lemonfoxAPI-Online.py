@@ -1,9 +1,10 @@
 import os
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 import requests
 import textwrap  # 用于辅助文本处理
+from hub_logger import logger
 
 # Whisper支持的语言字典：ISO代码 -> (英文名, 中文名)
 # UN官方语言优先：ar, zh, en, fr, ru, es
@@ -59,7 +60,6 @@ language_dict = {
     "ko": ("Korean", "韩语"),
     "la": ("Latin", "拉丁语"),
     "lb": ("Luxembourgish", "卢森堡语"),
-    "ln": ("Lingala", "林加拉语"),
     "lo": ("Lao", "老挝语"),
     "lt": ("Lithuanian", "立陶宛语"),
     "lv": ("Latvian", "拉脱维亚语"),
@@ -74,7 +74,7 @@ language_dict = {
     "my": ("Myanmar", "缅甸语"),
     "ne": ("Nepali", "尼泊尔语"),
     "nl": ("Dutch", "荷兰语"),
-    "nn": ("Norwegian Nynorsk", "新挪威语"),
+    "nn": ("Nynorsk", "挪威尼诺斯克语"),
     "no": ("Norwegian", "挪威语"),
     "oc": ("Occitan", "奥克语"),
     "pa": ("Punjabi", "旁遮普语"),
@@ -99,7 +99,7 @@ language_dict = {
     "tg": ("Tajik", "塔吉克语"),
     "th": ("Thai", "泰语"),
     "tk": ("Turkmen", "土库曼语"),
-    "tl": ("Tagalog", "他加禄语"),
+    "tl": ("Filipino", "菲律宾语"),
     "tr": ("Turkish", "土耳其语"),
     "tt": ("Tatar", "鞑靼语"),
     "uk": ("Ukrainian", "乌克兰语"),
@@ -122,28 +122,16 @@ for code in un_languages + other_languages:
 
 from ai_router import router
 
-def select_mp3_file():
-    """选择音频/视频文件"""
-    file_path = filedialog.askopenfilename(
-        title="Select Audio/Video File",
-        filetypes=[("Audio/Video Files", "*.mp3;*.mp4"), ("MP3 Files", "*.mp3"), ("MP4 Files", "*.mp4")]
-    )
-    if file_path:
-        entry_mp3_path.delete(0, tk.END)
-        entry_mp3_path.insert(0, file_path)
-
 
 def clean_srt_content(srt_content):
     """清理API返回的SRT内容"""
     if srt_content:
-        # 移除周围引号
         srt_content_cleaned = srt_content.strip('"')
-        # 将转义的 \\n 转换为实际换行符 \n
         srt_content_unescaped = srt_content_cleaned.replace('\\n', '\n')
-        # 将所有换行符标准化为 \r\n
         srt_content_fixed = srt_content_unescaped.replace('\r\n', '\n').replace('\n', '\r\n')
         return srt_content_fixed
     return ""
+
 
 def parse_timestamp(ts_str):
     """解析SRT时间戳为秒，支持 ',' 或 '.' 作为小数分隔符"""
@@ -153,10 +141,10 @@ def parse_timestamp(ts_str):
         decimal = ','
     else:
         raise ValueError(f"No decimal separator in {ts_str}")
-    
     h, m, s_ms = ts_str.split(':')
     s, ms = s_ms.split(decimal)
     return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
+
 
 def format_timestamp(t, always_include_hours=True, decimal_marker=','):
     """格式化秒为SRT时间戳"""
@@ -169,9 +157,9 @@ def format_timestamp(t, always_include_hours=True, decimal_marker=','):
     else:
         return f"{mins:02d}:{secs:02d}{decimal_marker}{msecs:03d}"
 
-def parse_srt(srt_content):
+
+def parse_srt(srt_content, log_callback=None):
     """解析SRT内容为段落列表"""
-    # 移除 \r 以处理 Windows 行结束符
     srt_content = srt_content.replace('\r', '')
     segments = []
     blocks = srt_content.strip().split('\n\n')
@@ -187,13 +175,13 @@ def parse_srt(srt_content):
             start_str, end_str = [s.strip() for s in time_line.split('-->')]
             start = parse_timestamp(start_str)
             end = parse_timestamp(end_str)
-            # 如果文本有多行，保留 \n
             text = '\n'.join(lines[2:]).strip()
             segments.append((index, start, end, text))
         except Exception as e:
-            log_text.insert(tk.END, f"解析块错误：{str(e)} - 块内容：{block[:100]}\n")
-            pass  # 跳过无效块
+            if log_callback:
+                log_callback(f"解析块错误：{str(e)} - 块内容：{block[:100]}\n")
     return segments
+
 
 def split_long_segment(start, end, text, max_chars=60):
     """使用线性插值将长段落分割成短字幕块（无词级时间戳）"""
@@ -201,22 +189,19 @@ def split_long_segment(start, end, text, max_chars=60):
     words = text.split()
     if not words:
         return [(start, end, "")]
-    
-    total_word_chars = sum(len(w) + 1 for w in words) - 1  # 近似包括空格
+    total_word_chars = sum(len(w) + 1 for w in words) - 1
     if total_word_chars == 0:
         return [(start, end, "")]
-    
     duration = end - start
     sub_segments = []
     current_words = []
     cum_word_chars = 0
-    
     for word in words:
         test_words = current_words + [word]
         test_text = ' '.join(test_words)
         if len(test_text) > max_chars and current_words:
             sub_text = ' '.join(current_words)
-            sub_word_chars = len(sub_text)  # 使用实际长度
+            sub_word_chars = len(sub_text)
             sub_start = start + (cum_word_chars / total_word_chars) * duration
             sub_end = start + ((cum_word_chars + sub_word_chars) / total_word_chars) * duration
             sub_segments.append((sub_start, sub_end, sub_text))
@@ -224,141 +209,146 @@ def split_long_segment(start, end, text, max_chars=60):
             current_words = [word]
         else:
             current_words = test_words
-    
-    # 添加最后一个子段落
     if current_words:
         sub_text = ' '.join(current_words)
         sub_word_chars = len(sub_text)
         sub_start = start + (cum_word_chars / total_word_chars) * duration
         sub_end = start + ((cum_word_chars + sub_word_chars) / total_word_chars) * duration
         sub_segments.append((sub_start, sub_end, sub_text))
-    
     return sub_segments
 
-def transcribe_audio():
-    """执行转录并生成原始SRT（不拆分）"""
-    mp3_path = entry_mp3_path.get()
-    selected_language = combo_language.get()
-    api_key = router.get_asr_key("lemonfox")
 
-    if not mp3_path or not os.path.exists(mp3_path):
-        messagebox.showerror("Error", "请选择有效的MP3文件。")
-        return
+class Speech2TextApp:
+    """语音转字幕工具（LemonFox API）— Toplevel 内嵌版。"""
 
-    if not api_key:
-        messagebox.showerror("Error", "LemonFox API Key 未配置，请在 AI Router 管理界面中设置。")
-        return
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("MP3 to SRT Converter using LemonFox API")
+        master.geometry("600x550")
+        self._build_ui()
+        if initial_file and os.path.exists(initial_file):
+            self.entry_mp3_path.delete(0, tk.END)
+            self.entry_mp3_path.insert(0, initial_file)
 
-    # 解析语言
-    if selected_language.startswith("Auto Detect"):
-        api_lang = None
-    else:
-        # 从双语字符串提取英文名并小写
-        eng_name = selected_language.split(" (")[0].lower()
-        api_lang = eng_name
+    def _build_ui(self):
+        f = self.master
 
-    # 解析语言并生成默认文件名
-    if selected_language.startswith("Auto Detect"):
-        default_filename = "Auto_Detect.srt"
-    else:
-        # 从双语字符串提取英文名
-        eng_name = selected_language.split(" (")[0]
-        default_filename = f"{eng_name}.srt"
+        tk.Label(f, text="MP3 文件:").pack(pady=5)
+        self.entry_mp3_path = tk.Entry(f, width=60)
+        self.entry_mp3_path.pack()
+        tk.Button(f, text="浏览", command=self._select_mp3_file).pack(pady=5)
 
-    # 选择SRT保存路径
-    srt_path = filedialog.asksaveasfilename(
-        title="Save SRT File", 
-        defaultextension=".srt", 
-        initialfile=default_filename, 
-        initialdir=os.path.dirname(mp3_path)
-    )
-    if not srt_path:
-        return  # 用户取消了路径选择，不进行转录
+        tk.Label(f, text="选择语言:").pack(pady=5)
+        self.combo_language = tk.StringVar(value=language_options[0])
+        combo_menu = ttk.Combobox(f, textvariable=self.combo_language,
+                                  values=language_options, state="readonly", width=40)
+        combo_menu.pack(fill=tk.X, padx=10)
 
-    try:
-        log_text.insert(tk.END, "开始调用API进行转录...\n")
-        root.update()
+        self.translate_var = tk.BooleanVar()
+        tk.Checkbutton(f, text="自动将识别的字幕转换为英语",
+                       variable=self.translate_var).pack(pady=5)
 
-        # 调用LemonFox API
-        url = "https://api.lemonfox.ai/v1/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {api_key}"}
-        file_ext = os.path.splitext(mp3_path)[1].lower()
-        if file_ext == ".mp4":
-            mime_type = "video/mp4"
+        tk.Button(f, text="转录为原始SRT", command=self._transcribe_audio,
+                  width=20).pack(pady=10)
+
+        tk.Label(f, text="日志:").pack(pady=5)
+        self.log_text = tk.Text(f, height=8, width=70)
+        self.log_text.pack(pady=5, padx=10)
+
+    def _select_mp3_file(self):
+        file_path = filedialog.askopenfilename(
+            title="Select Audio/Video File",
+            filetypes=[("Audio/Video Files", "*.mp3;*.mp4"),
+                       ("MP3 Files", "*.mp3"), ("MP4 Files", "*.mp4")]
+        )
+        if file_path:
+            self.entry_mp3_path.delete(0, tk.END)
+            self.entry_mp3_path.insert(0, file_path)
+
+    def _log(self, msg: str):
+        """向内部日志文本框写一行。"""
+        self.log_text.insert(tk.END, msg)
+        self.log_text.see(tk.END)
+        self.master.update_idletasks()
+
+    def _transcribe_audio(self):
+        """执行转录并生成原始SRT（不拆分）"""
+        mp3_path = self.entry_mp3_path.get()
+        selected_language = self.combo_language.get()
+        api_key = router.get_asr_key("lemonfox")
+
+        if not mp3_path or not os.path.exists(mp3_path):
+            self._log("⚠ 请选择有效的MP3文件。\n")
+            return
+
+        if not api_key:
+            self._log("⚠ LemonFox API Key 未配置，请在 AI Router 管理界面中设置。\n")
+            logger.warning("LemonFox API Key 未配置")
+            return
+
+        # 解析语言
+        if selected_language.startswith("Auto Detect"):
+            api_lang = None
         else:
-            mime_type = "audio/mpeg"
-        files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
-        data = {"response_format": "srt"}
-        if api_lang:
-            data["language"] = api_lang
-        if translate_var.get():
-            data["translate_to_english"] = True
+            eng_name = selected_language.split(" (")[0].lower()
+            api_lang = eng_name
 
-        response = requests.post(url, headers=headers, data=data, files=files)
+        # 生成默认文件名
+        if selected_language.startswith("Auto Detect"):
+            default_filename = "Auto_Detect.srt"
+        else:
+            eng_name = selected_language.split(" (")[0]
+            default_filename = f"{eng_name}.srt"
 
-        if not response.ok:
-            raise Exception(f"API错误：{response.status_code} - {response.text}")
+        # 选择SRT保存路径
+        srt_path = filedialog.asksaveasfilename(
+            title="Save SRT File",
+            defaultextension=".srt",
+            initialfile=default_filename,
+            initialdir=os.path.dirname(mp3_path)
+        )
+        if not srt_path:
+            return  # 用户取消
 
-        raw_srt_content = response.text
-        log_text.insert(tk.END, f"Raw SRT content from API (first 200 chars): {raw_srt_content[:200]}\n")
-        root.update()
+        try:
+            self._log("开始调用API进行转录...\n")
 
-        srt_content = clean_srt_content(raw_srt_content)
-        log_text.insert(tk.END, f"Cleaned SRT content (first 200 chars): {srt_content[:200]}\n")
-        root.update()
+            url = "https://api.lemonfox.ai/v1/audio/transcriptions"
+            headers = {"Authorization": f"Bearer {api_key}"}
+            file_ext = os.path.splitext(mp3_path)[1].lower()
+            mime_type = "video/mp4" if file_ext == ".mp4" else "audio/mpeg"
+            files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
+            data = {"response_format": "srt"}
+            if api_lang:
+                data["language"] = api_lang
+            if self.translate_var.get():
+                data["translate_to_english"] = True
 
-        log_text.insert(tk.END, "转录完成。生成SRT文件...\n")
-        root.update()
+            response = requests.post(url, headers=headers, data=data, files=files)
 
-        # 保存清理后的原始SRT
-        with open(srt_path, "w", encoding="utf-8", newline='') as f:
-            f.write(srt_content)
+            if not response.ok:
+                raise Exception(f"API错误：{response.status_code} - {response.text}")
 
-        log_text.insert(tk.END, f"原始SRT文件已生成：{srt_path}\n")
-        messagebox.showinfo("成功", f"原始SRT文件已生成：{srt_path}")
+            raw_srt_content = response.text
+            self._log(f"Raw SRT content from API (first 200 chars): {raw_srt_content[:200]}\n")
 
-    except Exception as e:
-        log_text.insert(tk.END, f"错误：{str(e)}\n")
-        messagebox.showerror("Error", f"发生错误：{str(e)}")
+            srt_content = clean_srt_content(raw_srt_content)
+            self._log(f"Cleaned SRT content (first 200 chars): {srt_content[:200]}\n")
+            self._log("转录完成。生成SRT文件...\n")
+
+            with open(srt_path, "w", encoding="utf-8", newline='') as f:
+                f.write(srt_content)
+
+            self._log(f"原始SRT文件已生成：{srt_path}\n")
+            logger.info(f"语音转字幕完成 → {os.path.basename(srt_path)}")
+
+        except Exception as e:
+            self._log(f"错误：{str(e)}\n")
+            logger.error(f"语音转字幕失败: {e}")
 
 
-# 创建GUI窗口
-root = tk.Tk()
-root.title("MP3 to SRT Converter using LemonFox API")
-root.geometry("600x550")  # 增大窗口以容纳额外部分
-
-# MP3文件选择
-label_mp3 = tk.Label(root, text="MP3 文件:")
-label_mp3.pack(pady=5)
-entry_mp3_path = tk.Entry(root, width=60)
-entry_mp3_path.pack()
-button_select_mp3 = tk.Button(root, text="浏览", command=select_mp3_file)
-button_select_mp3.pack(pady=5)
-
-# 语言选择
-label_language = tk.Label(root, text="选择语言:")
-label_language.pack(pady=5)
-combo_language = tk.StringVar(value=language_options[0])
-combo_menu = ttk.Combobox(root, textvariable=combo_language, values=language_options, state="readonly", width=40)
-combo_menu.pack(fill=tk.X, padx=10)
-
-# 自动转换为英语复选框
-translate_var = tk.BooleanVar()
-check_translate = tk.Checkbutton(root, text="自动将识别的字幕转换为英语", variable=translate_var)
-check_translate.pack(pady=5)
-
-# 转录按钮（仅生成原始SRT）
-button_transcribe = tk.Button(root, text="转录为原始SRT", command=transcribe_audio)
-button_transcribe.pack(pady=10)
-
-# 日志显示
-label_log = tk.Label(root, text="日志:")
-label_log.pack(pady=5)
-log_text = tk.Text(root, height=8, width=70)
-log_text.pack(pady=5, padx=10)
-
-if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
-    entry_mp3_path.delete(0, tk.END)
-    entry_mp3_path.insert(0, sys.argv[1])
-
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    initial = sys.argv[1] if len(sys.argv) > 1 and os.path.exists(sys.argv[1]) else None
+    app = Speech2TextApp(root, initial_file=initial)
+    root.mainloop()

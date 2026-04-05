@@ -18,6 +18,7 @@ from tkinter import filedialog, messagebox, ttk
 import threading
 import subprocess
 import re
+from hub_logger import logger
 
 def extract_audio_to_mp3(input_file, output_mp3, bitrate, progress_callback):
     """
@@ -42,9 +43,9 @@ def extract_audio_to_mp3(input_file, output_mp3, bitrate, progress_callback):
     process.wait()
     if process.returncode == 0:
         progress_callback(100)
-        messagebox.showinfo("成功", "音频提取成功！")
+        logger.info(f"提取 MP3 完成 → {os.path.basename(output_mp3)}")
     else:
-        messagebox.showerror("错误", "提取失败")
+        logger.error(f"提取 MP3 失败：{os.path.basename(input_file)}")
 
 def adjust_volume(input_file, output_file, db_change, progress_callback):
     """
@@ -82,9 +83,9 @@ def adjust_volume(input_file, output_file, db_change, progress_callback):
     process.wait()
     if process.returncode == 0:
         progress_callback(100)
-        messagebox.showinfo("成功", "音量调整成功！")
+        logger.info(f"音量调整完成 → {os.path.basename(output_file)}")
     else:
-        messagebox.showerror("错误", "调整失败")
+        logger.error(f"音量调整失败：{os.path.basename(input_file)}")
 
 def convert_mp3_bitrate(input_mp3, output_mp3, bitrate, progress_callback):
     """
@@ -109,9 +110,9 @@ def convert_mp3_bitrate(input_mp3, output_mp3, bitrate, progress_callback):
     process.wait()
     if process.returncode == 0:
         progress_callback(100)
-        messagebox.showinfo("成功", "码率转换成功！")
+        logger.info(f"码率转换完成 → {os.path.basename(output_mp3)}")
     else:
-        messagebox.showerror("错误", "转换失败")
+        logger.error(f"码率转换失败：{os.path.basename(input_mp3)}")
 
 def get_video_duration(input_video):
     """
@@ -314,10 +315,10 @@ def extract_video_clip(input_video, output_video, start_time, end_time, progress
     process.wait()
     if process.returncode == 0:
         progress_callback(100)
-        mode_text = "精确模式" if accurate_mode else "快速模式"
-        messagebox.showinfo("成功", f"视频片段提取成功！({mode_text})")
+        mode_text = "精确" if accurate_mode else "快速"
+        logger.info(f"片段提取完成（{mode_text}）→ {os.path.basename(output_video)}")
     else:
-        messagebox.showerror("错误", "提取失败")
+        logger.error(f"片段提取失败：{os.path.basename(input_video)}")
 
 
 def extract_subtitle_clip(input_srt, output_srt, start_time_str, end_time_str):
@@ -498,7 +499,7 @@ class ExtractAudioApp:
     def _run(self):
         src, dst = self.input_var.get(), self.output_var.get()
         if not src or not dst:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.status_var.set("⚠ 请选择输入和输出文件")
             return
         self._btn.config(state="disabled")
         self._progress["value"] = 0
@@ -575,7 +576,7 @@ class ConvertBitrateApp:
     def _run(self):
         src, dst = self.input_var.get(), self.output_var.get()
         if not src or not dst:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.status_var.set("⚠ 请选择输入和输出文件")
             return
         self._btn.config(state="disabled")
         self._progress["value"] = 0
@@ -660,7 +661,7 @@ class AdjustVolumeApp:
     def _run(self):
         src, dst = self.input_var.get(), self.output_var.get()
         if not src or not dst:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.status_var.set("⚠ 请选择输入和输出文件")
             return
         db = self.volume_var.get()
         self._btn.config(state="disabled")
@@ -780,15 +781,15 @@ class ExtractClipApp:
         src, dst = self.input_var.get(), self.output_var.get()
         start, end = self.start_var.get(), self.end_var.get()
         if not src or not dst:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.status_var.set("⚠ 请选择输入和输出文件")
             return
         time_pattern = r'^\d{1,2}:\d{2}:\d{2}(\.\d{1,3})?$'
         if not re.match(time_pattern, start) or not re.match(time_pattern, end):
-            messagebox.showerror("错误", "时间格式不正确，请使用 HH:MM:SS 或 HH:MM:SS.mmm 格式")
+            self.status_var.set("⚠ 时间格式不正确，请使用 HH:MM:SS 或 HH:MM:SS.mmm 格式")
             return
         input_srt = self.srt_input_var.get().strip()
         if input_srt and not os.path.isfile(input_srt):
-            messagebox.showerror("错误", "指定的字幕文件不存在")
+            self.status_var.set("⚠ 指定的字幕文件不存在")
             return
         accurate = (self.mode_var.get() == "accurate")
         mode_text = "精确模式" if accurate else "快速模式"
@@ -897,16 +898,16 @@ class AutoSplitApp:
         n = self.segments_var.get()
         use_kf = self.keyframe_var.get()
         if not src or not out_dir:
-            messagebox.showerror("错误", "请选择输入文件和输出目录")
+            self.status_var.set("⚠ 请选择输入文件和输出目录")
             return
         if n < 2:
-            messagebox.showerror("错误", "分割段数至少为2段")
+            self.status_var.set("⚠ 分割段数至少为2段")
             return
         if not os.path.exists(out_dir):
             try:
                 os.makedirs(out_dir)
             except Exception:
-                messagebox.showerror("错误", "无法创建输出目录")
+                self.status_var.set("⚠ 无法创建输出目录")
                 return
         mode_text = "关键帧对齐" if use_kf else "精确时间"
         self._btn.config(state="disabled")
@@ -922,13 +923,10 @@ class AutoSplitApp:
             self._btn.config(state="normal")
             if success:
                 self.status_var.set(f"✓ 分割完成！已生成 {len(output_files)} 个文件")
-                result = f"✓ {message}\n生成了 {len(output_files)} 个文件：\n"
-                for fp in output_files:
-                    result += f"  • {os.path.basename(fp)}\n"
-                messagebox.showinfo("成功", result)
+                logger.info(f"视频分割完成 → {len(output_files)} 个文件（{os.path.basename(src)}）")
             else:
                 self.status_var.set(f"✗ 分割失败：{message}")
-                messagebox.showerror("错误", message)
+                logger.error(f"视频分割失败: {message}")
 
         threading.Thread(target=_work, daemon=True).start()
 
@@ -1308,7 +1306,7 @@ class VideoToolsGUI:
         bitrate = self.extract_bitrate_var.get()
 
         if not input_file or not output_file:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.extract_status_var.set("⚠ 请选择输入和输出文件")
             return
 
         self.extract_btn.config(state="disabled")
@@ -1333,7 +1331,7 @@ class VideoToolsGUI:
         bitrate = self.convert_bitrate_var.get()
 
         if not input_file or not output_file:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.convert_status_var.set("⚠ 请选择输入和输出文件")
             return
 
         self.convert_btn.config(state="disabled")
@@ -1358,7 +1356,7 @@ class VideoToolsGUI:
         db_change = self.volume_var.get()
 
         if not input_file or not output_file:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.volume_status_var.set("⚠ 请选择输入和输出文件")
             return
 
         self.volume_btn.config(state="disabled")
@@ -1386,18 +1384,18 @@ class VideoToolsGUI:
         input_srt = self.clip_srt_input_var.get().strip()
 
         if not input_file or not output_file:
-            messagebox.showerror("错误", "请选择输入和输出文件")
+            self.clip_status_var.set("⚠ 请选择输入和输出文件")
             return
 
         # 验证时间格式
         time_pattern = r'^\d{1,2}:\d{2}:\d{2}(\.\d{1,3})?$'
         if not re.match(time_pattern, start_time) or not re.match(time_pattern, end_time):
-            messagebox.showerror("错误", "时间格式不正确，请使用 HH:MM:SS 或 HH:MM:SS.mmm 格式")
+            self.clip_status_var.set("⚠ 时间格式不正确，请使用 HH:MM:SS 或 HH:MM:SS.mmm 格式")
             return
 
         # 验证字幕文件（如果提供了）
         if input_srt and not os.path.isfile(input_srt):
-            messagebox.showerror("错误", "指定的字幕文件不存在")
+            self.clip_status_var.set("⚠ 指定的字幕文件不存在")
             return
 
         self.clip_btn.config(state="disabled")
@@ -1438,11 +1436,11 @@ class VideoToolsGUI:
         use_keyframes = self.split_keyframe_var.get()
 
         if not input_file or not output_dir:
-            messagebox.showerror("错误", "请选择输入文件和输出目录")
+            self.split_status_var.set("⚠ 请选择输入文件和输出目录")
             return
 
         if num_segments < 2:
-            messagebox.showerror("错误", "分割段数至少为2段")
+            self.split_status_var.set("⚠ 分割段数至少为2段")
             return
 
         # 确保输出目录存在
@@ -1450,7 +1448,7 @@ class VideoToolsGUI:
             try:
                 os.makedirs(output_dir)
             except:
-                messagebox.showerror("错误", "无法创建输出目录")
+                self.split_status_var.set("⚠ 无法创建输出目录")
                 return
 
         self.split_btn.config(state="disabled")
@@ -1469,14 +1467,11 @@ class VideoToolsGUI:
             self.split_btn.config(state="normal")
             
             if success:
-                result_text = f"✓ {message}\n生成了 {len(output_files)} 个文件：\n"
-                for f in output_files:
-                    result_text += f"  • {os.path.basename(f)}\n"
                 self.split_status_var.set(f"✓ 分割完成！已生成 {len(output_files)} 个文件")
-                messagebox.showinfo("成功", result_text)
+                logger.info(f"视频分割完成 → {len(output_files)} 个文件（{os.path.basename(input_file)}）")
             else:
                 self.split_status_var.set(f"✗ 分割失败：{message}")
-                messagebox.showerror("错误", message)
+                logger.error(f"视频分割失败: {message}")
 
         threading.Thread(target=run, daemon=True).start()
 

@@ -31,9 +31,9 @@ _SRC = os.path.dirname(os.path.abspath(__file__))
 
 TOOL_MAP = {
     "yt-dlp":      {"file": "yt-dlp-with simuheader ipv4.py", "class": "YouTubeDownloader"},
-    "speech2text": {"file": "Speech2Text-lemonfoxAPI-Online.py", "class": None},
+    "speech2text": {"file": "Speech2Text-lemonfoxAPI-Online.py", "class": "Speech2TextApp"},
     "translate":   {"file": "Translate-srt-gemini.py",          "class": "TranslateApp"},
-    "subtitle":    {"file": "SubtitleTool.py",                   "class": None},
+    "subtitle":    {"file": "SubtitleTool.py",                   "class": "SubtitleToolApp"},
     "srttools":               {"file": "SrtTools.py", "class": "YouTubeSegmentsApp"},
     "srt-extract-subtitles":  {"file": "SrtTools.py", "class": "SrtExtractSubtitlesApp"},
     "srt-gen-segments":       {"file": "SrtTools.py", "class": "SrtGenerateSegmentsApp"},
@@ -202,13 +202,8 @@ class VideoCraftHub:
         self._content = tk.Frame(self._pane, bg="white")
         self._pane.add(self._content, weight=1)
 
-        # ── 底部状态栏 ──
-        statusbar = tk.Frame(self.root, bd=1, relief="sunken", bg="#f0f0f0")
-        statusbar.pack(fill="x", side="bottom")
-        self._status_var = tk.StringVar(value="未打开工程")
-        tk.Label(statusbar, textvariable=self._status_var,
-                 anchor="w", bg="#f0f0f0", font=("", 9),
-                 padx=8, pady=2).pack(fill="x")
+        # ── 底部日志面板 ──
+        self._build_logpanel()
 
     # ── 欢迎页 ────────────────────────────────────────────────────────────────
 
@@ -341,13 +336,71 @@ class VideoCraftHub:
                     self.root.after(0, lambda r=result: self._status_var.set(
                         f"完成: {os.path.basename(r)}"))
             except Exception as e:
-                self.root.after(0, lambda err=str(e): messagebox.showerror(
-                    "操作失败", err))
+                from hub_logger import logger
+                self.root.after(0, lambda err=str(e): logger.error(err))
         threading.Thread(target=task, daemon=True).start()
 
+    # ── 日志面板 ─────────────────────────────────────────────────────────────
+
+    def _build_logpanel(self):
+        """替代原单行状态栏，显示多行彩色日志。"""
+        from hub_logger import logger
+
+        frame = tk.Frame(self.root, bd=1, relief="sunken", bg="#1e1e1e", height=90)
+        frame.pack(fill="x", side="bottom")
+        frame.pack_propagate(False)
+
+        # 标题行
+        title_bar = tk.Frame(frame, bg="#2d2d2d")
+        title_bar.pack(fill="x")
+        tk.Label(title_bar, text="日志", bg="#2d2d2d", fg="#aaa",
+                 font=("", 9), padx=6).pack(side="left")
+        tk.Button(title_bar, text="清空", bg="#2d2d2d", fg="#888",
+                  relief="flat", font=("", 8), cursor="hand2",
+                  command=self._clear_log).pack(side="right", padx=4, pady=1)
+
+        # 日志文本区
+        self._log_text = tk.Text(
+            frame, bg="#1e1e1e", fg="#d4d4d4",
+            font=("Consolas", 9), state="disabled",
+            wrap="word", height=4, relief="flat",
+            selectbackground="#264f78",
+        )
+        vsb = tk.Scrollbar(frame, command=self._log_text.yview, bg="#2d2d2d")
+        self._log_text.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        self._log_text.pack(fill="both", expand=True, padx=2, pady=(0, 2))
+
+        # 颜色 tag
+        self._log_text.tag_configure("ts",      foreground="#555")
+        self._log_text.tag_configure("info",    foreground="#d4d4d4")
+        self._log_text.tag_configure("warning", foreground="#f0a500")
+        self._log_text.tag_configure("error",   foreground="#f44747")
+
+        # 注册 logger 回调
+        logger.register_handler(self._on_log)
+
+    def _on_log(self, level: str, msg: str, ts: str):
+        """logger 回调（可能来自任意线程），转到主线程追加。"""
+        self.root.after(0, self._append_log, level, msg, ts)
+
+    def _append_log(self, level: str, msg: str, ts: str):
+        prefix = {"info": "✓", "warning": "⚠", "error": "✗"}.get(level, "·")
+        self._log_text.configure(state="normal")
+        self._log_text.insert("end", f"{ts} ", "ts")
+        self._log_text.insert("end", f"{prefix}  {msg}\n", level)
+        self._log_text.configure(state="disabled")
+        self._log_text.see("end")
+
+    def _clear_log(self):
+        self._log_text.configure(state="normal")
+        self._log_text.delete("1.0", "end")
+        self._log_text.configure(state="disabled")
+
     def _update_status(self, msg: str):
-        """进度回调，线程安全。"""
-        self.root.after(0, lambda m=msg: self._status_var.set(m))
+        """进度回调（线程安全），写入日志面板。"""
+        from hub_logger import logger
+        self.root.after(0, lambda m=msg: logger.info(m))
 
     # ── 工具启动 ──────────────────────────────────────────────────────────────
 

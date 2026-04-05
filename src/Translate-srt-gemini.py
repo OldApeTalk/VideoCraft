@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 import os
 import srt
+from hub_logger import logger
 import re
 import time
 import asyncio
@@ -337,11 +338,11 @@ Return the translated subtitles in the same special 【number】 format with {{b
         target_lang = self.get_lang_code(self.target_lang_var.get())
         
         if not srt_path or not os.path.exists(srt_path):
-            messagebox.showerror("错误", "请选择有效的SRT文件")
+            self.status_var.set("⚠ 请选择有效的SRT文件")
             return
-        
+
         if source_lang == target_lang:
-            messagebox.showerror("错误", "源语言和目标语言不能相同")
+            self.status_var.set("⚠ 源语言和目标语言不能相同")
             return
             
         self.status_var.set("正在读取字幕...")
@@ -352,7 +353,8 @@ Return the translated subtitles in the same special 【number】 format with {{b
             with open(srt_path, 'r', encoding='utf-8') as f:
                 subs = list(srt.parse(f))
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to parse SRT file: {e}")
+            logger.error(f"解析SRT文件失败: {e}")
+            self.status_var.set(f"⚠ 解析SRT失败: {e}")
             return
             
         # Gemini翻译逻辑：分批发送，请求间隔6秒
@@ -556,7 +558,8 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 print(f"成功: 所有 {len(subs)} 条字幕都已翻译")
             
         except Exception as e:
-            messagebox.showerror("Gemini错误", f"翻译失败: {e}")
+            logger.error(f"翻译失败: {e}")
+            self.status_var.set(f"✗ 翻译失败: {e}")
             return
         
         # 输出
@@ -567,15 +570,15 @@ Return the translated subtitles in the same special 【number】 format with {{b
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(srt.compose(subs))
             self.status_var.set(f"翻译完成，已保存: {output_file}")
-            messagebox.showinfo("Success", f"Translated SRT saved to: {output_file}")
+            logger.info(f"翻译完成 → {os.path.basename(output_file)}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save output: {e}")
-            self.status_var.set("")
+            logger.error(f"保存翻译结果失败: {e}")
+            self.status_var.set(f"✗ 保存失败: {e}")
 
     def translate_srt(self):
         custom_prompt = self.translate_prompt_text.get("1.0", tk.END).strip()
         if not custom_prompt:
-            messagebox.showerror("错误", "请输入Prompt提示语")
+            self.status_var.set("⚠ 请输入Prompt提示语")
             return
         # 使用标准 API 进行翻译
         self.translate_with_standard_api(custom_prompt)

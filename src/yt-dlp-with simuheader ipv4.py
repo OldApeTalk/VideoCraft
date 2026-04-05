@@ -1,10 +1,11 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 import yt_dlp
 import os
 import threading
 import subprocess
 from urllib.parse import urlparse
+from hub_logger import logger
 
 class YouTubeDownloader:
     def __init__(self, root):
@@ -173,7 +174,7 @@ class YouTubeDownloader:
         urls = [url.strip() for url in urls if url.strip()]
         force_ipv4 = self.force_ipv4_var.get()
         if not urls:
-            messagebox.showerror("Error", "Please enter at least one URL")
+            self.log("⚠ Please enter at least one URL")
             return
             
         self.get_list_btn.config(state="disabled")
@@ -267,7 +268,7 @@ class YouTubeDownloader:
                 self.root.after(0, self.update_video_listbox)
             except Exception as e:
                 error_message = str(e)
-                self.root.after(0, lambda em=error_message: messagebox.showerror("Error", f"Failed to fetch video list: {em}"))
+                self.root.after(0, lambda em=error_message: logger.error(f"获取视频列表失败: {em}"))
                 self.root.after(0, lambda em=error_message: self.log(f"Error: {em}"))
                 self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
                 
@@ -290,16 +291,16 @@ class YouTubeDownloader:
     def start_download(self):
         selected_indices = self.video_listbox.curselection()
         if not selected_indices:
-            messagebox.showerror("Error", "Please select at least one video to download")
+            self.log("⚠ Please select at least one video to download")
             return
-            
+
         output_dir = self.dir_entry.get().strip()
         if not output_dir:
-            messagebox.showerror("Error", "Please select an output directory")
+            self.log("⚠ Please select an output directory")
             return
-            
+
         if not os.path.exists(output_dir):
-            messagebox.showerror("Error", "Invalid output directory")
+            self.log("⚠ Invalid output directory")
             return
             
         self.selected_videos = [self.video_list[i] for i in selected_indices]
@@ -323,7 +324,7 @@ class YouTubeDownloader:
                     self.root.after(0, lambda: self.log("FFmpeg check passed"))
                 except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
                     error_msg = f"FFmpeg not found or not working: {str(e)}"
-                    self.root.after(0, lambda em=error_msg: messagebox.showerror("Error", "FFmpeg not found. Install FFmpeg for video processing."))
+                    self.root.after(0, lambda em=error_msg: logger.error("FFmpeg not found. Install FFmpeg for video processing."))
                     self.root.after(0, lambda em=error_msg: self.log(em))
                     self.root.after(0, lambda: self.download_btn.config(state="normal"))
                     self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
@@ -467,15 +468,15 @@ class YouTubeDownloader:
                 if failed_videos:
                     summary_msg = f"Completed with issues: {downloaded_count}/{total_count} succeeded, {len(failed_videos)} failed."
                     self.root.after(0, lambda sm=summary_msg: self.log(sm))
-                    self.root.after(0, lambda sm=summary_msg: messagebox.showwarning("Completed with Issues", sm))
+                    self.root.after(0, lambda sm=summary_msg: logger.warning(f"下载部分失败: {sm}"))
                 else:
                     summary_msg = f"All downloads completed successfully ({downloaded_count}/{total_count})."
                     self.root.after(0, lambda sm=summary_msg: self.log(sm))
-                    self.root.after(0, lambda sm=summary_msg: messagebox.showinfo("Success", sm))
-                
+                    self.root.after(0, lambda sm=summary_msg: logger.info(f"下载完成: {sm}"))
+
             except Exception as e:
                 error_msg = f"Download process failed: {str(e)}"
-                self.root.after(0, lambda em=error_msg: messagebox.showerror("Error", em))
+                self.root.after(0, lambda em=error_msg: logger.error(f"下载失败: {em}"))
                 self.root.after(0, lambda em=error_msg: self.log(em))
                 
             finally:

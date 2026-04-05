@@ -3,9 +3,10 @@ import re
 import srt
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 import threading
 from datetime import datetime
+from hub_logger import logger
 
 # Hub 内嵌时 core 包在 src/ 下，独立运行时也在同一目录
 _SRC = os.path.dirname(os.path.abspath(__file__))
@@ -420,13 +421,13 @@ class SrtExtractSubtitlesApp:
     def _run(self):
         srt_path = self.srt_var.get()
         if not srt_path or not os.path.exists(srt_path):
-            messagebox.showerror("错误", "请选择有效的SRT文件")
+            self.status_var.set("⚠ 请选择有效的SRT文件")
             return
         output_path = _resolve_output(srt_path, self.output_var, "AllSubtitles.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
             return
 
         self.status_var.set("正在提取...")
@@ -546,16 +547,16 @@ xx:xx 标题
         srt_path = self.srt_var.get()
         prompt = self._prompt.get("1.0", tk.END).strip()
         if not srt_path or not os.path.exists(srt_path):
-            messagebox.showerror("错误", "请选择有效的SRT文件")
+            self.status_var.set("⚠ 请选择有效的SRT文件")
             return
         if not prompt:
-            messagebox.showerror("错误", "请输入Prompt提示语")
+            self.status_var.set("⚠ 请输入Prompt提示语")
             return
         output_path = _resolve_output(srt_path, self.output_var, "subs.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
             return
 
         self.status_var.set("正在生成分段描述...")
@@ -567,9 +568,9 @@ xx:xx 标题
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
                 self.status_var.set("生成完成")
-                messagebox.showinfo("Success", f"YouTube分段描述已保存到: {output_path}")
+                logger.info(f"分段描述已生成 → {os.path.basename(output_path)}")
             except Exception as e:
-                messagebox.showerror("错误", f"生成失败: {e}")
+                logger.error(f"生成分段描述失败: {e}")
                 self.status_var.set("生成失败")
             finally:
                 self._btn.config(state="normal")
@@ -638,16 +639,16 @@ class SrtExtractParagraphsApp:
         srt_path = self.srt_var.get()
         segments_path = self.segments_var.get()
         if not srt_path or not os.path.exists(srt_path):
-            messagebox.showerror("错误", "请选择有效的SRT文件")
+            self.status_var.set("⚠ 请选择有效的SRT文件")
             return
         if not segments_path or not os.path.exists(segments_path):
-            messagebox.showerror("错误", "请选择有效的时间戳分割文件")
+            self.status_var.set("⚠ 请选择有效的时间戳分割文件")
             return
         output_path = _resolve_output(srt_path, self.output_var, "subs-segment.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
             return
 
         self.status_var.set("正在提取段落内容...")
@@ -659,9 +660,9 @@ class SrtExtractParagraphsApp:
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
                 self.status_var.set("提取完成")
-                messagebox.showinfo("Success", f"段落内容已保存到: {output_path}")
+                logger.info(f"段落内容已提取 → {os.path.basename(output_path)}")
             except Exception as e:
-                messagebox.showerror("错误", f"提取失败: {e}")
+                logger.error(f"提取段落失败: {e}")
                 self.status_var.set("提取失败")
             finally:
                 self._btn.config(state="normal")
@@ -750,16 +751,16 @@ class SrtRefineSegmentsApp:
         input_path = self.input_var.get()
         prompt = self._prompt.get("1.0", tk.END).strip()
         if not input_path or not os.path.exists(input_path):
-            messagebox.showerror("错误", "请选择有效的段落内容文件")
+            self.status_var.set("⚠ 请选择有效的段落内容文件")
             return
         if not prompt:
-            messagebox.showerror("错误", "请输入Prompt提示语")
+            self.status_var.set("⚠ 请输入Prompt提示语")
             return
         output_path = _resolve_output(input_path, self.output_var, "subs-segment-refined.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
             return
 
         self.status_var.set("正在精炼分段描述...")
@@ -771,9 +772,9 @@ class SrtRefineSegmentsApp:
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
                 self.status_var.set("精炼完成")
-                messagebox.showinfo("Success", f"精炼分段内容已保存到: {output_path}")
+                logger.info(f"精炼分段内容已保存 → {os.path.basename(output_path)}")
             except Exception as e:
-                messagebox.showerror("错误", f"精炼失败: {e}")
+                logger.error(f"精炼分段失败: {e}")
                 self.status_var.set("精炼失败")
             finally:
                 self._btn.config(state="normal")
@@ -851,16 +852,16 @@ class SrtGenerateTitlesApp:
         subs_path = self.subs_var.get()
         prompt = self._prompt.get("1.0", tk.END).strip()
         if not subs_path or not os.path.exists(subs_path):
-            messagebox.showerror("错误", "请选择有效的Subs文件")
+            self.status_var.set("⚠ 请选择有效的Subs文件")
             return
         if not prompt:
-            messagebox.showerror("错误", "请输入Prompt提示语")
+            self.status_var.set("⚠ 请输入Prompt提示语")
             return
         output_path = _resolve_output(subs_path, self.output_var, "titles.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            messagebox.showerror("错误", f"无法创建输出目录: {e}")
+            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
             return
 
         self.status_var.set("正在生成标题...")
@@ -872,9 +873,9 @@ class SrtGenerateTitlesApp:
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
                 self.status_var.set("生成完成")
-                messagebox.showinfo("Success", f"视频标题已保存到: {output_path}")
+                logger.info(f"视频标题已生成 → {os.path.basename(output_path)}")
             except Exception as e:
-                messagebox.showerror("错误", f"生成失败: {e}")
+                logger.error(f"生成标题失败: {e}")
                 self.status_var.set("生成失败")
             finally:
                 self._btn.config(state="normal")
@@ -1186,54 +1187,54 @@ xx:xx 标题
         prompt = self.segments_prompt_text.get("1.0", tk.END).strip()
         
         if not srt_path or not os.path.exists(srt_path):
-            messagebox.showerror("错误", "请选择有效的SRT文件")
+            self.status_var.set("⚠ 请选择有效的SRT文件")
             return
-        
+
         if not output_path:
-            messagebox.showerror("错误", "请选择输出文件路径")
+            self.status_var.set("⚠ 请选择输出文件路径")
             return
-        
+
         if not prompt:
-            messagebox.showerror("错误", "请输入Prompt提示语")
+            self.status_var.set("⚠ 请输入Prompt提示语")
             return
-        
+
         # 如果输出路径不是绝对路径，设置为与SRT文件同目录
         if not os.path.isabs(output_path):
             srt_dir = os.path.dirname(srt_path)
             output_path = os.path.join(srt_dir, output_path)
             self.output_path_var.set(output_path)
-        
+
         # 确保输出目录存在
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
             try:
                 os.makedirs(output_dir)
             except Exception as e:
-                messagebox.showerror("错误", f"无法创建输出目录: {e}")
+                self.status_var.set(f"⚠ 无法创建输出目录: {e}")
                 return
-        
+
         self.status_var.set("正在生成分段描述...")
         self.generate_btn.config(state="disabled")
         self.master.update()
-        
+
         # 在后台线程中运行生成任务
         def run_generation():
             try:
                 segments = generate_youtube_segments(srt_path, prompt=prompt)
-                
+
                 # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(segments)
-                
+
                 # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.status_var.set("生成完成")
-                    messagebox.showinfo("Success", f"YouTube分段描述已保存到: {output_path}")
+                    logger.info(f"分段描述已生成 → {os.path.basename(output_path)}")
                 else:
                     raise Exception("文件创建失败或文件为空")
-                
+
             except Exception as e:
-                messagebox.showerror("错误", f"生成失败: {e}")
+                logger.error(f"生成分段描述失败: {e}")
                 self.status_var.set("生成失败")
             finally:
                 self.generate_btn.config(state="normal")
@@ -1265,15 +1266,15 @@ xx:xx 标题
         output_path = self.paragraphs_output_var.get()
 
         if not srt_path or not os.path.exists(srt_path):
-            messagebox.showerror("错误", "请选择有效的SRT文件")
+            self.paragraphs_status_var.set("⚠ 请选择有效的SRT文件")
             return
 
         if not segments_path or not os.path.exists(segments_path):
-            messagebox.showerror("错误", "请选择有效的时间戳分割文件")
+            self.paragraphs_status_var.set("⚠ 请选择有效的时间戳分割文件")
             return
 
         if not output_path:
-            messagebox.showerror("错误", "请选择输出文件路径")
+            self.paragraphs_status_var.set("⚠ 请选择输出文件路径")
             return
 
         # 如果输出路径不是绝对路径，设置为与SRT文件同目录
@@ -1281,14 +1282,14 @@ xx:xx 标题
             srt_dir = os.path.dirname(srt_path)
             output_path = os.path.join(srt_dir, output_path)
             self.paragraphs_output_var.set(output_path)
-        
+
         # 确保输出目录存在
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
             try:
                 os.makedirs(output_dir)
             except Exception as e:
-                messagebox.showerror("错误", f"无法创建输出目录: {e}")
+                self.paragraphs_status_var.set(f"⚠ 无法创建输出目录: {e}")
                 return
 
         self.paragraphs_status_var.set("正在提取段落内容...")
@@ -1307,12 +1308,12 @@ xx:xx 标题
                 # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.paragraphs_status_var.set("提取完成")
-                    messagebox.showinfo("Success", f"段落内容已保存到: {output_path}")
+                    logger.info(f"段落内容已提取 → {os.path.basename(output_path)}")
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                messagebox.showerror("错误", f"提取失败: {e}")
+                logger.error(f"提取段落失败: {e}")
                 self.paragraphs_status_var.set("提取失败")
             finally:
                 self.extract_btn.config(state="normal")
@@ -1348,15 +1349,15 @@ xx:xx 标题
         prompt = self.refine_prompt_text.get("1.0", tk.END).strip()
 
         if not input_path or not os.path.exists(input_path):
-            messagebox.showerror("错误", "请选择有效的段落内容文件")
+            self.refine_status_var.set("⚠ 请选择有效的段落内容文件")
             return
 
         if not output_path:
-            messagebox.showerror("错误", "请选择输出文件路径")
+            self.refine_status_var.set("⚠ 请选择输出文件路径")
             return
 
         if not prompt:
-            messagebox.showerror("错误", "请输入Prompt提示语")
+            self.refine_status_var.set("⚠ 请输入Prompt提示语")
             return
 
         # 如果输出路径不是绝对路径，设置为与输入文件同目录
@@ -1371,7 +1372,7 @@ xx:xx 标题
             try:
                 os.makedirs(output_dir)
             except Exception as e:
-                messagebox.showerror("错误", f"无法创建输出目录: {e}")
+                self.refine_status_var.set(f"⚠ 无法创建输出目录: {e}")
                 return
 
         self.refine_status_var.set("正在精炼分段描述...")
@@ -1388,12 +1389,12 @@ xx:xx 标题
 
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.refine_status_var.set("精炼完成")
-                    messagebox.showinfo("Success", f"精炼分段内容已保存到: {output_path}")
+                    logger.info(f"精炼分段内容已保存 → {os.path.basename(output_path)}")
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                messagebox.showerror("错误", f"精炼失败: {e}")
+                logger.error(f"精炼分段失败: {e}")
                 self.refine_status_var.set("精炼失败")
             finally:
                 self.refine_btn.config(state="normal")
@@ -1411,15 +1412,15 @@ xx:xx 标题
         prompt = self.prompt_text.get("1.0", tk.END).strip()
 
         if not subs_path or not os.path.exists(subs_path):
-            messagebox.showerror("错误", "请选择有效的Subs文件")
+            self.titles_status_var.set("⚠ 请选择有效的Subs文件")
             return
 
         if not output_path:
-            messagebox.showerror("错误", "请选择输出文件路径")
+            self.titles_status_var.set("⚠ 请选择输出文件路径")
             return
 
         if not prompt:
-            messagebox.showerror("错误", "请输入Prompt提示语")
+            self.titles_status_var.set("⚠ 请输入Prompt提示语")
             return
 
         # 如果输出路径不是绝对路径，设置为与Subs文件同目录
@@ -1427,14 +1428,14 @@ xx:xx 标题
             subs_dir = os.path.dirname(subs_path)
             output_path = os.path.join(subs_dir, output_path)
             self.titles_output_var.set(output_path)
-        
+
         # 确保输出目录存在
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
             try:
                 os.makedirs(output_dir)
             except Exception as e:
-                messagebox.showerror("错误", f"无法创建输出目录: {e}")
+                self.titles_status_var.set(f"⚠ 无法创建输出目录: {e}")
                 return
 
         self.titles_status_var.set("正在生成标题...")
@@ -1453,12 +1454,12 @@ xx:xx 标题
                 # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.titles_status_var.set("生成完成")
-                    messagebox.showinfo("Success", f"视频标题已保存到: {output_path}")
+                    logger.info(f"视频标题已生成 → {os.path.basename(output_path)}")
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                messagebox.showerror("错误", f"生成失败: {e}")
+                logger.error(f"生成标题失败: {e}")
                 self.titles_status_var.set("生成失败")
             finally:
                 self.titles_btn.config(state="normal")
@@ -1484,11 +1485,11 @@ xx:xx 标题
         output_path = self.subtitles_output_var.get()
 
         if not srt_path or not os.path.exists(srt_path):
-            messagebox.showerror("错误", "请选择有效的SRT文件")
+            self.subtitles_status_var.set("⚠ 请选择有效的SRT文件")
             return
 
         if not output_path:
-            messagebox.showerror("错误", "请选择输出文件路径")
+            self.subtitles_status_var.set("⚠ 请选择输出文件路径")
             return
 
         # 如果输出路径不是绝对路径，设置为与SRT文件同目录
@@ -1496,14 +1497,14 @@ xx:xx 标题
             srt_dir = os.path.dirname(srt_path)
             output_path = os.path.join(srt_dir, output_path)
             self.subtitles_output_var.set(output_path)
-        
+
         # 确保输出目录存在
         output_dir = os.path.dirname(output_path)
         if output_dir and not os.path.exists(output_dir):
             try:
                 os.makedirs(output_dir)
             except Exception as e:
-                messagebox.showerror("错误", f"无法创建输出目录: {e}")
+                self.subtitles_status_var.set(f"⚠ 无法创建输出目录: {e}")
                 return
 
         self.subtitles_status_var.set("正在提取字幕文字...")
