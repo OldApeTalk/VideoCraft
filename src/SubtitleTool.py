@@ -357,10 +357,26 @@ class SubtitleToolApp:
         sub1_path  = self.entry_sub1.get()
         sub2_path  = self.entry_sub2.get()
 
-        if not video_path or not sub1_path or not sub2_path:
-            messagebox.showerror("错误", "请确保选择了所有文件：视频、中文字幕和英文字幕。")
+        show_sub1 = self.sub1_show_var.get()
+        show_sub2 = self.sub2_show_var.get()
+
+        if not video_path:
+            messagebox.showerror("错误", "请选择视频文件。")
             return
-        for p, name in [(video_path, "视频"), (sub1_path, "中文字幕"), (sub2_path, "英文字幕")]:
+        if not os.path.exists(video_path):
+            messagebox.showerror("错误", f"视频文件不存在: {video_path}")
+            return
+        if show_sub1 and not sub1_path:
+            messagebox.showerror("错误", "已勾选显示字幕1，请选择对应 SRT 文件。")
+            return
+        if show_sub2 and not sub2_path:
+            messagebox.showerror("错误", "已勾选显示字幕2，请选择对应 SRT 文件。")
+            return
+        if not show_sub1 and not show_sub2:
+            messagebox.showerror("错误", "至少需要勾选一条字幕轨道。")
+            return
+        for p, name in ([(sub1_path, "字幕1")] if show_sub1 else []) + \
+                       ([(sub2_path, "字幕2")] if show_sub2 else []):
             if not os.path.exists(p):
                 messagebox.showerror("错误", f"{name}文件不存在: {p}")
                 return
@@ -369,13 +385,13 @@ class SubtitleToolApp:
         temp_sub1_path = sub1_path
         temp_sub2_path = sub2_path
         try:
-            if self.split_sub1_var.get():
+            if show_sub1 and self.split_sub1_var.get():
                 subs1 = process_srt_split(sub1_path, self.sub1_max_chars_var.get(),
                                           self.sub1_is_chinese_var.get())
                 temp_sub1_path = sub1_path.replace('.srt', '_split.srt')
                 with open(temp_sub1_path, 'w', encoding='utf-8') as f:
                     f.write(srt.compose(subs1))
-            if self.split_sub2_var.get():
+            if show_sub2 and self.split_sub2_var.get():
                 subs2 = process_srt_split(sub2_path, self.sub2_max_chars_var.get(),
                                           self.sub2_is_chinese_var.get())
                 temp_sub2_path = sub2_path.replace('.srt', '_split.srt')
@@ -387,14 +403,13 @@ class SubtitleToolApp:
 
         # 路径处理
         video_path_abs = os.path.abspath(video_path)
-        sub1_path_ff   = escape_ffmpeg_path(temp_sub1_path)
-        sub2_path_ff   = escape_ffmpeg_path(temp_sub2_path)
+        sub1_path_ff   = escape_ffmpeg_path(temp_sub1_path) if show_sub1 else None
+        sub2_path_ff   = escape_ffmpeg_path(temp_sub2_path) if show_sub2 else None
 
         # 字幕样式
         font1 = "Microsoft YaHei"
         fontsize1 = self.sub1_fontsize_var.get()
         color1    = hex_color_to_ass(self.sub1_color_var.get())
-        show_sub1 = self.sub1_show_var.get()
         style1 = (f"Fontname={font1},Fontsize={fontsize1},PrimaryColour={color1},"
                   f"OutlineColour=&H00000000&,BorderStyle=1,Outline=2,Shadow=0,"
                   f"Bold=1,Alignment=2,MarginV=100")
@@ -402,7 +417,6 @@ class SubtitleToolApp:
         font2 = "Microsoft YaHei"
         fontsize2 = self.sub2_fontsize_var.get()
         color2    = hex_color_to_ass(self.sub2_color_var.get())
-        show_sub2 = self.sub2_show_var.get()
         style2 = (f"Fontname={font2},Fontsize={fontsize2},PrimaryColour={color2},"
                   f"OutlineColour=&H00000000&,BorderStyle=1,Outline=2,Shadow=0,"
                   f"Bold=0,Alignment=2,MarginV=50")
@@ -426,9 +440,9 @@ class SubtitleToolApp:
         watermark_fontsize    = int((height / 1080) * watermark_fontsize_base) if height else watermark_fontsize_base
 
         vf_filters = []
-        if show_sub2:
+        if show_sub2 and sub2_path_ff:
             vf_filters.append(f"subtitles=filename='{sub2_path_ff}':force_style='{style2}'")
-        if show_sub1:
+        if show_sub1 and sub1_path_ff:
             vf_filters.append(f"subtitles=filename='{sub1_path_ff}':force_style='{style1}'")
         if show_watermark:
             vf_filters.append(
@@ -465,7 +479,10 @@ class SubtitleToolApp:
 
         cmd = [
             'ffmpeg', '-y', '-i', video_path_abs,
-            '-vf', vf,
+        ]
+        if vf:
+            cmd += ['-vf', vf]
+        cmd += [
             '-c:v', 'libx264', '-preset', preset, '-crf', crf,
             '-threads', '0', '-bufsize', bufsize, '-maxrate', maxrate,
             '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
