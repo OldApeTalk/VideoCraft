@@ -983,6 +983,542 @@ class AudioVideoApp:
                 f"borderw=2:bordercolor=black")
 
 
+# ── 每日要闻合成 ─────────────────────────────────────────────────────────────
+
+_NEWS_RESOLUTIONS = {
+    "horizontal": ["1920x1080 (1080p)", "1280x720 (720p)"],
+    "vertical":   ["1080x1920 (1080p)", "720x1280 (720p)"],
+}
+
+
+class DailyNewsApp:
+    """
+    每日要闻合成：音频 + 背景图 + 稿子文字(.txt)滚动 → 视频。
+    文字在屏幕中间区域（1/4 ~ 3/4）匀速向上滚动，时长与音频同步。
+    """
+
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title("每日要闻合成")
+        master.geometry("700x640")
+        self._ffmpeg_proc = None
+        self.progress_var = tk.DoubleVar(value=0)
+        self.status_var   = tk.StringVar(value="就绪")
+        self._build_ui()
+        if initial_file and os.path.exists(initial_file):
+            self.audio_path_var.set(initial_file)
+
+    def _build_ui(self):
+        f = self.master
+        pad = {"padx": 8, "pady": 4}
+
+        # ── 文件选择 ──
+        files = tk.LabelFrame(f, text="文件选择", padx=8, pady=6)
+        files.pack(fill="x", **pad)
+        files.columnconfigure(1, weight=1)
+
+        def file_row(parent, row, label, var, cmd):
+            tk.Label(parent, text=label).grid(row=row, column=0, sticky="e", padx=4, pady=5)
+            tk.Entry(parent, textvariable=var, width=44).grid(row=row, column=1, sticky="ew", padx=4)
+            tk.Button(parent, text="浏览", width=6, command=cmd).grid(row=row, column=2, padx=4)
+
+        self.audio_path_var  = tk.StringVar()
+        self.image_path_var  = tk.StringVar()
+        self.script_path_var = tk.StringVar()
+        self.output_var      = tk.StringVar(value="daily_news.mp4")
+        file_row(files, 0, "音频文件:", self.audio_path_var,  self._sel_audio)
+        file_row(files, 1, "背景图片:", self.image_path_var,  self._sel_image)
+        file_row(files, 2, "稿子(.txt):", self.script_path_var, self._sel_script)
+        file_row(files, 3, "输出视频:", self.output_var,      self._sel_output)
+
+        # ── 稿子预览 ──
+        preview = tk.LabelFrame(f, text="稿子预览", padx=6, pady=4)
+        preview.pack(fill="both", expand=True, **pad)
+        vsb = tk.Scrollbar(preview)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.script_preview = tk.Text(preview, height=7, wrap=tk.WORD,
+                                      font=("Microsoft YaHei", 10),
+                                      state="disabled", yscrollcommand=vsb.set,
+                                      bg="#f8f8f8")
+        self.script_preview.pack(fill="both", expand=True)
+        vsb.config(command=self.script_preview.yview)
+
+        # ── 排版参数 ──
+        cfg = tk.LabelFrame(f, text="排版参数", padx=8, pady=6)
+        cfg.pack(fill="x", **pad)
+        cfg.columnconfigure(1, weight=1)
+        cfg.columnconfigure(3, weight=1)
+
+        # 方向 + 分辨率
+        tk.Label(cfg, text="视频方向:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        ori_f = tk.Frame(cfg)
+        ori_f.grid(row=0, column=1, sticky="w", padx=4)
+        self.orientation_var = tk.StringVar(value="vertical")
+        tk.Radiobutton(ori_f, text="横屏 16:9", variable=self.orientation_var,
+                       value="horizontal", command=self._on_orientation).pack(side=tk.LEFT)
+        tk.Radiobutton(ori_f, text="竖屏 9:16", variable=self.orientation_var,
+                       value="vertical", command=self._on_orientation).pack(side=tk.LEFT, padx=8)
+
+        tk.Label(cfg, text="分辨率:").grid(row=0, column=2, sticky="e", padx=4)
+        self.resolution_var = tk.StringVar(value=_NEWS_RESOLUTIONS["vertical"][0])
+        self.resolution_combo = ttk.Combobox(cfg, textvariable=self.resolution_var,
+                                             values=_NEWS_RESOLUTIONS["vertical"],
+                                             state="readonly", width=18)
+        self.resolution_combo.grid(row=0, column=3, sticky="w", padx=4)
+
+        tk.Label(cfg, text="帧率:").grid(row=1, column=0, sticky="e", padx=4, pady=4)
+        self.fps_var = tk.StringVar(value="30")
+        ttk.Combobox(cfg, textvariable=self.fps_var, values=["24", "25", "30"],
+                     state="readonly", width=6).grid(row=1, column=1, sticky="w", padx=4)
+
+        tk.Label(cfg, text="字体大小:").grid(row=1, column=2, sticky="e", padx=4)
+        self.fontsize_var = tk.IntVar(value=48)
+        tk.Spinbox(cfg, textvariable=self.fontsize_var, from_=16, to=80,
+                   width=6).grid(row=1, column=3, sticky="w", padx=4)
+
+        tk.Label(cfg, text="行间距(px):").grid(row=2, column=0, sticky="e", padx=4, pady=4)
+        self.line_spacing_var = tk.IntVar(value=12)
+        tk.Spinbox(cfg, textvariable=self.line_spacing_var, from_=0, to=60,
+                   width=6).grid(row=2, column=1, sticky="w", padx=4)
+
+        # 字体颜色
+        tk.Label(cfg, text="字体颜色:").grid(row=2, column=2, sticky="e", padx=4)
+        color_f = tk.Frame(cfg)
+        color_f.grid(row=2, column=3, sticky="w", padx=4)
+        self.font_color_var = tk.StringVar(value="#FF8C00")
+        self._color_preview = tk.Canvas(color_f, width=22, height=18, bg="#FF8C00",
+                                        relief=tk.SUNKEN, borderwidth=1)
+        self._color_preview.pack(side=tk.LEFT, padx=2)
+        tk.Entry(color_f, textvariable=self.font_color_var, width=9,
+                 state='readonly').pack(side=tk.LEFT)
+        tk.Button(color_f, text="选择", width=5,
+                  command=self._choose_color).pack(side=tk.LEFT, padx=4)
+
+        # 背景填充色
+        tk.Label(cfg, text="背景填充色:").grid(row=3, column=0, sticky="e", padx=4, pady=4)
+        bg_f = tk.Frame(cfg)
+        bg_f.grid(row=3, column=1, sticky="w", padx=4)
+        self.bg_color_var = tk.StringVar(value="#000000")
+        self._bg_preview = tk.Canvas(bg_f, width=22, height=18, bg="#000000",
+                                     relief=tk.SUNKEN, borderwidth=1)
+        self._bg_preview.pack(side=tk.LEFT, padx=2)
+        tk.Entry(bg_f, textvariable=self.bg_color_var, width=9,
+                 state='readonly').pack(side=tk.LEFT)
+        tk.Button(bg_f, text="选择", width=5,
+                  command=self._choose_bg).pack(side=tk.LEFT, padx=4)
+
+        # 文字背景色 + 透明度
+        tk.Label(cfg, text="文字背景色:").grid(row=3, column=2, sticky="e", padx=4, pady=4)
+        txtbg_f = tk.Frame(cfg)
+        txtbg_f.grid(row=3, column=3, sticky="w", padx=4)
+        self.text_bg_color_var = tk.StringVar(value="#AAAAAA")
+        self._text_bg_preview = tk.Canvas(txtbg_f, width=22, height=18, bg="#AAAAAA",
+                                          relief=tk.SUNKEN, borderwidth=1)
+        self._text_bg_preview.pack(side=tk.LEFT, padx=2)
+        tk.Entry(txtbg_f, textvariable=self.text_bg_color_var, width=9,
+                 state='readonly').pack(side=tk.LEFT)
+        tk.Button(txtbg_f, text="选择", width=5,
+                  command=self._choose_text_bg).pack(side=tk.LEFT, padx=4)
+
+        tk.Label(cfg, text="文字背景透明度:").grid(row=4, column=0, sticky="e", padx=4, pady=4)
+        alpha_f = tk.Frame(cfg)
+        alpha_f.grid(row=4, column=1, columnspan=3, sticky="w", padx=4)
+        self.text_bg_alpha_var = tk.IntVar(value=50)
+        tk.Scale(alpha_f, variable=self.text_bg_alpha_var, from_=0, to=100,
+                 orient=tk.HORIZONTAL, length=160, resolution=5).pack(side=tk.LEFT)
+        tk.Label(alpha_f, text="% (0=完全透明，100=不透明)",
+                 fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=6)
+
+        # 水印
+        tk.Label(cfg, text="水印文字:").grid(row=5, column=0, sticky="e", padx=4, pady=4)
+        wm_left = tk.Frame(cfg)
+        wm_left.grid(row=5, column=1, columnspan=3, sticky="w", padx=4)
+        self.watermark_var = tk.StringVar(value="DailyLeaders")
+        tk.Entry(wm_left, textvariable=self.watermark_var, width=20).pack(side=tk.LEFT, padx=2)
+        tk.Label(wm_left, text="颜色:", fg="gray").pack(side=tk.LEFT, padx=(10, 2))
+        self.wm_color_var = tk.StringVar(value="#ADD8E6")
+        self._wm_preview  = tk.Canvas(wm_left, width=22, height=18, bg="#ADD8E6",
+                                      relief=tk.SUNKEN, borderwidth=1)
+        self._wm_preview.pack(side=tk.LEFT, padx=2)
+        tk.Entry(wm_left, textvariable=self.wm_color_var, width=9,
+                 state='readonly').pack(side=tk.LEFT)
+        tk.Button(wm_left, text="选择", width=5,
+                  command=self._choose_wm_color).pack(side=tk.LEFT, padx=4)
+        tk.Label(wm_left, text="字号:", fg="gray").pack(side=tk.LEFT, padx=(10, 2))
+        self.wm_fontsize_var = tk.IntVar(value=72)
+        tk.Spinbox(wm_left, textvariable=self.wm_fontsize_var,
+                   from_=16, to=200, width=5).pack(side=tk.LEFT)
+        tk.Label(wm_left, text="（右上角，黑色描边）",
+                 fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=4)
+
+        # ── 进度 + 按钮 ──
+        ctrl = tk.Frame(f)
+        ctrl.pack(fill="x", padx=8, pady=4)
+        self.generate_btn = tk.Button(ctrl, text="开始合成", bg="#0078d4", fg="white",
+                                      font=("Arial", 10, "bold"), width=12,
+                                      command=self._start)
+        self.generate_btn.pack(side=tk.LEFT, padx=4)
+        self.stop_btn = tk.Button(ctrl, text="停止", width=8, state="disabled",
+                                  command=self._stop)
+        self.stop_btn.pack(side=tk.LEFT, padx=4)
+        tk.Label(ctrl, textvariable=self.status_var, fg="gray").pack(side=tk.LEFT, padx=8)
+
+        ttk.Progressbar(f, variable=self.progress_var, maximum=100).pack(
+            fill="x", padx=8, pady=(0, 8))
+
+    # ── 方向切换 ──
+
+    def _on_orientation(self):
+        ori = self.orientation_var.get()
+        opts = _NEWS_RESOLUTIONS[ori]
+        self.resolution_combo['values'] = opts
+        self.resolution_var.set(opts[0])
+        self.fontsize_var.set(38 if ori == "horizontal" else 32)
+
+    # ── 文件选择 ──
+
+    def _sel_audio(self):
+        p = filedialog.askopenfilename(
+            title="选择音频",
+            filetypes=[("Audio", "*.mp3;*.wav;*.m4a;*.aac"), ("All", "*.*")])
+        if p:
+            self.audio_path_var.set(p)
+            base = os.path.splitext(p)[0]
+            self.output_var.set(base + "_news.mp4")
+
+    def _sel_image(self):
+        p = filedialog.askopenfilename(
+            title="选择背景图片",
+            filetypes=[("Image", "*.jpg;*.jpeg;*.png;*.bmp"), ("All", "*.*")])
+        if p:
+            self.image_path_var.set(p)
+
+    def _sel_script(self):
+        p = filedialog.askopenfilename(
+            title="选择稿子文件",
+            filetypes=[("Text", "*.txt"), ("All", "*.*")])
+        if p:
+            self.script_path_var.set(p)
+            try:
+                with open(p, encoding='utf-8') as fh:
+                    content = fh.read()
+            except UnicodeDecodeError:
+                with open(p, encoding='gbk', errors='replace') as fh:
+                    content = fh.read()
+            self.script_preview.config(state='normal')
+            self.script_preview.delete('1.0', tk.END)
+            self.script_preview.insert('1.0', content)
+            self.script_preview.config(state='disabled')
+
+    def _sel_output(self):
+        p = filedialog.asksaveasfilename(
+            title="保存视频", defaultextension=".mp4",
+            filetypes=[("MP4", "*.mp4")])
+        if p:
+            self.output_var.set(p)
+
+    def _choose_color(self):
+        from tkinter import colorchooser
+        c = colorchooser.askcolor(color=self.font_color_var.get(), title="字体颜色")[1]
+        if c:
+            self.font_color_var.set(c)
+            self._color_preview.configure(bg=c)
+
+    def _choose_bg(self):
+        from tkinter import colorchooser
+        c = colorchooser.askcolor(color=self.bg_color_var.get(), title="背景填充色")[1]
+        if c:
+            self.bg_color_var.set(c)
+            self._bg_preview.configure(bg=c)
+
+    def _choose_text_bg(self):
+        from tkinter import colorchooser
+        c = colorchooser.askcolor(color=self.text_bg_color_var.get(), title="文字背景色")[1]
+        if c:
+            self.text_bg_color_var.set(c)
+            self._text_bg_preview.configure(bg=c)
+
+    def _choose_wm_color(self):
+        from tkinter import colorchooser
+        c = colorchooser.askcolor(color=self.wm_color_var.get(), title="水印颜色")[1]
+        if c:
+            self.wm_color_var.set(c)
+            self._wm_preview.configure(bg=c)
+
+    # ── 合成逻辑 ──
+
+    def _start(self):
+        audio       = self.audio_path_var.get().strip()
+        image       = self.image_path_var.get().strip()
+        script_path = self.script_path_var.get().strip()
+        output      = self.output_var.get().strip()
+        mb = __import__('tkinter').messagebox
+        if not audio or not os.path.exists(audio):
+            mb.showerror("错误", "请选择有效的音频文件"); return
+        if not image or not os.path.exists(image):
+            mb.showerror("错误", "请选择有效的背景图片"); return
+        if not script_path or not os.path.exists(script_path):
+            mb.showerror("错误", "请选择稿子文件（.txt）"); return
+        if not output:
+            mb.showerror("错误", "请指定输出视频路径"); return
+        # 读取稿子
+        try:
+            with open(script_path, encoding='utf-8') as fh:
+                script = fh.read().strip()
+        except UnicodeDecodeError:
+            with open(script_path, encoding='gbk', errors='replace') as fh:
+                script = fh.read().strip()
+        if not script:
+            mb.showerror("错误", "稿子文件内容为空"); return
+        self.generate_btn.config(state="disabled")
+        self.stop_btn.config(state="normal")
+        self.progress_var.set(0)
+        self.status_var.set("正在准备...")
+        threading.Thread(target=self._generate,
+                         args=(audio, image, output, script), daemon=True).start()
+
+    def _stop(self):
+        if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
+            self._ffmpeg_proc.terminate()
+            self.status_var.set("已停止")
+
+    def _get_duration(self, path):
+        try:
+            r = subprocess.run(
+                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1', path],
+                capture_output=True, text=True, check=True)
+            return float(r.stdout.strip())
+        except Exception:
+            return 0.0
+
+    def _add_watermark(self, base_img, text, color_hex, fontsize_wm, margin=20):
+        """在 base_img 右上角绘制水印（黑色描边）。"""
+        from PIL import ImageDraw, ImageFont
+        draw = ImageDraw.Draw(base_img)
+        font = None
+        for fp in ["C:/Windows/Fonts/msyhbd.ttc",
+                   "C:/Windows/Fonts/msyh.ttc",
+                   "C:/Windows/Fonts/arialbd.ttf",
+                   "C:/Windows/Fonts/arial.ttf"]:
+            if os.path.exists(fp):
+                try:
+                    font = ImageFont.truetype(fp, fontsize_wm)
+                    break
+                except Exception:
+                    continue
+        if font is None:
+            font = ImageFont.load_default()
+
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        x  = base_img.width - tw - margin
+        y  = margin
+        r  = int(color_hex.lstrip('#')[0:2], 16)
+        g  = int(color_hex.lstrip('#')[2:4], 16)
+        b  = int(color_hex.lstrip('#')[4:6], 16)
+        # 描边
+        for dx, dy in [(-2,0),(2,0),(0,-2),(0,2),(-1,-1),(1,1),(-1,1),(1,-1)]:
+            draw.text((x+dx, y+dy), text, font=font, fill=(0, 0, 0, 220))
+        draw.text((x, y), text, font=font, fill=(r, g, b, 255))
+        return base_img
+
+    def _render_scroll_image(self, script, width, fontsize, line_gap, font_color_hex,
+                              text_bg_hex="#AAAAAA", text_bg_alpha=50):
+        """
+        用 PIL 把稿子渲染为一张透明 PNG（宽=视频宽，高=文字总高度）。
+        左右各留 10% 边距，自动按像素宽度换行。
+        返回 (临时文件路径, 图片总高度px)。
+        """
+        from PIL import Image, ImageDraw, ImageFont
+        import tempfile
+
+        margin_x   = int(width * 0.10)
+        text_area_w = int(width * 0.80)
+        line_height = fontsize + line_gap
+
+        # 加载字体
+        font = None
+        for fp in ["C:/Windows/Fonts/msyh.ttc",
+                   "C:/Windows/Fonts/msyhbd.ttc",
+                   "C:/Windows/Fonts/simhei.ttf"]:
+            if os.path.exists(fp):
+                try:
+                    font = ImageFont.truetype(fp, fontsize)
+                    break
+                except Exception:
+                    continue
+        if font is None:
+            font = ImageFont.load_default()
+
+        # 用 PIL 度量宽度来精确换行（支持中英文混排）
+        dummy = Image.new('RGBA', (1, 1))
+        draw_dummy = ImageDraw.Draw(dummy)
+
+        def measure_w(s):
+            bbox = draw_dummy.textbbox((0, 0), s, font=font)
+            return bbox[2] - bbox[0]
+
+        lines = []
+        for para in script.splitlines():
+            para = para.strip()
+            if not para:
+                lines.append("")
+                continue
+            cur = ""
+            for ch in para:
+                test = cur + ch
+                if measure_w(test) > text_area_w and cur:
+                    lines.append(cur)
+                    cur = ch
+                else:
+                    cur = test
+            if cur:
+                lines.append(cur)
+
+        img_h = max(len(lines) * line_height + line_gap, 1)
+        img = Image.new('RGBA', (width, img_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        r = int(font_color_hex[0:2], 16)
+        g = int(font_color_hex[2:4], 16)
+        b = int(font_color_hex[4:6], 16)
+
+        # 文字背景矩形
+        br = int(text_bg_hex.lstrip('#')[0:2], 16)
+        bg_g = int(text_bg_hex.lstrip('#')[2:4], 16)
+        bb = int(text_bg_hex.lstrip('#')[4:6], 16)
+        bg_a = int(text_bg_alpha / 100 * 255)
+        if bg_a > 0:
+            pad = line_gap
+            bg_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+            bg_draw  = ImageDraw.Draw(bg_layer)
+            bg_draw.rectangle(
+                [margin_x - pad, 0, margin_x + text_area_w + pad, img_h],
+                fill=(br, bg_g, bb, bg_a)
+            )
+            img = Image.alpha_composite(img, bg_layer)
+            draw = ImageDraw.Draw(img)
+
+        for i, line in enumerate(lines):
+            if not line:
+                continue
+            y = i * line_height + line_gap
+            # 描边/阴影
+            for dx, dy in [(-2,0),(2,0),(0,-2),(0,2),(-1,-1),(1,1),(-1,1),(1,-1)]:
+                draw.text((margin_x + dx, y + dy), line, font=font, fill=(0, 0, 0, 160))
+            draw.text((margin_x, y), line, font=font, fill=(r, g, b, 255))
+
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='_scroll.png')
+        tmp.close()
+        img.save(tmp.name, 'PNG')
+        return tmp.name, img_h
+
+    def _generate(self, audio, image, output, script):
+        tmp_png = None
+        try:
+            res_str = self.resolution_var.get().split(" ")[0]
+            width, height = map(int, res_str.split("x"))
+            fps        = int(self.fps_var.get())
+            fontsize   = self.fontsize_var.get()
+            line_gap   = self.line_spacing_var.get()
+            font_color = self.font_color_var.get().lstrip('#')
+            bg_color   = self.bg_color_var.get().lstrip('#')
+
+            total_dur = self._get_duration(audio)
+            if total_dur <= 0:
+                raise RuntimeError("无法获取音频时长，请检查文件格式")
+
+            text_bg_color = self.text_bg_color_var.get().lstrip('#')
+            text_bg_alpha = self.text_bg_alpha_var.get()
+            wm_text       = self.watermark_var.get().strip()
+            wm_color      = self.wm_color_var.get()
+            wm_fontsize   = self.wm_fontsize_var.get()
+
+            # 用 PIL 渲染文字图层
+            self.status_var.set("正在渲染文字图层...")
+            tmp_png, text_h = self._render_scroll_image(
+                script, width, fontsize, line_gap, font_color,
+                text_bg_hex=text_bg_color, text_bg_alpha=text_bg_alpha)
+
+            # 滚动范围：文字顶部从 3H/4 进入，全部滚出 H/4 上方
+            # 总位移 = H/2 + text_h，速度 = 总位移 / 时长
+            total_disp = height * 0.5 + text_h
+            speed      = total_disp / total_dur
+            # overlay y 表达式（eval=frame 使 t 在每帧更新）
+            y_expr = f"{height * 3 // 4} - t*{speed:.4f}"
+
+            bg_hex    = f"0x{bg_color.upper()}"
+            bg_filter = (f"[0:v]scale={width}:{height}:"
+                         f"force_original_aspect_ratio=decrease,"
+                         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:"
+                         f"color={bg_hex}[bg]")
+            ov_filter = f"[bg][1:v]overlay=0:'{y_expr}':eval=frame[out]"
+
+            # 水印（固定右上角，不跟着滚动）
+            if wm_text:
+                wm_color_hex = wm_color.lstrip('#')
+                wm_fs = wm_fontsize
+                margin_wm = max(16, int(width * 0.02))
+                wm_esc = wm_text.replace(":", "\\:").replace("'", "")
+                wm_filter = (
+                    f"[out]drawtext=text='{wm_esc}':"
+                    f"font='Microsoft YaHei':"
+                    f"fontsize={wm_fs}:"
+                    f"fontcolor=0x{wm_color_hex.upper()}:"
+                    f"x=w-tw-{margin_wm}:y={margin_wm}:"
+                    f"borderw=2:bordercolor=black[v]"
+                )
+                filter_complex = f"{bg_filter};{ov_filter};{wm_filter}"
+            else:
+                filter_complex = f"{bg_filter};{ov_filter.replace('[out]','[v]')}"
+
+            cmd = [
+                'ffmpeg',
+                '-loop', '1', '-i', image,    # 0: 背景图
+                '-i', tmp_png,                  # 1: 文字 PNG
+                '-i', audio,                    # 2: 音频
+                '-filter_complex', filter_complex,
+                '-map', '[v]', '-map', '2:a',
+                '-c:v', 'libx264', '-c:a', 'aac', '-b:a', '192k',
+                '-shortest', '-r', str(fps), '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart', '-y', output,
+            ]
+
+            self.status_var.set("正在合成视频...")
+            import re as _re
+            self._ffmpeg_proc = subprocess.Popen(
+                cmd, stderr=subprocess.PIPE, text=True,
+                encoding='utf-8', errors='replace')
+            for line in self._ffmpeg_proc.stderr:
+                m = _re.search(r'time=(\d+):(\d+):([\d.]+)', line)
+                if m and total_dur > 0:
+                    elapsed = (int(m.group(1)) * 3600 +
+                               int(m.group(2)) * 60 +
+                               float(m.group(3)))
+                    self.progress_var.set(min(99, elapsed / total_dur * 100))
+            self._ffmpeg_proc.wait()
+            if self._ffmpeg_proc.returncode != 0:
+                raise RuntimeError("ffmpeg 返回非零退出码，请检查参数")
+
+            self.progress_var.set(100)
+            self.status_var.set(f"完成！{output}")
+            __import__('tkinter').messagebox.showinfo("完成", f"视频已保存：\n{output}")
+
+        except Exception as e:
+            self.status_var.set("生成失败")
+            __import__('tkinter').messagebox.showerror("错误", f"合成失败：\n{e}")
+        finally:
+            self.generate_btn.config(state="normal")
+            self.stop_btn.config(state="disabled")
+            self._ffmpeg_proc = None
+            if tmp_png and os.path.exists(tmp_png):
+                try:
+                    os.unlink(tmp_png)
+                except Exception:
+                    pass
+
+
 # ── 兼容旧入口（Hub 直接引用 Text2VideoApp 时不报错）──────────────────────────
 Text2VideoApp = TTSApp
 

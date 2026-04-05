@@ -47,9 +47,10 @@ TOOL_MAP = {
     "adjust-volume":    {"file": "VideoTools.py", "class": "AdjustVolumeApp"},
     "extract-clip":     {"file": "VideoTools.py", "class": "ExtractClipApp"},
     "auto-split":       {"file": "VideoTools.py", "class": "AutoSplitApp"},
-    "tts":         {"file": "text2Video.py", "class": "TTSApp"},
-    "tts-srt":     {"file": "text2Video.py", "class": "SRTFromTextApp"},
-    "tts-video":   {"file": "text2Video.py", "class": "AudioVideoApp"},
+    "tts":            {"file": "text2Video.py", "class": "TTSApp"},
+    "tts-srt":        {"file": "text2Video.py", "class": "SRTFromTextApp"},
+    "tts-video":      {"file": "text2Video.py", "class": "AudioVideoApp"},
+    "daily-news":     {"file": "text2Video.py", "class": "DailyNewsApp"},
 }
 
 # ── Hub 主类 ──────────────────────────────────────────────────────────────────
@@ -93,7 +94,9 @@ class VideoCraftHub:
         dl_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="下载", menu=dl_menu)
         dl_menu.add_command(label="yt-dlp 下载器",
-                            command=lambda: self.open_tool("yt-dlp"))
+                            command=lambda: self.open_tool(
+                                "yt-dlp",
+                                initial_file=self.project.folder if self.project else None))
 
         # 语音转字幕
         stt_menu = tk.Menu(menubar, tearoff=0)
@@ -149,6 +152,9 @@ class VideoCraftHub:
                              command=lambda: self.open_tool("tts-srt"))
         t2v_menu.add_command(label="③ 合成视频",
                              command=lambda: self.open_tool("tts-video"))
+        t2v_menu.add_separator()
+        t2v_menu.add_command(label="每日要闻合成",
+                             command=lambda: self.open_tool("daily-news"))
 
         # AI
         ai_menu = tk.Menu(menubar, tearoff=0)

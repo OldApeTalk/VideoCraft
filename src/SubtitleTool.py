@@ -389,7 +389,6 @@ class SubtitleToolApp:
         video_path_abs = os.path.abspath(video_path)
         sub1_path_ff   = escape_ffmpeg_path(temp_sub1_path)
         sub2_path_ff   = escape_ffmpeg_path(temp_sub2_path)
-        output_path    = _build_sub_output_path(video_path_abs, sub1_path if show_sub1 else None, sub2_path if show_sub2 else None)
 
         # 字幕样式
         font1 = "Microsoft YaHei"
@@ -407,6 +406,12 @@ class SubtitleToolApp:
         style2 = (f"Fontname={font2},Fontsize={fontsize2},PrimaryColour={color2},"
                   f"OutlineColour=&H00000000&,BorderStyle=1,Outline=2,Shadow=0,"
                   f"Bold=0,Alignment=2,MarginV=50")
+
+        output_path = _build_sub_output_path(
+            video_path_abs,
+            sub1_path if show_sub1 else None,
+            sub2_path if show_sub2 else None,
+        )
 
         width, height = get_video_resolution(video_path_abs)
 
