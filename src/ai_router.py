@@ -127,6 +127,18 @@ _DEFAULT_ASR_PROVIDERS = {
     },
 }
 
+# ── 默认 TTS Provider 配置 ────────────────────────────────────────────────────
+# TTS 无需 tier routing，只需 key 管理
+
+_DEFAULT_TTS_PROVIDERS = {
+    "fish_audio": {
+        "name":        "Fish Audio",
+        "enabled":     True,
+        "key_file":    "FishAudio.key",
+        "description": "Fish Audio TTS — 支持音色克隆与多角色合成",
+    },
+}
+
 # 兼容 SrtTools 的中文 provider 名
 _COMPAT_NAMES = {
     "自定义(OpenAI兼容)": "Custom",
@@ -151,6 +163,7 @@ class AIRouter:
         self._lock           = threading.Lock()
         self._providers:      dict = {}
         self._asr_providers:  dict = {}
+        self._tts_providers:  dict = {}
         self._tier_routing:   dict = {}
         self._stats:          dict = {}
         self._load_config()
@@ -269,6 +282,39 @@ class AIRouter:
         if provider not in self._asr_providers:
             raise RuntimeError(f"未知 ASR provider: {provider!r}")
         self._asr_providers[provider].update(kwargs)
+        self._save_config()
+
+    # ── TTS 公开 API ──────────────────────────────────────────────────────────
+
+    def get_tts_key(self, provider: str) -> str | None:
+        """返回指定 TTS provider 的 API key。key 未配置时返回 None。"""
+        cfg = self._tts_providers.get(provider)
+        if cfg is None:
+            return None
+        return self._read_key(cfg)
+
+    def get_tts_config(self, provider: str) -> dict | None:
+        """返回指定 TTS provider 的完整配置（深拷贝）。"""
+        cfg = self._tts_providers.get(provider)
+        return copy.deepcopy(cfg) if cfg else None
+
+    def get_available_tts_providers(self) -> list:
+        """返回已启用的 TTS providers 列表，附带 key 是否存在的状态。"""
+        return [
+            {
+                "name":    name,
+                "display": cfg.get("name", name),
+                "enabled": cfg.get("enabled", True),
+                "has_key": self._read_key(cfg) is not None,
+            }
+            for name, cfg in self._tts_providers.items()
+        ]
+
+    def update_tts_provider(self, provider: str, **kwargs):
+        """更新 TTS provider 的配置字段并持久化。"""
+        if provider not in self._tts_providers:
+            raise RuntimeError(f"未知 TTS provider: {provider!r}")
+        self._tts_providers[provider].update(kwargs)
         self._save_config()
 
     def set_provider_enabled(self, provider: str, enabled: bool):
@@ -423,10 +469,12 @@ class AIRouter:
                 data = json.load(f)
             self._providers      = data.get("providers",      {})
             self._asr_providers  = data.get("asr_providers",  copy.deepcopy(_DEFAULT_ASR_PROVIDERS))
+            self._tts_providers  = data.get("tts_providers",  copy.deepcopy(_DEFAULT_TTS_PROVIDERS))
             self._tier_routing   = data.get("tier_routing",   copy.deepcopy(_DEFAULT_TIER_ROUTING))
         else:
             self._providers      = copy.deepcopy(_DEFAULT_PROVIDERS)
             self._asr_providers  = copy.deepcopy(_DEFAULT_ASR_PROVIDERS)
+            self._tts_providers  = copy.deepcopy(_DEFAULT_TTS_PROVIDERS)
             self._tier_routing   = copy.deepcopy(_DEFAULT_TIER_ROUTING)
             self._save_config()     # 首次运行写出默认配置
 
@@ -446,6 +494,7 @@ class AIRouter:
                 "tier_routing":  self._tier_routing,
                 "providers":     self._providers,
                 "asr_providers": self._asr_providers,
+                "tts_providers": self._tts_providers,
             }, f, ensure_ascii=False, indent=2)
 
     @staticmethod

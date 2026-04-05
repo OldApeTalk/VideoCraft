@@ -47,7 +47,9 @@ TOOL_MAP = {
     "adjust-volume":    {"file": "VideoTools.py", "class": "AdjustVolumeApp"},
     "extract-clip":     {"file": "VideoTools.py", "class": "ExtractClipApp"},
     "auto-split":       {"file": "VideoTools.py", "class": "AutoSplitApp"},
-    "text2video":  {"file": "text2Video.py",                     "class": "Text2VideoApp"},
+    "tts":         {"file": "text2Video.py", "class": "TTSApp"},
+    "tts-srt":     {"file": "text2Video.py", "class": "SRTFromTextApp"},
+    "tts-video":   {"file": "text2Video.py", "class": "AudioVideoApp"},
 }
 
 # ── Hub 主类 ──────────────────────────────────────────────────────────────────
@@ -123,9 +125,6 @@ class VideoCraftHub:
                              command=lambda: self.open_tool("auto-split"))
         vid_menu.add_command(label="码率转换",
                              command=lambda: self.open_tool("convert-bitrate"))
-        vid_menu.add_separator()
-        vid_menu.add_command(label="文字转视频",
-                             command=lambda: self.open_tool("text2video"))
 
         # 字幕
         sub_menu = tk.Menu(menubar, tearoff=0)
@@ -140,6 +139,16 @@ class VideoCraftHub:
                              command=lambda: self.open_tool("srt-refine"))
         sub_menu.add_command(label="生成标题",
                              command=lambda: self.open_tool("srt-gen-titles"))
+
+        # 文字转视频
+        t2v_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="文字转视频", menu=t2v_menu)
+        t2v_menu.add_command(label="① 文字合成语音",
+                             command=lambda: self.open_tool("tts"))
+        t2v_menu.add_command(label="② 生成字幕 SRT",
+                             command=lambda: self.open_tool("tts-srt"))
+        t2v_menu.add_command(label="③ 合成视频",
+                             command=lambda: self.open_tool("tts-video"))
 
         # AI
         ai_menu = tk.Menu(menubar, tearoff=0)

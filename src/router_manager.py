@@ -95,6 +95,13 @@ class RouterManagerWindow:
         for name, cfg in router._asr_providers.items():
             self._build_asr_provider_row(tab, name, cfg)
 
+        ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=(8, 4))
+
+        # TTS Providers 区域
+        tk.Label(tab, text="TTS Providers", font=("", 9, "bold"), fg="#444").pack(anchor="w", pady=(0, 4))
+        for name, cfg in router._tts_providers.items():
+            self._build_asr_provider_row(tab, name, cfg)   # 结构与 ASR 相同，复用
+
         ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=(4, 8))
         tk.Label(tab,
                  text="Key 保存在本地 keys/ 目录，不会上传至网络。"

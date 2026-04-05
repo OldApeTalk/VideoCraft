@@ -1,1050 +1,860 @@
+"""
+text2Video.py - 文字转视频工具集
+
+三个独立工具：
+  TTSApp         - 文字合成语音（Fish Audio TTS，支持单角色/多角色）
+  SRTFromTextApp - 按文本+音频生成字幕 SRT（文本已知，按字符比例分配时间轴）
+  AudioVideoApp  - 音频+图片合成视频（ffmpeg）
+"""
+
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-import json
+from tkinter import filedialog, ttk
 import threading
 import subprocess
-from google.cloud import texttospeech
-from google.oauth2 import service_account
+import tempfile
 
-class Text2VideoApp:
+try:
+    from fish_audio_sdk import Session, TTSRequest
+    FISH_AUDIO_AVAILABLE = True
+except ImportError:
+    FISH_AUDIO_AVAILABLE = False
+
+from ai_router import router
+from router_manager import open_router_manager
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 工具1：文字合成语音
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TTSApp:
     def __init__(self, master):
         self.master = master
-        master.title("VideoCraft - 语音合成与视频制作")
-        master.geometry("1100x750")
+        master.title("VideoCraft - 文字合成语音")
+        master.geometry("820x680")
         master.resizable(True, True)
 
-        # 创建 Notebook (标签页)
-        self.notebook = ttk.Notebook(master)
-        self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
+        self._stop_flag = False
+        self._last_output = ""   # 记录最后生成的音频路径，供其他工具使用
 
-        # 标签页1: 文本转音频
-        self.tab_text2audio = tk.Frame(self.notebook)
-        self.notebook.add(self.tab_text2audio, text="文本转音频 (Gemini-TTS)")
+        self._build_ui()
+        self._refresh_api_status()
 
-        # 标签页2: 音频合成视频
-        self.tab_audio2video = tk.Frame(self.notebook)
-        self.notebook.add(self.tab_audio2video, text="音频合成视频")
-
-        # 初始化各个标签页
-        self.init_text2audio_tab()
-        self.init_audio2video_tab()
-
-        # 加载配置
-        self.config = {}
-        self.load_cloud_config()
-
-    def init_text2audio_tab(self):
-        """初始化文本转音频标签页"""
-        tab = self.tab_text2audio
-
-        # Google Cloud 配置状态显示
-        tk.Label(tab, text="配置状态:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.config_status_var = tk.StringVar(value="未配置")
-        tk.Label(tab, textvariable=self.config_status_var, fg="red").grid(row=0, column=1, sticky="w")
-        tk.Button(tab, text="管理配置", command=self.configure_cloud_settings).grid(row=0, column=2, padx=10)
-
-        # API密钥状态
-        tk.Label(tab, text="API密钥:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.account_status_var = tk.StringVar(value="未配置")
-        tk.Label(tab, textvariable=self.account_status_var, fg="red").grid(row=1, column=1, sticky="w")
-
-        # 输入文本
-        tk.Label(tab, text="输入文本:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
-        self.input_text = tk.Text(tab, height=8, width=50, wrap=tk.WORD)
-        self.input_text.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0,10))
-        # 设置默认文本
-        default_text = "欢迎使用文本到语音工具。这是一个测试文本，用于演示如何将文本转换为语音。"
-        self.input_text.insert(tk.END, default_text)
-
-        # 输出文件选择
-        tk.Label(tab, text="输出文件:").grid(row=3, column=0, padx=10, pady=10, sticky="e")
-        self.output_path_var = tk.StringVar(value="output.mp3")
-        tk.Entry(tab, textvariable=self.output_path_var, width=50).grid(row=3, column=1, sticky="w")
-        tk.Button(tab, text="浏览", command=self.select_output).grid(row=3, column=2, padx=10)
-
-        # Gemini-TTS 模型选择
-        tk.Label(tab, text="Gemini 模型:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
-        self.model_var = tk.StringVar(value="gemini-2.5-pro-tts (高质量)")
-        model_options = [
-            "gemini-2.5-flash-tts (推荐)",
-            "gemini-2.5-pro-tts (高质量)",
-            "gemini-2.5-flash-lite-tts (快速)"
-        ]
-        self.model_combo = ttk.Combobox(tab, textvariable=self.model_var, values=model_options, state="readonly", width=25)
-        self.model_combo.grid(row=4, column=1, sticky="w", padx=(0,10))
-        self.model_combo.bind('<<ComboboxSelected>>', self.on_model_change)
-
-        # 语言选择
-        tk.Label(tab, text="语言:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
-        self.lang_var = tk.StringVar(value="cmn-CN")
-        lang_options = [
-            "cmn-CN (普通话)",
-            "en-US (美国英语)",
-            "en-GB (英国英语)",
-            "ja-JP (日语)",
-            "ko-KR (韩语)",
-            "fr-FR (法语)",
-            "de-DE (德语)",
-            "es-ES (西班牙语)"
-        ]
-        self.lang_combo = ttk.Combobox(tab, textvariable=self.lang_var, values=lang_options, state="readonly", width=20)
-        self.lang_combo.grid(row=5, column=1, sticky="w", padx=(0,10))
-        self.lang_combo.bind('<<ComboboxSelected>>', self.on_language_change)
-
-        # 声音选择
-        tk.Label(tab, text="声音:").grid(row=6, column=0, padx=10, pady=5, sticky="e")
-        self.voice_var = tk.StringVar(value="Charon")
-        self.voice_combo = ttk.Combobox(tab, textvariable=self.voice_var, state="readonly", width=20)
-        self.voice_combo.grid(row=6, column=1, sticky="w", padx=(0,10))
-        
-        # 初始化声音选项
-        self.update_voice_options()
-        
-        # Prompt 输入框和预设按钮（Gemini-TTS 新功能）
-        prompt_frame = tk.Frame(tab)
-        prompt_frame.grid(row=7, column=0, columnspan=3, padx=10, pady=5, sticky="ew")
-        
-        tk.Label(prompt_frame, text="Prompt:").pack(side=tk.LEFT, padx=(0,5))
-        self.prompt_var = tk.StringVar(value="用生动、富有表现力的语气讲故事")
-        self.prompt_entry = tk.Entry(prompt_frame, textvariable=self.prompt_var, width=45)
-        self.prompt_entry.pack(side=tk.LEFT, padx=5)
-        
-        # 预设风格按钮
-        preset_btn = tk.Button(prompt_frame, text="预设风格▼", command=self.show_prompt_presets, width=10)
-        preset_btn.pack(side=tk.LEFT, padx=5)
-
-        # 语速控制
-        tk.Label(tab, text="语速:").grid(row=8, column=0, padx=10, pady=5, sticky="e")
-        speed_frame = tk.Frame(tab)
-        speed_frame.grid(row=8, column=1, columnspan=2, sticky="w")
-        self.speed_var = tk.DoubleVar(value=1.25)
-        self.speed_scale = tk.Scale(speed_frame, from_=0.25, to=4.0, resolution=0.05, orient=tk.HORIZONTAL,
-                                     variable=self.speed_var, length=200)
-        self.speed_scale.pack(side=tk.LEFT)
-        self.speed_label = tk.Label(speed_frame, text="1.25x")
-        self.speed_label.pack(side=tk.LEFT, padx=5)
-        self.speed_var.trace('w', lambda *args: self.speed_label.config(text=f"{self.speed_var.get():.2f}x"))
-
-        # 音调控制
-        tk.Label(tab, text="音调:").grid(row=9, column=0, padx=10, pady=5, sticky="e")
-        pitch_frame = tk.Frame(tab)
-        pitch_frame.grid(row=9, column=1, columnspan=2, sticky="w")
-        self.pitch_var = tk.DoubleVar(value=0.0)
-        self.pitch_scale = tk.Scale(pitch_frame, from_=-20.0, to=20.0, resolution=0.5, orient=tk.HORIZONTAL,
-                                     variable=self.pitch_var, length=200)
-        self.pitch_scale.pack(side=tk.LEFT)
-        self.pitch_label = tk.Label(pitch_frame, text="0.0")
-        self.pitch_label.pack(side=tk.LEFT, padx=5)
-        self.pitch_var.trace('w', lambda *args: self.pitch_label.config(text=f"{self.pitch_var.get():.1f}"))
-
-        # 音量增益控制
-        tk.Label(tab, text="音量增益:").grid(row=10, column=0, padx=10, pady=5, sticky="e")
-        volume_frame = tk.Frame(tab)
-        volume_frame.grid(row=10, column=1, columnspan=2, sticky="w")
-        self.volume_var = tk.DoubleVar(value=0.0)
-        self.volume_scale = tk.Scale(volume_frame, from_=-96.0, to=16.0, resolution=1.0, orient=tk.HORIZONTAL,
-                                      variable=self.volume_var, length=200)
-        self.volume_scale.pack(side=tk.LEFT)
-        self.volume_label = tk.Label(volume_frame, text="0.0 dB")
-        self.volume_label.pack(side=tk.LEFT, padx=5)
-        self.volume_var.trace('w', lambda *args: self.volume_label.config(text=f"{self.volume_var.get():.1f} dB"))
-
-        # 音频格式选择
-        tk.Label(tab, text="音频格式:").grid(row=11, column=0, padx=10, pady=5, sticky="e")
-        self.format_var = tk.StringVar(value="MP3")
-        format_options = ["MP3", "WAV", "OGG_OPUS"]
-        self.format_combo = ttk.Combobox(tab, textvariable=self.format_var, values=format_options, state="readonly", width=15)
-        self.format_combo.grid(row=11, column=1, sticky="w", padx=(0,10))
-
-        # 生成按钮
-        self.generate_btn = tk.Button(tab, text="生成语音 (Gemini-TTS)", command=self.start_generation, width=25)
-        self.generate_btn.grid(row=12, column=1, pady=20)
-
-        # 进度/提示
-        self.status_var = tk.StringVar()
-        tk.Label(tab, textvariable=self.status_var, fg="blue").grid(row=13, column=0, columnspan=3, pady=10)
-
-    def init_audio2video_tab(self):
-        """初始化音频合成视频标签页 - 左右分栏布局"""
-        tab = self.tab_audio2video
-        
-        # 创建左右两个主框架
-        left_frame = tk.Frame(tab)
-        left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        
-        right_frame = tk.Frame(tab)
-        right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
-        
-        # 配置列权重，使两列均匀分布
-        tab.columnconfigure(0, weight=1)
+    def _build_ui(self):
+        tab = self.master
         tab.columnconfigure(1, weight=1)
-        tab.rowconfigure(0, weight=1)
-        
-        # ========== 左侧：文件选择和视频参数 ==========
-        # 文件选择分组
-        file_frame = tk.LabelFrame(left_frame, text="文件选择", padx=10, pady=10)
-        file_frame.pack(fill="both", padx=5, pady=5)
-        
-        # 音频文件选择
-        tk.Label(file_frame, text="音频文件:").grid(row=0, column=0, padx=5, pady=8, sticky="e")
-        self.audio_path_var = tk.StringVar(value="")
-        tk.Entry(file_frame, textvariable=self.audio_path_var, width=45, state='readonly').grid(row=0, column=1, sticky="ew", padx=5)
-        tk.Button(file_frame, text="选择", command=self.select_audio_file, width=8).grid(row=0, column=2, padx=5)
-        
-        # 音频信息
-        self.audio_info_var = tk.StringVar(value="未选择音频文件")
-        tk.Label(file_frame, textvariable=self.audio_info_var, fg="gray", font=("Arial", 8)).grid(row=1, column=1, sticky="w", padx=5)
-        
-        # 图片文件选择
-        tk.Label(file_frame, text="图片文件:").grid(row=2, column=0, padx=5, pady=8, sticky="e")
-        self.image_path_var = tk.StringVar(value="")
-        tk.Entry(file_frame, textvariable=self.image_path_var, width=45, state='readonly').grid(row=2, column=1, sticky="ew", padx=5)
-        tk.Button(file_frame, text="选择", command=self.select_image_file, width=8).grid(row=2, column=2, padx=5)
-        
-        # 图片信息
-        self.image_info_var = tk.StringVar(value="未选择图片文件")
-        tk.Label(file_frame, textvariable=self.image_info_var, fg="gray", font=("Arial", 8)).grid(row=3, column=1, sticky="w", padx=5)
-        
-        # 输出视频
-        tk.Label(file_frame, text="输出视频:").grid(row=4, column=0, padx=5, pady=8, sticky="e")
-        self.video_output_var = tk.StringVar(value="output.mp4")
-        tk.Entry(file_frame, textvariable=self.video_output_var, width=45).grid(row=4, column=1, sticky="ew", padx=5)
-        tk.Button(file_frame, text="浏览", command=self.select_video_output, width=8).grid(row=4, column=2, padx=5)
-        
-        # 让第1列（输入框列）自动扩展
-        file_frame.columnconfigure(1, weight=1)
-        
-        # 视频配置分组
-        config_frame = tk.LabelFrame(left_frame, text="视频配置", padx=10, pady=10)
-        config_frame.pack(fill="both", padx=5, pady=5)
-        
-        # 视频方向
-        tk.Label(config_frame, text="视频方向:", font=("Arial", 9, "bold")).grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.orientation_var = tk.StringVar(value="horizontal")
-        orientation_inner = tk.Frame(config_frame)
-        orientation_inner.grid(row=0, column=1, columnspan=2, sticky="w", padx=5)
-        tk.Radiobutton(orientation_inner, text="横屏 (16:9)", variable=self.orientation_var, 
-                      value="horizontal", command=self.on_orientation_change).pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(orientation_inner, text="竖屏 (9:16)", variable=self.orientation_var, 
-                      value="vertical", command=self.on_orientation_change).pack(side=tk.LEFT, padx=5)
-        
-        # 分辨率
-        tk.Label(config_frame, text="分辨率:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        self.resolution_var = tk.StringVar(value="1920x1080 (1080p)")
-        self.resolution_combo = ttk.Combobox(config_frame, textvariable=self.resolution_var, state="readonly", width=30)
-        self.update_resolution_options()
-        self.resolution_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=5)
-        
-        # 背景填充色
-        tk.Label(config_frame, text="背景填充色:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        bg_color_inner = tk.Frame(config_frame)
-        bg_color_inner.grid(row=2, column=1, columnspan=2, sticky="w", padx=5)
-        self.bg_color_var = tk.StringVar(value="#FFFFFF")
-        self.bg_color_entry = tk.Entry(bg_color_inner, textvariable=self.bg_color_var, width=10, state='readonly')
-        self.bg_color_entry.pack(side=tk.LEFT, padx=2)
-        self.bg_color_preview = tk.Canvas(bg_color_inner, width=25, height=20, bg=self.bg_color_var.get(), relief=tk.SUNKEN, borderwidth=1)
-        self.bg_color_preview.pack(side=tk.LEFT, padx=2)
-        self.bg_color_btn = tk.Button(bg_color_inner, text="选择", command=self.choose_bg_color, width=8)
-        self.bg_color_btn.pack(side=tk.LEFT, padx=2)
-        
-        # 帧率
-        tk.Label(config_frame, text="帧率 (FPS):").grid(row=3, column=0, padx=5, pady=5, sticky="e")
-        self.fps_var = tk.StringVar(value="30")
-        fps_options = ["24", "25", "30", "60"]
-        self.fps_combo = ttk.Combobox(config_frame, textvariable=self.fps_var, values=fps_options, state="readonly", width=10)
-        self.fps_combo.grid(row=3, column=1, sticky="w", padx=5)
-        
-        # 视频编码
-        tk.Label(config_frame, text="视频编码:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
-        self.codec_var = tk.StringVar(value="libx264")
-        codec_options = ["libx264 (H.264)", "libx265 (H.265/HEVC)", "mpeg4"]
-        self.codec_combo = ttk.Combobox(config_frame, textvariable=self.codec_var, values=codec_options, state="readonly", width=25)
-        self.codec_combo.grid(row=4, column=1, columnspan=2, sticky="w", padx=5)
-        
-        # ========== 右侧：水印设置 ==========
-        watermark_frame = tk.LabelFrame(right_frame, text="水印设置", padx=10, pady=10)
-        watermark_frame.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # 启用水印
-        self.watermark_enabled_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(watermark_frame, text="启用水印", variable=self.watermark_enabled_var, 
-                      font=("Arial", 10, "bold")).grid(row=0, column=0, columnspan=3, padx=5, pady=10, sticky="w")
-        
-        # 水印文字
-        tk.Label(watermark_frame, text="水印文字:").grid(row=1, column=0, padx=5, pady=8, sticky="e")
-        self.watermark_text_var = tk.StringVar(value="老猿世界观察")
-        tk.Entry(watermark_frame, textvariable=self.watermark_text_var, width=35).grid(row=1, column=1, columnspan=2, sticky="ew", padx=5)
-        
-        # 让第1列自动扩展
-        watermark_frame.columnconfigure(1, weight=1)
-        
-        # 文字颜色
-        tk.Label(watermark_frame, text="文字颜色:").grid(row=2, column=0, padx=5, pady=8, sticky="e")
-        wm_color_inner = tk.Frame(watermark_frame)
-        wm_color_inner.grid(row=2, column=1, columnspan=2, sticky="w", padx=5)
-        self.watermark_color_var = tk.StringVar(value="#80ffff")
-        self.watermark_color_entry = tk.Entry(wm_color_inner, textvariable=self.watermark_color_var, width=10, state='readonly')
-        self.watermark_color_entry.pack(side=tk.LEFT, padx=2)
-        self.watermark_color_preview = tk.Canvas(wm_color_inner, width=25, height=20, bg=self.watermark_color_var.get(), relief=tk.SUNKEN, borderwidth=1)
-        self.watermark_color_preview.pack(side=tk.LEFT, padx=2)
-        self.watermark_color_btn = tk.Button(wm_color_inner, text="选择", command=self.choose_watermark_color, width=8)
-        self.watermark_color_btn.pack(side=tk.LEFT, padx=2)
-        
-        # 字体
-        tk.Label(watermark_frame, text="字体:").grid(row=3, column=0, padx=5, pady=8, sticky="e")
-        self.watermark_font_var = tk.StringVar(value="simsun.ttc (宋体)")
-        font_options = ["arial.ttf", "simhei.ttf (黑体)", "simsun.ttc (宋体)", "msyh.ttc (微软雅黑)", "simkai.ttf (楷体)"]
-        self.watermark_font_combo = ttk.Combobox(watermark_frame, textvariable=self.watermark_font_var, values=font_options, width=32)
-        self.watermark_font_combo.grid(row=3, column=1, columnspan=2, sticky="ew", padx=5)
-        
-        # 透明度
-        tk.Label(watermark_frame, text="透明度:").grid(row=4, column=0, padx=5, pady=8, sticky="e")
-        self.watermark_opacity_var = tk.DoubleVar(value=0.5)
-        opacity_scale = tk.Scale(watermark_frame, from_=0.1, to=1.0, resolution=0.1, orient=tk.HORIZONTAL, 
-                                variable=self.watermark_opacity_var, length=260)
-        opacity_scale.grid(row=4, column=1, columnspan=2, sticky="ew", padx=5)
-        
-        # 位置
-        tk.Label(watermark_frame, text="位置:").grid(row=5, column=0, padx=5, pady=8, sticky="e")
-        self.watermark_position_var = tk.StringVar(value="右上角 (topright)")
-        position_options = ["右上角 (topright)", "左上角 (topleft)", "右下角 (bottomright)", "左下角 (bottomleft)"]
-        self.watermark_position_combo = ttk.Combobox(watermark_frame, textvariable=self.watermark_position_var, 
-                                                      values=position_options, state="readonly", width=30)
-        self.watermark_position_combo.grid(row=5, column=1, columnspan=2, sticky="ew", padx=5)
-        
-        # ========== 底部：生成按钮和状态 ==========
-        bottom_frame = tk.Frame(tab)
-        bottom_frame.grid(row=1, column=0, columnspan=2, pady=10)
-        
-        # 生成按钮
-        self.generate_video_btn = tk.Button(bottom_frame, text="生成视频", command=self.start_video_generation, 
-                                           width=25, height=2, bg="#4CAF50", fg="white", font=("Arial", 11, "bold"))
-        self.generate_video_btn.pack(pady=10)
-        
-        # 进度显示
-        self.video_status_var = tk.StringVar(value="")
-        tk.Label(bottom_frame, textvariable=self.video_status_var, fg="blue", font=("Arial", 10)).pack(pady=5)
 
-    def load_cloud_config(self):
-        """加载Google Cloud配置，使用服务账户密钥文件"""
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file = os.path.join(os.path.dirname(script_dir), 'keys', 'google_cloud_config.json')
-        
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    self.config = json.load(f)
-                
-                # 支持两种方式：直接嵌入凭据 或 指定密钥文件路径
-                if 'type' in self.config and self.config.get('type') == 'service_account':
-                    # 配置文件本身就是服务账户密钥
-                    self.config_status_var.set("已配置")
-                    self.account_status_var.set("已配置 (直接凭据)")
-                else:
-                    # 配置文件中指定了密钥文件路径
-                    key_path = self.config.get('service_account_key_path', config_file)
-                    if not os.path.isabs(key_path):
-                        # 相对路径基于配置文件所在目录（项目根目录）
-                        key_path = os.path.join(os.path.dirname(script_dir), key_path)
-                    
-                    if os.path.exists(key_path):
-                        self.config_status_var.set("已配置")
-                        self.account_status_var.set("已配置")
-                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_path
-                    else:
-                        self.config_status_var.set("配置不完整")
-                        self.account_status_var.set(f"密钥文件不存在: {key_path}")
-                    
-            except json.JSONDecodeError:
-                self.config = {}
-                self.config_status_var.set("配置错误 (JSON格式无效)")
-                self.account_status_var.set("未配置")
-            except Exception as e:
-                self.config = {}
-                self.config_status_var.set(f"配置错误: {e}")
-                self.account_status_var.set("未配置")
+        row = 0
+        tk.Label(tab, text="Fish Audio:").grid(row=row, column=0, padx=10, pady=8, sticky="e")
+        self.api_status_var = tk.StringVar(value="未配置")
+        self.api_status_lbl = tk.Label(tab, textvariable=self.api_status_var, fg="red", width=32, anchor="w")
+        self.api_status_lbl.grid(row=row, column=1, sticky="w")
+        tk.Button(tab, text="Router 管理",
+                  command=lambda: open_router_manager(self.master)).grid(row=row, column=2, padx=10)
+
+        row += 1
+        mode_frame = tk.LabelFrame(tab, text="模式", padx=8, pady=6)
+        mode_frame.grid(row=row, column=0, columnspan=3, padx=10, pady=6, sticky="ew")
+        self.mode_var = tk.StringVar(value="single")
+        tk.Radiobutton(mode_frame, text="单角色朗读", variable=self.mode_var,
+                       value="single", command=self._on_mode_change).pack(side=tk.LEFT, padx=15)
+        tk.Radiobutton(mode_frame, text="多角色对话（访谈/剧本）", variable=self.mode_var,
+                       value="multi", command=self._on_mode_change).pack(side=tk.LEFT, padx=15)
+
+        # 单角色
+        self.single_frame = tk.LabelFrame(tab, text="单角色朗读", padx=10, pady=8)
+        self.single_frame.grid(row=2, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
+        self.single_frame.columnconfigure(1, weight=1)
+        tk.Label(self.single_frame, text="Voice ID:").grid(row=0, column=0, padx=5, pady=6, sticky="e")
+        self.voice_id_var = tk.StringVar()
+        tk.Entry(self.single_frame, textvariable=self.voice_id_var, width=45).grid(row=0, column=1, sticky="ew", padx=5)
+        tk.Label(self.single_frame, text="在 fish.audio 社区搜索音色，复制 model ID 填入",
+                 fg="gray", font=("Arial", 8)).grid(row=1, column=1, sticky="w", padx=5)
+        tk.Label(self.single_frame, text="输入文本:").grid(row=2, column=0, padx=5, pady=6, sticky="ne")
+        self.single_text = tk.Text(self.single_frame, height=8, width=55, wrap=tk.WORD)
+        self.single_text.grid(row=2, column=1, columnspan=2, sticky="ew", padx=5)
+        self.single_text.insert(tk.END, "请在此输入要朗读的文本内容。")
+
+        # 多角色
+        self.multi_frame = tk.LabelFrame(tab, text="多角色对话", padx=10, pady=8)
+        self.multi_frame.grid(row=3, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
+        self.multi_frame.columnconfigure(1, weight=1)
+        hdr = tk.Frame(self.multi_frame)
+        hdr.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 4))
+        tk.Label(hdr, text="角色名", width=12, font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=4)
+        tk.Label(hdr, text="Voice ID（fish.audio model ID）", font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=4)
+        self.roles = []
+        self.roles_frame = tk.Frame(self.multi_frame)
+        self.roles_frame.grid(row=1, column=0, columnspan=4, sticky="ew")
+        self._add_role("主持人", "")
+        self._add_role("嘉宾", "")
+        tk.Button(self.multi_frame, text="＋ 添加角色",
+                  command=lambda: self._add_role("", "")).grid(row=2, column=0, pady=6, sticky="w")
+        tk.Label(self.multi_frame, text="对话文本:").grid(row=3, column=0, padx=5, pady=6, sticky="ne")
+        self.multi_text = tk.Text(self.multi_frame, height=8, width=55, wrap=tk.WORD)
+        self.multi_text.grid(row=3, column=1, columnspan=3, sticky="ew", padx=5)
+        self.multi_text.insert(tk.END,
+            "主持人：欢迎收看今天的节目。\n嘉宾：谢谢邀请，很高兴来到这里。\n主持人：请问您对这个话题怎么看？")
+        tk.Label(self.multi_frame, text='格式：每行 "角色名：台词"，角色名须与上方一致',
+                 fg="gray", font=("Arial", 8)).grid(row=4, column=1, sticky="w", padx=5)
+
+        # 公共参数
+        row = 4
+        common = tk.Frame(tab)
+        common.grid(row=row, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
+        tk.Label(common, text="输出格式:").pack(side=tk.LEFT, padx=(0, 4))
+        self.audio_format_var = tk.StringVar(value="mp3")
+        ttk.Combobox(common, textvariable=self.audio_format_var,
+                     values=["mp3", "wav", "opus"], state="readonly", width=8).pack(side=tk.LEFT, padx=(0, 20))
+        tk.Label(common, text="语速:").pack(side=tk.LEFT, padx=(0, 4))
+        self.speed_var = tk.DoubleVar(value=1.0)
+        tk.Scale(common, variable=self.speed_var, from_=0.5, to=2.0, resolution=0.1,
+                 orient=tk.HORIZONTAL, length=160).pack(side=tk.LEFT)
+        self.speed_lbl = tk.Label(common, text="1.0x", width=5)
+        self.speed_lbl.pack(side=tk.LEFT)
+        self.speed_var.trace('w', lambda *_: self.speed_lbl.config(text=f"{self.speed_var.get():.1f}x"))
+
+        row = 5
+        tk.Label(tab, text="输出文件:").grid(row=row, column=0, padx=10, pady=6, sticky="e")
+        self.output_path_var = tk.StringVar(value="output.mp3")
+        tk.Entry(tab, textvariable=self.output_path_var, width=50).grid(row=row, column=1, sticky="ew")
+        tk.Button(tab, text="浏览", command=self._select_output).grid(row=row, column=2, padx=10)
+
+        row = 6
+        btn_frame = tk.Frame(tab)
+        btn_frame.grid(row=row, column=0, columnspan=3, pady=10)
+        self.generate_btn = tk.Button(btn_frame, text="生成语音", command=self.start_generation,
+                                      width=18, bg="#2196F3", fg="white", font=("Arial", 10, "bold"))
+        self.generate_btn.pack(side=tk.LEFT, padx=8)
+        self.stop_btn = tk.Button(btn_frame, text="停止", command=self._stop_generation,
+                                  width=8, state="disabled")
+        self.stop_btn.pack(side=tk.LEFT, padx=4)
+
+        row = 7
+        self.progress_var = tk.DoubleVar(value=0)
+        ttk.Progressbar(tab, variable=self.progress_var, maximum=100, length=500).grid(
+            row=row, column=0, columnspan=3, padx=10, pady=(4, 0), sticky="ew")
+        row = 8
+        self.status_var = tk.StringVar(value="")
+        tk.Label(tab, textvariable=self.status_var, fg="blue", anchor="w").grid(
+            row=row, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
+
+        self._on_mode_change()
+
+    def _add_role(self, name="", voice_id=""):
+        f = tk.Frame(self.roles_frame)
+        f.pack(fill="x", pady=2)
+        name_var = tk.StringVar(value=name)
+        voice_var = tk.StringVar(value=voice_id)
+        tk.Entry(f, textvariable=name_var, width=12).pack(side=tk.LEFT, padx=4)
+        tk.Entry(f, textvariable=voice_var, width=42).pack(side=tk.LEFT, padx=4)
+        role = (name_var, voice_var, f)
+        self.roles.append(role)
+        tk.Button(f, text="✕", command=lambda r=role: self._remove_role(r), width=2).pack(side=tk.LEFT)
+
+    def _remove_role(self, role):
+        if len(self.roles) <= 1:
+            return
+        role[2].destroy()
+        self.roles.remove(role)
+
+    def _on_mode_change(self):
+        if self.mode_var.get() == "single":
+            self.single_frame.grid()
+            self.multi_frame.grid_remove()
         else:
-            self.config = {}
-            self.config_status_var.set(f"未配置 (找不到 {config_file})")
-            self.account_status_var.set("未配置")
+            self.single_frame.grid_remove()
+            self.multi_frame.grid()
 
-    def configure_cloud_settings(self):
-        """配置Google Cloud Text-to-Speech设置"""
-        win = tk.Toplevel(self.master)
-        win.title("Google Cloud 配置")
-        win.geometry("550x180")
-
-        tk.Label(win, text="服务账户密钥文件:").grid(row=0, column=0, padx=10, pady=15, sticky="e")
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        default_config = os.path.join(os.path.dirname(script_dir), 'keys', 'google_cloud_config.json')
-        key_path_var = tk.StringVar(value=self.config.get('service_account_key_path', default_config))
-        tk.Entry(win, textvariable=key_path_var, width=40).grid(row=0, column=1, padx=10, pady=15)
-        
-        def select_key_file():
-            path = filedialog.askopenfilename(
-                title="选择服务账户密钥文件",
-                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-            )
-            if path:
-                key_path_var.set(path)
-
-        tk.Button(win, text="浏览", command=select_key_file).grid(row=0, column=2, padx=10)
-        
-        # 添加说明文本
-        info_text = "提示：密钥文件已统一放置在keys文件夹中。\n如果keys/google_cloud_config.json本身就是服务账户密钥，则使用默认路径即可。"
-        tk.Label(win, text=info_text, fg="blue", font=("Arial", 8), justify="left").grid(row=1, column=0, columnspan=3, padx=10, pady=5)
-
-        def save():
-            key_path = key_path_var.get().strip()
-
-            if not key_path:
-                messagebox.showerror("错误", "请指定服务账户密钥文件路径")
-                return
-            
-            if not os.path.exists(key_path):
-                messagebox.showerror("错误", f"文件不存在: {key_path}")
-                return
-
-            self.config['service_account_key_path'] = key_path
-            self.save_cloud_config()
-            
-            # 重新加载配置以更新状态
-            self.load_cloud_config()
-            
-            messagebox.showinfo("成功", "Google Cloud配置已保存!")
-            win.destroy()
-
-        tk.Button(win, text="保存", command=save).grid(row=2, column=0, columnspan=3, pady=15)
-
-    def save_cloud_config(self):
-        """保存Google Cloud配置"""
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            config_file = os.path.join(os.path.dirname(script_dir), 'keys', 'google_cloud_config.json')
-            # 确保keys文件夹存在
-            os.makedirs(os.path.dirname(config_file), exist_ok=True)
-            with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            messagebox.showerror("错误", f"保存配置失败: {e}")
-
-    def select_output(self):
+    def _select_output(self):
+        fmt = self.audio_format_var.get()
         path = filedialog.asksaveasfilename(
             title="选择输出文件",
-            defaultextension=".mp3",
-            filetypes=[("MP3 files", "*.mp3"), ("All files", "*")]
+            defaultextension=f".{fmt}",
+            filetypes=[(f"{fmt.upper()} files", f"*.{fmt}"), ("All files", "*.*")]
         )
         if path:
             self.output_path_var.set(path)
 
-    def on_model_change(self, event=None):
-        """当模型类型改变时更新声音选项"""
-        self.update_voice_options()
-
-    def on_language_change(self, event=None):
-        """当语言改变时更新声音选项"""
-        self.update_voice_options()
-
-    def show_prompt_presets(self):
-        """显示预设 Prompt 选项菜单"""
-        menu = tk.Menu(self.master, tearoff=0)
-        
-        presets = {
-            "自然朗读": "用自然、流畅的语气朗读",
-            "温暖友好": "用温暖、友好的语气讲述",
-            "专业播报": "用专业、清晰的语气播报",
-            "平静叙述": "用平静、舒缓的语气叙述",
-            "兴奋激昂": "用兴奋、充满活力的语气表达",
-            "新闻播报": "用新闻播音员的专业语气播报",
-            "故事讲述": "用生动、富有表现力的语气讲故事",
-            "耳语": "[whispering] 用轻柔的耳语说出",
-            "快速": "[extremely fast] 快速说出",
-            "清除": ""
-        }
-        
-        for name, prompt in presets.items():
-            menu.add_command(
-                label=name, 
-                command=lambda p=prompt: self.prompt_var.set(p)
-            )
-        
-        # 在按钮下方显示菜单
-        menu.post(self.master.winfo_pointerx(), self.master.winfo_pointery())
-
-    def update_voice_options(self):
-        """根据选择的语言更新可用的 Gemini-TTS 声音选项"""
-        lang_str = self.lang_var.get()
-        lang_code = lang_str.split(" ")[0]  # "cmn-CN", "en-US", etc.
-        
-        # Gemini-TTS 语音列表（通用语音，支持多语言）
-        # 基于官方文档: https://cloud.google.com/text-to-speech/docs/gemini-tts#voice_options
-        female_voices = ['Kore', 'Aoede', 'Autonoe', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 
-                        'Laomedeia', 'Leda', 'Pulcherrima', 'Sulafat', 'Vindemiatrix', 'Zephyr']
-        male_voices = ['Charon', 'Achird', 'Algenib', 'Algieba', 'Alnilam', 'Enceladus', 'Fenrir',
-                      'Iapetus', 'Orus', 'Puck', 'Rasalgethi', 'Sadachbia', 'Sadaltager', 
-                      'Schedar', 'Umbriel', 'Zubenelgenubi']
-        
-        # 所有可用语音（按字母排序）
-        all_voices = sorted(female_voices + male_voices)
-        
-        # 为中文推荐一些常用语音
-        if lang_code == 'cmn-CN':
-            # 中文推荐语音在前
-            recommended = ['Kore', 'Charon', 'Leda', 'Aoede', 'Puck', 'Zephyr']
-            voices = recommended + [v for v in all_voices if v not in recommended]
+    def _refresh_api_status(self):
+        key = router.get_tts_key("fish_audio")
+        if key:
+            masked = key[:6] + "****" + key[-4:]
+            self.api_status_var.set(f"已配置 ({masked})")
+            self.api_status_lbl.config(fg="green")
         else:
-            voices = all_voices
-        
-        # 更新下拉框
-        self.voice_combo['values'] = voices
-        
-        # 如果当前选择的声音不在新列表中，选择第一个
-        if self.voice_var.get() not in voices:
-            self.voice_var.set(voices[0])
-
-    def get_voice_name_and_lang(self):
-        """获取 Gemini-TTS 的模型和语音参数"""
-        model_str = self.model_var.get()
-        model_name = model_str.split(" ")[0]  # "gemini-2.5-flash-tts", etc.
-        
-        lang_str = self.lang_var.get()
-        lang_code = lang_str.split(" ")[0]  # "cmn-CN", "en-US", etc.
-        
-        voice_name = self.voice_var.get()  # "Kore", "Charon", etc.
-        
-        return model_name, voice_name, lang_code
+            self.api_status_var.set("未配置 — 请在 Router 管理中设置")
+            self.api_status_lbl.config(fg="red")
 
     def start_generation(self):
-        input_text = self.input_text.get("1.0", tk.END).strip()
-        if not input_text:
-            messagebox.showerror("错误", "请输入文本内容")
+        if not FISH_AUDIO_AVAILABLE:
+            self._show_error("请先安装 Fish Audio SDK：\npip install fish-audio-sdk")
             return
-
-        if self.config_status_var.get() != "已配置":
-            messagebox.showerror("错误", "请先配置Google Cloud API Key")
+        if not router.get_tts_key("fish_audio"):
+            self._show_error("Fish Audio API Key 未配置，请点击「Router 管理」→ TTS Providers 设置")
             return
-
+        self._stop_flag = False
         self.generate_btn.config(state="disabled")
-        self.status_var.set("正在生成...")
+        self.stop_btn.config(state="normal")
+        self.progress_var.set(0)
+        self.status_var.set("正在准备...")
+        t = threading.Thread(
+            target=self._run_single if self.mode_var.get() == "single" else self._run_multi,
+            daemon=True)
+        t.start()
 
-        thread = threading.Thread(target=self.generate_speech, args=(input_text,))
-        thread.daemon = True
-        thread.start()
+    def _stop_generation(self):
+        self._stop_flag = True
+        self.status_var.set("正在停止...")
 
-    def generate_speech(self, input_text):
+    def _finish_generation(self):
+        self.generate_btn.config(state="normal")
+        self.stop_btn.config(state="disabled")
+
+    def _run_single(self):
         try:
-            self.status_var.set("正在使用 Gemini-TTS 生成语音...")
-            
-            output_file = self.output_path_var.get()
-            model_name, voice_name, lang_code = self.get_voice_name_and_lang()
-            
-            # 获取所有参数
-            params = {
-                'model_name': model_name,
-                'voice_name': voice_name,
-                'lang_code': lang_code,
-                'style_prompt': self.prompt_var.get().strip(),
-                'speaking_rate': self.speed_var.get(),
-                'pitch': self.pitch_var.get(),
-                'volume_gain_db': self.volume_var.get(),
-                'audio_format': self.format_var.get()
-            }
-            
-            text_to_speech_with_gemini_tts(input_text, output_file, params)
+            voice_id = self.voice_id_var.get().strip()
+            text = self.single_text.get("1.0", tk.END).strip()
+            output = self.output_path_var.get().strip()
+            if not voice_id:
+                self._show_error("请填写 Voice ID"); return
+            if not text:
+                self._show_error("请输入文本"); return
+            if not output:
+                self._show_error("请指定输出文件路径"); return
 
-            self.status_var.set(f"生成完成！文件已保存: {output_file}")
-            messagebox.showinfo("成功", f"语音文件已保存到: {output_file}")
-
+            self.status_var.set("正在调用 Fish Audio API...")
+            self.progress_var.set(10)
+            session = Session(router.get_tts_key("fish_audio"))
+            with session.tts(TTSRequest(
+                reference_id=voice_id, text=text, format=self.audio_format_var.get(),
+            )) as resp:
+                with open(output, "wb") as f:
+                    total = 0
+                    for chunk in resp.iter_bytes():
+                        if self._stop_flag:
+                            self.status_var.set("已停止"); return
+                        f.write(chunk)
+                        total += len(chunk)
+                        self.progress_var.set(min(90, 10 + total // 1024))
+            self._last_output = output
+            self.progress_var.set(100)
+            self.status_var.set(f"完成！已保存：{output}")
         except Exception as e:
-            error_msg = f"生成失败: {str(e)}"
-            print(f"错误详情: {error_msg}")
-            self.status_var.set(error_msg)
-            messagebox.showerror("错误", error_msg)
+            self.status_var.set(f"失败：{e}")
+            self._show_error(str(e))
         finally:
-            self.generate_btn.config(state="normal")
+            self._finish_generation()
 
-    # ============ 音频合成视频相关方法 ============
+    def _run_multi(self):
+        try:
+            role_map = {nv.get().strip(): vv.get().strip()
+                        for nv, vv, _ in self.roles
+                        if nv.get().strip() and vv.get().strip()}
+            if not role_map:
+                self._show_error("请为至少一个角色填写名称和 Voice ID"); return
+            raw = self.multi_text.get("1.0", tk.END).strip()
+            segments = self._parse_dialogue(raw, role_map)
+            if not segments:
+                self._show_error('未识别到有效台词。\n格式：每行以"角色名："开头，角色名须与上方定义一致。'); return
+            output = self.output_path_var.get().strip()
+            if not output:
+                self._show_error("请指定输出文件路径"); return
 
-    def select_audio_file(self):
-        """选择音频文件"""
+            session = Session(router.get_tts_key("fish_audio"))
+            total = len(segments)
+            tmp_files = []
+            for i, (role, text) in enumerate(segments):
+                if self._stop_flag:
+                    self.status_var.set("已停止")
+                    self._cleanup_temps(tmp_files); return
+                self.status_var.set(f"生成第 {i+1}/{total} 段（{role}）...")
+                self.progress_var.set(int(i / total * 85))
+                fmt = self.audio_format_var.get()
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{fmt}")
+                tmp.close()
+                tmp_files.append(tmp.name)
+                with session.tts(TTSRequest(
+                    reference_id=role_map[role], text=text, format=fmt,
+                )) as resp:
+                    with open(tmp.name, "wb") as f:
+                        for chunk in resp.iter_bytes():
+                            if self._stop_flag:
+                                self.status_var.set("已停止")
+                                self._cleanup_temps(tmp_files); return
+                            f.write(chunk)
+
+            self.status_var.set("正在合并音频...")
+            self.progress_var.set(90)
+            self._concat_audio(tmp_files, output)
+            self._cleanup_temps(tmp_files)
+            self._last_output = output
+            self.progress_var.set(100)
+            self.status_var.set(f"完成！{total} 段已合并：{output}")
+        except Exception as e:
+            self.status_var.set(f"失败：{e}")
+            self._show_error(str(e))
+        finally:
+            self._finish_generation()
+
+    def _parse_dialogue(self, raw, role_map):
+        segments = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            for role in role_map:
+                for sep in ['：', ':']:
+                    if line.startswith(role + sep):
+                        text = line[len(role) + 1:].strip()
+                        if text:
+                            if segments and segments[-1][0] == role:
+                                segments[-1] = (role, segments[-1][1] + " " + text)
+                            else:
+                                segments.append((role, text))
+                        break
+        return segments
+
+    def _concat_audio(self, files, output):
+        lf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8')
+        for f in files:
+            lf.write(f"file '{f}'\n")
+        lf.close()
+        try:
+            subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+                            '-i', lf.name, '-c', 'copy', output],
+                           capture_output=True, check=True)
+        finally:
+            os.unlink(lf.name)
+
+    def _cleanup_temps(self, files):
+        for f in files:
+            try: os.unlink(f)
+            except Exception: pass
+
+    def _show_error(self, msg):
+        self.master.after(0, lambda: __import__('tkinter').messagebox.showerror(
+            "错误", msg, parent=self.master))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 工具2：文本 → SRT 字幕
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SRTFromTextApp:
+    """
+    文本已知（来自 TTS 工具），根据音频总时长按字符比例分配时间轴，生成 SRT。
+    不需要 ASR，适合文字视频制作流水线的字幕步骤。
+    """
+
+    def __init__(self, master):
+        self.master = master
+        master.title("VideoCraft - 生成字幕 SRT")
+        master.geometry("780x620")
+        master.resizable(True, True)
+        self._build_ui()
+
+    def _build_ui(self):
+        tab = self.master
+        tab.columnconfigure(1, weight=1)
+
+        row = 0
+        tk.Label(tab, text="音频文件:").grid(row=row, column=0, padx=10, pady=8, sticky="e")
+        self.audio_var = tk.StringVar()
+        tk.Entry(tab, textvariable=self.audio_var, width=50, state='readonly').grid(
+            row=row, column=1, sticky="ew")
+        tk.Button(tab, text="选择", command=self._select_audio).grid(row=row, column=2, padx=10)
+
+        row += 1
+        self.duration_var = tk.StringVar(value="")
+        tk.Label(tab, textvariable=self.duration_var, fg="gray",
+                 font=("Arial", 8)).grid(row=row, column=1, sticky="w", padx=4)
+
+        row += 1
+        tk.Label(tab, text="文本内容:").grid(row=row, column=0, padx=10, pady=8, sticky="ne")
+        self.text_box = tk.Text(tab, height=12, width=55, wrap=tk.WORD)
+        self.text_box.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(0, 10))
+        self.text_box.insert(tk.END,
+            "主持人：欢迎收看今天的节目。\n嘉宾：谢谢邀请，很高兴来到这里。\n主持人：请问您对这个话题怎么看？")
+
+        row += 1
+        hint_frame = tk.Frame(tab)
+        hint_frame.grid(row=row, column=1, sticky="w", padx=4, pady=2)
+        tk.Label(hint_frame, text='支持 "角色名：台词" 格式（多角色）或纯文本（单角色）',
+                 fg="gray", font=("Arial", 8)).pack(side=tk.LEFT)
+
+        row += 1
+        opt_frame = tk.LabelFrame(tab, text="分段设置", padx=10, pady=6)
+        opt_frame.grid(row=row, column=0, columnspan=3, padx=10, pady=6, sticky="ew")
+
+        tk.Label(opt_frame, text="每段最大字符数:").pack(side=tk.LEFT, padx=(0, 4))
+        self.max_chars_var = tk.IntVar(value=30)
+        tk.Spinbox(opt_frame, textvariable=self.max_chars_var, from_=10, to=100,
+                   width=6).pack(side=tk.LEFT, padx=(0, 20))
+        tk.Label(opt_frame, text="段间停顿(秒):").pack(side=tk.LEFT, padx=(0, 4))
+        self.gap_var = tk.DoubleVar(value=0.3)
+        tk.Spinbox(opt_frame, textvariable=self.gap_var, from_=0.0, to=2.0,
+                   increment=0.1, format="%.1f", width=6).pack(side=tk.LEFT)
+
+        row += 1
+        tk.Label(tab, text="输出 SRT:").grid(row=row, column=0, padx=10, pady=8, sticky="e")
+        self.output_var = tk.StringVar(value="output.srt")
+        tk.Entry(tab, textvariable=self.output_var, width=50).grid(row=row, column=1, sticky="ew")
+        tk.Button(tab, text="浏览", command=self._select_output).grid(row=row, column=2, padx=10)
+
+        row += 1
+        tk.Button(tab, text="生成 SRT", command=self._generate,
+                  bg="#FF9800", fg="white", width=18, font=("Arial", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, pady=14)
+
+        row += 1
+        self.status_var = tk.StringVar(value="")
+        tk.Label(tab, textvariable=self.status_var, fg="blue", anchor="w").grid(
+            row=row, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
+
+    def _select_audio(self):
         path = filedialog.askopenfilename(
             title="选择音频文件",
-            filetypes=[
-                ("音频文件", "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"),
-                ("MP3 files", "*.mp3"),
-                ("WAV files", "*.wav"),
-                ("所有文件", "*.*")
-            ]
+            filetypes=[("音频文件", "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"), ("所有文件", "*.*")]
         )
+        if path:
+            self.audio_var.set(path)
+            dur = self._get_duration(path)
+            if dur > 0:
+                self.duration_var.set(f"时长：{dur:.2f} 秒")
+            else:
+                self.duration_var.set("无法读取时长")
+
+    def _select_output(self):
+        path = filedialog.asksaveasfilename(
+            title="保存 SRT 文件", defaultextension=".srt",
+            filetypes=[("SRT files", "*.srt"), ("All files", "*.*")]
+        )
+        if path:
+            self.output_var.set(path)
+
+    def _get_duration(self, audio_path):
+        try:
+            result = subprocess.run(
+                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1', audio_path],
+                capture_output=True, text=True, check=True)
+            return float(result.stdout.strip())
+        except Exception:
+            return 0.0
+
+    def _generate(self):
+        audio = self.audio_var.get().strip()
+        if not audio or not os.path.exists(audio):
+            self.status_var.set("请先选择有效的音频文件")
+            return
+        raw = self.text_box.get("1.0", tk.END).strip()
+        if not raw:
+            self.status_var.set("请输入文本内容")
+            return
+        output = self.output_var.get().strip()
+        if not output:
+            self.status_var.set("请指定输出 SRT 路径")
+            return
+
+        duration = self._get_duration(audio)
+        if duration <= 0:
+            self.status_var.set("无法获取音频时长，请检查 ffprobe 是否可用")
+            return
+
+        segments = self._split_to_segments(raw, self.max_chars_var.get())
+        srt_content = self._build_srt(segments, duration, self.gap_var.get())
+
+        with open(output, 'w', encoding='utf-8') as f:
+            f.write(srt_content)
+
+        self.status_var.set(f"完成！共 {len(segments)} 条字幕 → {output}")
+
+    def _split_to_segments(self, raw, max_chars):
+        """将文本分割为字幕段落（支持角色格式和纯文本）"""
+        import re
+        lines = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # 去掉角色名前缀（保留台词）
+            m = re.match(r'^.{1,15}[：:](.+)', line)
+            if m:
+                line = m.group(1).strip()
+            # 按句子分割
+            sentences = re.split(r'(?<=[。！？!?\.…])', line)
+            for s in sentences:
+                s = s.strip()
+                if not s:
+                    continue
+                # 超长句子按 max_chars 切分
+                while len(s) > max_chars:
+                    lines.append(s[:max_chars])
+                    s = s[max_chars:]
+                if s:
+                    lines.append(s)
+        return [l for l in lines if l]
+
+    def _build_srt(self, segments, total_duration, gap):
+        """按字符比例分配时间轴，生成 SRT 字符串"""
+        if not segments:
+            return ""
+        total_chars = sum(len(s) for s in segments)
+        # 总有效时长（扣除段间停顿）
+        total_gap = gap * (len(segments) - 1)
+        speech_time = max(total_duration - total_gap, total_duration * 0.8)
+
+        srt_lines = []
+        cursor = 0.0
+        for i, seg in enumerate(segments):
+            seg_dur = (len(seg) / total_chars) * speech_time
+            start = cursor
+            end = cursor + seg_dur
+            srt_lines.append(f"{i+1}")
+            srt_lines.append(f"{self._fmt_time(start)} --> {self._fmt_time(end)}")
+            srt_lines.append(seg)
+            srt_lines.append("")
+            cursor = end + gap
+        return "\n".join(srt_lines)
+
+    @staticmethod
+    def _fmt_time(seconds):
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = int(seconds % 60)
+        ms = int((seconds % 1) * 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 工具3：音频 + 图片 合成视频
+# ══════════════════════════════════════════════════════════════════════════════
+
+class AudioVideoApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("VideoCraft - 音频合成视频")
+        master.geometry("1000x680")
+        master.resizable(True, True)
+        self._build_ui()
+
+    def _build_ui(self):
+        tab = self.master
+        left_frame = tk.Frame(tab)
+        left_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        right_frame = tk.Frame(tab)
+        right_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        tab.columnconfigure(0, weight=1)
+        tab.columnconfigure(1, weight=1)
+        tab.rowconfigure(0, weight=1)
+
+        # ── 左侧：文件选择 + 视频参数 ──
+        file_frame = tk.LabelFrame(left_frame, text="文件选择", padx=10, pady=10)
+        file_frame.pack(fill="both", padx=5, pady=5)
+
+        tk.Label(file_frame, text="音频文件:").grid(row=0, column=0, padx=5, pady=8, sticky="e")
+        self.audio_path_var = tk.StringVar()
+        tk.Entry(file_frame, textvariable=self.audio_path_var, width=40, state='readonly').grid(
+            row=0, column=1, sticky="ew", padx=5)
+        tk.Button(file_frame, text="选择", command=self._select_audio, width=8).grid(row=0, column=2, padx=5)
+        self.audio_info_var = tk.StringVar(value="未选择音频文件")
+        tk.Label(file_frame, textvariable=self.audio_info_var, fg="gray",
+                 font=("Arial", 8)).grid(row=1, column=1, sticky="w", padx=5)
+
+        tk.Label(file_frame, text="图片文件:").grid(row=2, column=0, padx=5, pady=8, sticky="e")
+        self.image_path_var = tk.StringVar()
+        tk.Entry(file_frame, textvariable=self.image_path_var, width=40, state='readonly').grid(
+            row=2, column=1, sticky="ew", padx=5)
+        tk.Button(file_frame, text="选择", command=self._select_image, width=8).grid(row=2, column=2, padx=5)
+        self.image_info_var = tk.StringVar(value="未选择图片文件")
+        tk.Label(file_frame, textvariable=self.image_info_var, fg="gray",
+                 font=("Arial", 8)).grid(row=3, column=1, sticky="w", padx=5)
+
+        tk.Label(file_frame, text="字幕 SRT:").grid(row=4, column=0, padx=5, pady=8, sticky="e")
+        self.srt_path_var = tk.StringVar()
+        tk.Entry(file_frame, textvariable=self.srt_path_var, width=40, state='readonly').grid(
+            row=4, column=1, sticky="ew", padx=5)
+        tk.Button(file_frame, text="选择", command=self._select_srt, width=8).grid(row=4, column=2, padx=5)
+        tk.Label(file_frame, text="（可选）", fg="gray",
+                 font=("Arial", 8)).grid(row=5, column=1, sticky="w", padx=5)
+
+        tk.Label(file_frame, text="输出视频:").grid(row=6, column=0, padx=5, pady=8, sticky="e")
+        self.video_output_var = tk.StringVar(value="output.mp4")
+        tk.Entry(file_frame, textvariable=self.video_output_var, width=40).grid(
+            row=6, column=1, sticky="ew", padx=5)
+        tk.Button(file_frame, text="浏览", command=self._select_video_output, width=8).grid(
+            row=6, column=2, padx=5)
+        file_frame.columnconfigure(1, weight=1)
+
+        config_frame = tk.LabelFrame(left_frame, text="视频配置", padx=10, pady=10)
+        config_frame.pack(fill="both", padx=5, pady=5)
+
+        tk.Label(config_frame, text="视频方向:", font=("Arial", 9, "bold")).grid(
+            row=0, column=0, padx=5, pady=5, sticky="w")
+        self.orientation_var = tk.StringVar(value="horizontal")
+        ori = tk.Frame(config_frame)
+        ori.grid(row=0, column=1, columnspan=2, sticky="w", padx=5)
+        tk.Radiobutton(ori, text="横屏 (16:9)", variable=self.orientation_var,
+                       value="horizontal", command=self._update_resolution).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(ori, text="竖屏 (9:16)", variable=self.orientation_var,
+                       value="vertical", command=self._update_resolution).pack(side=tk.LEFT, padx=5)
+
+        tk.Label(config_frame, text="分辨率:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.resolution_var = tk.StringVar(value="1920x1080 (1080p)")
+        self.resolution_combo = ttk.Combobox(config_frame, textvariable=self.resolution_var,
+                                              state="readonly", width=30)
+        self._update_resolution()
+        self.resolution_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=5)
+
+        tk.Label(config_frame, text="背景填充色:").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        bg_inner = tk.Frame(config_frame)
+        bg_inner.grid(row=2, column=1, columnspan=2, sticky="w", padx=5)
+        self.bg_color_var = tk.StringVar(value="#000000")
+        tk.Entry(bg_inner, textvariable=self.bg_color_var, width=10, state='readonly').pack(side=tk.LEFT, padx=2)
+        self.bg_preview = tk.Canvas(bg_inner, width=25, height=20, bg="#000000",
+                                     relief=tk.SUNKEN, borderwidth=1)
+        self.bg_preview.pack(side=tk.LEFT, padx=2)
+        tk.Button(bg_inner, text="选择", command=self._choose_bg, width=8).pack(side=tk.LEFT, padx=2)
+
+        tk.Label(config_frame, text="帧率 (FPS):").grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        self.fps_var = tk.StringVar(value="30")
+        ttk.Combobox(config_frame, textvariable=self.fps_var, values=["24", "25", "30", "60"],
+                     state="readonly", width=10).grid(row=3, column=1, sticky="w", padx=5)
+
+        tk.Label(config_frame, text="视频编码:").grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        self.codec_var = tk.StringVar(value="libx264")
+        ttk.Combobox(config_frame, textvariable=self.codec_var,
+                     values=["libx264 (H.264)", "libx265 (H.265/HEVC)", "mpeg4"],
+                     state="readonly", width=25).grid(row=4, column=1, columnspan=2, sticky="w", padx=5)
+
+        # ── 右侧：水印 ──
+        wm_frame = tk.LabelFrame(right_frame, text="水印设置", padx=10, pady=10)
+        wm_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.watermark_enabled_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(wm_frame, text="启用水印", variable=self.watermark_enabled_var,
+                       font=("Arial", 10, "bold")).grid(row=0, column=0, columnspan=3, padx=5, pady=10, sticky="w")
+        tk.Label(wm_frame, text="水印文字:").grid(row=1, column=0, padx=5, pady=8, sticky="e")
+        self.watermark_text_var = tk.StringVar(value="老猿世界观察")
+        tk.Entry(wm_frame, textvariable=self.watermark_text_var, width=32).grid(
+            row=1, column=1, columnspan=2, sticky="ew", padx=5)
+        wm_frame.columnconfigure(1, weight=1)
+        tk.Label(wm_frame, text="文字颜色:").grid(row=2, column=0, padx=5, pady=8, sticky="e")
+        wm_color = tk.Frame(wm_frame)
+        wm_color.grid(row=2, column=1, columnspan=2, sticky="w", padx=5)
+        self.watermark_color_var = tk.StringVar(value="#80ffff")
+        tk.Entry(wm_color, textvariable=self.watermark_color_var, width=10, state='readonly').pack(side=tk.LEFT, padx=2)
+        self.wm_color_preview = tk.Canvas(wm_color, width=25, height=20, bg="#80ffff",
+                                           relief=tk.SUNKEN, borderwidth=1)
+        self.wm_color_preview.pack(side=tk.LEFT, padx=2)
+        tk.Button(wm_color, text="选择", command=self._choose_wm_color, width=8).pack(side=tk.LEFT, padx=2)
+        tk.Label(wm_frame, text="字体:").grid(row=3, column=0, padx=5, pady=8, sticky="e")
+        self.watermark_font_var = tk.StringVar(value="simsun.ttc (宋体)")
+        ttk.Combobox(wm_frame, textvariable=self.watermark_font_var,
+                     values=["arial.ttf", "simhei.ttf (黑体)", "simsun.ttc (宋体)",
+                             "msyh.ttc (微软雅黑)", "simkai.ttf (楷体)"],
+                     width=28).grid(row=3, column=1, columnspan=2, sticky="ew", padx=5)
+        tk.Label(wm_frame, text="透明度:").grid(row=4, column=0, padx=5, pady=8, sticky="e")
+        self.watermark_opacity_var = tk.DoubleVar(value=0.5)
+        tk.Scale(wm_frame, from_=0.1, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
+                 variable=self.watermark_opacity_var, length=240).grid(
+            row=4, column=1, columnspan=2, sticky="ew", padx=5)
+        tk.Label(wm_frame, text="位置:").grid(row=5, column=0, padx=5, pady=8, sticky="e")
+        self.watermark_position_var = tk.StringVar(value="右上角 (topright)")
+        ttk.Combobox(wm_frame, textvariable=self.watermark_position_var,
+                     values=["右上角 (topright)", "左上角 (topleft)",
+                             "右下角 (bottomright)", "左下角 (bottomleft)"],
+                     state="readonly", width=28).grid(row=5, column=1, columnspan=2, sticky="ew", padx=5)
+
+        # ── 底部 ──
+        bottom = tk.Frame(tab)
+        bottom.grid(row=1, column=0, columnspan=2, pady=10)
+        self.generate_btn = tk.Button(bottom, text="合成视频", command=self._start,
+                                      width=25, height=2, bg="#4CAF50", fg="white",
+                                      font=("Arial", 11, "bold"))
+        self.generate_btn.pack(pady=8)
+        self.status_var = tk.StringVar(value="")
+        tk.Label(bottom, textvariable=self.status_var, fg="blue",
+                 font=("Arial", 10)).pack(pady=4)
+
+    def _select_audio(self):
+        path = filedialog.askopenfilename(
+            title="选择音频文件",
+            filetypes=[("音频文件", "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"), ("所有文件", "*.*")])
         if path:
             self.audio_path_var.set(path)
-            # 获取音频信息
-            try:
-                duration = self.get_audio_duration(path)
-                filename = os.path.basename(path)
-                self.audio_info_var.set(f"文件: {filename} | 时长: {duration:.2f} 秒")
-            except Exception as e:
-                self.audio_info_var.set(f"文件: {os.path.basename(path)} | 无法读取时长")
+            dur = self._get_duration(path)
+            self.audio_info_var.set(
+                f"文件: {os.path.basename(path)} | 时长: {dur:.2f} 秒" if dur > 0
+                else f"文件: {os.path.basename(path)}")
 
-    def select_image_file(self):
-        """选择图片文件"""
+    def _select_image(self):
         path = filedialog.askopenfilename(
             title="选择图片文件",
-            filetypes=[
-                ("图片文件", "*.jpg *.jpeg *.png *.bmp *.gif *.webp"),
-                ("JPEG files", "*.jpg *.jpeg"),
-                ("PNG files", "*.png"),
-                ("所有文件", "*.*")
-            ]
-        )
+            filetypes=[("图片文件", "*.jpg *.jpeg *.png *.bmp *.webp"), ("所有文件", "*.*")])
         if path:
             self.image_path_var.set(path)
-            # 获取图片信息
             try:
                 from PIL import Image
                 img = Image.open(path)
-                filename = os.path.basename(path)
-                self.image_info_var.set(f"文件: {filename} | 尺寸: {img.width}x{img.height}")
+                self.image_info_var.set(
+                    f"文件: {os.path.basename(path)} | 尺寸: {img.width}x{img.height}")
             except Exception:
                 self.image_info_var.set(f"文件: {os.path.basename(path)}")
 
-    def select_video_output(self):
-        """选择输出视频文件路径"""
+    def _select_srt(self):
+        path = filedialog.askopenfilename(
+            title="选择字幕文件",
+            filetypes=[("SRT files", "*.srt"), ("所有文件", "*.*")])
+        if path:
+            self.srt_path_var.set(path)
+
+    def _select_video_output(self):
         path = filedialog.asksaveasfilename(
-            title="选择输出视频文件",
-            defaultextension=".mp4",
-            filetypes=[
-                ("MP4 files", "*.mp4"),
-                ("AVI files", "*.avi"),
-                ("MKV files", "*.mkv"),
-                ("所有文件", "*.*")
-            ]
-        )
+            title="输出视频", defaultextension=".mp4",
+            filetypes=[("MP4 files", "*.mp4"), ("所有文件", "*.*")])
         if path:
             self.video_output_var.set(path)
 
-    def on_orientation_change(self):
-        """当视频方向改变时更新分辨率选项"""
-        self.update_resolution_options()
-
-    def update_resolution_options(self):
-        """根据视频方向更新分辨率选项"""
-        orientation = self.orientation_var.get()
-        
-        if orientation == "horizontal":
-            # 横屏 (16:9)
-            resolutions = [
-                "1920x1080 (1080p)",
-                "1280x720 (720p)",
-                "3840x2160 (4K)",
-                "2560x1440 (2K)"
-            ]
+    def _update_resolution(self):
+        if self.orientation_var.get() == "horizontal":
+            opts = ["1920x1080 (1080p)", "1280x720 (720p)", "3840x2160 (4K)", "2560x1440 (2K)"]
             default = "1920x1080 (1080p)"
         else:
-            # 竖屏 (9:16)
-            resolutions = [
-                "1080x1920 (竖屏1080p)",
-                "720x1280 (竖屏720p)",
-                "2160x3840 (竖屏4K)",
-                "1440x2560 (竖屏2K)"
-            ]
+            opts = ["1080x1920 (竖屏1080p)", "720x1280 (竖屏720p)",
+                    "2160x3840 (竖屏4K)", "1440x2560 (竖屏2K)"]
             default = "1080x1920 (竖屏1080p)"
-        
-        self.resolution_combo['values'] = resolutions
-        # 如果当前选择不在新列表中，设置为默认值
-        current = self.resolution_var.get()
-        if current not in resolutions:
+        self.resolution_combo['values'] = opts
+        if self.resolution_var.get() not in opts:
             self.resolution_var.set(default)
 
-    def choose_bg_color(self):
-        """打开调色板选择背景颜色"""
+    def _choose_bg(self):
         from tkinter import colorchooser
-        color = colorchooser.askcolor(title="选择背景填充颜色", initialcolor=self.bg_color_var.get())
-        if color[1]:  # color[1] 是十六进制颜色值
+        color = colorchooser.askcolor(title="背景填充色", initialcolor=self.bg_color_var.get())
+        if color[1]:
             self.bg_color_var.set(color[1])
-            self.bg_color_preview.config(bg=color[1])
+            self.bg_preview.config(bg=color[1])
 
-    def choose_watermark_color(self):
-        """打开调色板选择水印文字颜色"""
+    def _choose_wm_color(self):
         from tkinter import colorchooser
-        color = colorchooser.askcolor(title="选择水印文字颜色", initialcolor=self.watermark_color_var.get())
-        if color[1]:  # color[1] 是十六进制颜色值
+        color = colorchooser.askcolor(title="水印文字颜色", initialcolor=self.watermark_color_var.get())
+        if color[1]:
             self.watermark_color_var.set(color[1])
-            self.watermark_color_preview.config(bg=color[1])
+            self.wm_color_preview.config(bg=color[1])
 
-    def hex_to_ffmpeg_color(self, hex_color):
-        """将十六进制颜色转换为 ffmpeg 可用的格式
-        
-        Args:
-            hex_color: 十六进制颜色，如 "#FF0000" 或 "#F00"
-            
-        Returns:
-            ffmpeg 颜色字符串，格式为 "0xRRGGBB"
-        """
-        # 移除 # 号
-        hex_color = hex_color.lstrip('#')
-        
-        # 处理简写形式 (如 #F00)
-        if len(hex_color) == 3:
-            hex_color = ''.join([c*2 for c in hex_color])
-        
-        # 返回 0xRRGGBB 格式
-        return f"0x{hex_color.upper()}"
-
-    def build_watermark_filter(self, width, height):
-        """构建水印滤镜字符串"""
-        watermark_text = self.watermark_text_var.get().strip()
-        if not watermark_text:
-            return None
-
-        # 获取水印颜色（十六进制格式，如 #FFFFFF）
-        hex_color = self.watermark_color_var.get()
-        # 将十六进制颜色转换为 ffmpeg 使用的格式（去掉 # 号）
-        color = hex_color.lstrip('#')
-
-        # 提取字体
-        font_raw = self.watermark_font_var.get()
-        # 提取字体文件名（如果包含空格，只取第一部分）
-        font = font_raw.split(" ")[0] if " " in font_raw else font_raw
-        
-        # 字体映射：将字体文件名映射为Windows字体名称
-        font_name_mapping = {
-            'simhei.ttf': 'Microsoft YaHei',
-            'simsun.ttc': 'SimSun',
-            'msyh.ttc': 'Microsoft YaHei',
-            'simkai.ttf': 'KaiTi',
-            'arial.ttf': 'Arial'
-        }
-        
-        # 使用字体名称而不是文件路径
-        font_name = font_name_mapping.get(font, 'Microsoft YaHei')
-
-        # 根据分辨率自适应字体大小（基准：1080p = 36px）
-        base_size = 36
-        base_height = 1080
-        font_size = int(base_size * (height / base_height))
-
-        # 获取透明度（转换为0-1范围）
-        opacity = self.watermark_opacity_var.get()
-
-        # 获取位置
-        position_raw = self.watermark_position_var.get()
-        # 从括号中提取英文关键字，例如从 "右上角 (topright)" 提取 "topright"
-        if '(' in position_raw and ')' in position_raw:
-            position = position_raw.split('(')[1].split(')')[0]
-        else:
-            position = position_raw
-
-        # 计算边距（自适应分辨率）
-        margin = int(30 * (height / base_height))
-
-        # 根据位置设置坐标
-        if position == "topright":
-            x = f"w-tw-{margin}"
-            y = str(margin)
-        elif position == "topleft":
-            x = str(margin)
-            y = str(margin)
-        elif position == "bottomright":
-            x = f"w-tw-{margin}"
-            y = f"h-th-{margin}"
-        elif position == "bottomleft":
-            x = str(margin)
-            y = f"h-th-{margin}"
-        else:
-            # 默认右上角
-            x = f"w-tw-{margin}"
-            y = str(margin)
-
-        # 构建drawtext滤镜（参考SubtitleTool.py的实现）
-        # 转义特殊字符
-        escaped_text = watermark_text.replace(":", "\\:").replace("'", "")
-        
-        filter_str = (
-            f"drawtext=text='{escaped_text}':"
-            f"fontcolor={color}@{opacity}:"
-            f"fontsize={font_size}:"
-            f"font='{font_name}':"
-            f"x={x}:y={y}:"
-            f"borderw=2:bordercolor=black"
-        )
-
-        return filter_str
-
-    def get_audio_duration(self, audio_path):
-        """获取音频时长（使用 ffprobe）"""
+    def _get_duration(self, path):
         try:
-            cmd = [
-                'ffprobe',
-                '-v', 'error',
-                '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                audio_path
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1', path],
+                capture_output=True, text=True, check=True)
             return float(result.stdout.strip())
-        except Exception as e:
-            print(f"获取音频时长失败: {e}")
+        except Exception:
             return 0.0
 
-    def update_resolution_options(self):
-        """根据视频方向更新分辨率选项"""
-        orientation = self.orientation_var.get()
-        
-        if orientation == "horizontal":
-            # 横屏 (16:9)
-            resolutions = [
-                "1920x1080 (1080p)",
-                "1280x720 (720p)",
-                "3840x2160 (4K)",
-                "2560x1440 (2K)",
-                "自定义"
-            ]
-            default = "1920x1080 (1080p)"
-        else:
-            # 竖屏 (9:16)
-            resolutions = [
-                "1080x1920 (竖屏1080p)",
-                "720x1280 (竖屏720p)",
-                "2160x3840 (竖屏4K)",
-                "1440x2560 (竖屏2K)",
-                "自定义"
-            ]
-            default = "1080x1920 (竖屏1080p)"
-        
-        self.resolution_combo['values'] = resolutions
-        # 如果当前选择不在新列表中，设置为默认值
-        if self.resolution_var.get() not in resolutions:
-            self.resolution_var.set(default)
+    def _start(self):
+        audio = self.audio_path_var.get()
+        image = self.image_path_var.get()
+        output = self.video_output_var.get()
+        mb = __import__('tkinter').messagebox
+        if not audio or not os.path.exists(audio):
+            mb.showerror("错误", "请选择有效的音频文件"); return
+        if not image or not os.path.exists(image):
+            mb.showerror("错误", "请选择有效的图片文件"); return
+        if not output:
+            mb.showerror("错误", "请指定输出视频文件路径"); return
+        self.generate_btn.config(state="disabled")
+        self.status_var.set("正在生成视频...")
+        threading.Thread(target=self._generate,
+                         args=(audio, image, output), daemon=True).start()
 
-    def get_audio_duration(self, audio_path):
-        """获取音频时长（使用 ffprobe）"""
+    def _generate(self, audio, image, output):
         try:
-            cmd = [
-                'ffprobe',
-                '-v', 'error',
-                '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                audio_path
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            return float(result.stdout.strip())
-        except Exception as e:
-            print(f"获取音频时长失败: {e}")
-            return 0.0
-
-    def start_video_generation(self):
-        """开始生成视频"""
-        audio_path = self.audio_path_var.get()
-        image_path = self.image_path_var.get()
-        output_path = self.video_output_var.get()
-
-        # 验证输入
-        if not audio_path or not os.path.exists(audio_path):
-            messagebox.showerror("错误", "请选择有效的音频文件")
-            return
-
-        if not image_path or not os.path.exists(image_path):
-            messagebox.showerror("错误", "请选择有效的图片文件")
-            return
-
-        if not output_path:
-            messagebox.showerror("错误", "请指定输出视频文件路径")
-            return
-
-        self.generate_video_btn.config(state="disabled")
-        self.video_status_var.set("正在生成视频...")
-
-        # 在后台线程中生成视频
-        thread = threading.Thread(target=self.generate_video, args=(audio_path, image_path, output_path))
-        thread.daemon = True
-        thread.start()
-
-    def generate_video(self, audio_path, image_path, output_path):
-        """生成视频（后台线程）"""
-        try:
-            # 解析参数
-            resolution_raw = self.resolution_var.get()
-            if resolution_raw == "自定义":
-                messagebox.showerror("错误", "请选择具体的分辨率，暂不支持自定义")
-                self.generate_video_btn.config(state="normal")
-                self.video_status_var.set("")
-                return
-            # 提取分辨率（格式: "1920x1080 (1080p)" 或 "1920x1080"）
-            resolution_str = resolution_raw.split(" ")[0]
-            width, height = map(int, resolution_str.split('x'))
+            res_str = self.resolution_var.get().split(" ")[0]
+            width, height = map(int, res_str.split('x'))
             fps = int(self.fps_var.get())
-            codec_str = self.codec_var.get().split(" ")[0]
+            codec = self.codec_var.get().split(" ")[0]
+            bg = self._hex_to_ffmpeg(self.bg_color_var.get())
 
-            self.video_status_var.set("正在使用 ffmpeg 合成视频...")
-
-            # 获取背景色
-            bg_color = self.hex_to_ffmpeg_color(self.bg_color_var.get())
-
-            # 构建视频滤镜链
-            # 1. scale: 将图片缩放至适合目标分辨率（保持宽高比）
-            # 2. pad: 用背景色填充到目标分辨率
-            video_filters = [
+            vf = [
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease",
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color={bg_color}"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color={bg}",
             ]
-
-            # 如果启用水印，添加水印滤镜
             if self.watermark_enabled_var.get():
-                watermark_filter = self.build_watermark_filter(width, height)
-                if watermark_filter:
-                    video_filters.append(watermark_filter)
-            
-            # 组合所有滤镜
-            filter_complex = ",".join(video_filters)
+                wf = self._build_watermark(width, height)
+                if wf:
+                    vf.append(wf)
 
-            # 构建 ffmpeg 命令
-            cmd = [
-                'ffmpeg',
-                '-loop', '1',  # 循环图片
-                '-i', image_path,  # 输入图片
-                '-i', audio_path,  # 输入音频
-                '-vf', filter_complex,  # 视频滤镜
-                '-c:v', codec_str,  # 视频编码
-                '-c:a', 'aac',  # 音频编码
-                '-b:a', '192k',  # 音频比特率
-                '-shortest',  # 以最短流为准（音频结束视频就结束）
-                '-r', str(fps),  # 帧率
-                '-pix_fmt', 'yuv420p',  # 像素格式（兼容性好）
-                '-y',  # 覆盖输出文件
-                output_path
-            ]
+            cmd = ['ffmpeg', '-loop', '1', '-i', image, '-i', audio]
 
-            # 执行命令
-            print(f"\n{'='*60}")
-            print(f"FFmpeg 命令:")
-            print(f"{'='*60}")
-            for i, arg in enumerate(cmd):
-                if arg.startswith('drawtext'):
-                    print(f"[{i}] {arg[:100]}...")  # 水印滤镜可能很长，截断显示
-                else:
-                    print(f"[{i}] {arg}")
-            print(f"{'='*60}\n")
-            
-            process = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            srt = self.srt_path_var.get().strip()
+            if srt and os.path.exists(srt):
+                # 用 subtitles 滤镜烧录 SRT
+                srt_escaped = srt.replace('\\', '/').replace(':', '\\:')
+                vf.append(f"subtitles='{srt_escaped}'")
 
-            self.video_status_var.set(f"生成完成！文件已保存: {output_path}")
-            messagebox.showinfo("成功", f"视频文件已保存到:\n{output_path}")
+            cmd += ['-vf', ",".join(vf),
+                    '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
+                    '-shortest', '-r', str(fps), '-pix_fmt', 'yuv420p', '-y', output]
 
-        except subprocess.CalledProcessError as e:
-            error_msg = f"ffmpeg 错误: {e.stderr}"
-            print(f"错误详情: {error_msg}")
-            self.video_status_var.set("生成失败")
-            messagebox.showerror("错误", f"视频生成失败:\n{error_msg[:200]}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr)
+            self.status_var.set(f"完成！已保存：{output}")
+            __import__('tkinter').messagebox.showinfo("成功", f"视频已保存到：\n{output}")
         except Exception as e:
-            error_msg = f"生成失败: {str(e)}"
-            print(f"错误详情: {error_msg}")
-            self.video_status_var.set("生成失败")
-            messagebox.showerror("错误", error_msg)
+            self.status_var.set("生成失败")
+            __import__('tkinter').messagebox.showerror("错误", f"视频生成失败：\n{e}")
         finally:
-            self.generate_video_btn.config(state="normal")
+            self.generate_btn.config(state="normal")
 
-def text_to_speech_with_gemini_tts(input_text, output_file="output.mp3", params=None):
-    """
-    使用 Gemini-TTS 生成语音（使用服务账户凭据）
-    
-    Args:
-        input_text: 要转换的文本
-        output_file: 输出文件路径
-        params: 参数字典，包含 model_name, voice_name, lang_code, style_prompt, speaking_rate, pitch, volume_gain_db, audio_format
-    """
-    try:
-        # 设置默认参数
-        if params is None:
-            params = {
-                'model_name': 'gemini-2.5-flash-tts',
-                'voice_name': 'Kore',
-                'lang_code': 'cmn-CN',
-                'style_prompt': '',
-                'speaking_rate': 1.0,
-                'pitch': 0.0,
-                'volume_gain_db': 0.0,
-                'audio_format': 'MP3'
-            }
-        
-        # 读取配置文件 - 从keys文件夹加载
-        # 获取当前脚本所在目录的父目录下的keys文件夹
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file = os.path.join(os.path.dirname(script_dir), 'keys', 'google_cloud_config.json')
-        if not os.path.exists(config_file):
-            raise FileNotFoundError(f"配置文件 {config_file} 不存在")
-        
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        
-        # 判断配置文件是服务账户密钥本身还是指向密钥文件
-        if 'type' in config and config.get('type') == 'service_account':
-            # 配置文件本身就是服务账户密钥
-            credentials = service_account.Credentials.from_service_account_info(config)
-            client = texttospeech.TextToSpeechClient(credentials=credentials)
-        else:
-            # 配置文件中指定了密钥文件路径
-            key_path = config.get('service_account_key_path', config_file)
-            if not os.path.isabs(key_path):
-                # 相对路径基于配置文件所在目录（项目根目录）
-                key_path = os.path.join(os.path.dirname(script_dir), key_path)
-            
-            if not os.path.exists(key_path):
-                raise FileNotFoundError(f"服务账户密钥文件不存在: {key_path}")
-            
-            credentials = service_account.Credentials.from_service_account_file(key_path)
-            client = texttospeech.TextToSpeechClient(credentials=credentials)
+    def _hex_to_ffmpeg(self, hex_color):
+        h = hex_color.lstrip('#')
+        if len(h) == 3:
+            h = ''.join(c*2 for c in h)
+        return f"0x{h.upper()}"
 
-        # Gemini-TTS 输入（支持 text 和 prompt）
-        synthesis_input = texttospeech.SynthesisInput(
-            text=input_text,
-            prompt=params.get('style_prompt', '') if params.get('style_prompt') else None
-        )
-
-        # 设置 Gemini-TTS 声音参数
-        voice = texttospeech.VoiceSelectionParams(
-            language_code=params['lang_code'],
-            name=params['voice_name'],
-            model_name=params['model_name']  # Gemini-TTS 必须指定 model_name
-        )
-
-        # 音频编码格式映射
-        audio_encoding_map = {
-            'MP3': texttospeech.AudioEncoding.MP3,
-            'WAV': texttospeech.AudioEncoding.LINEAR16,
-            'OGG_OPUS': texttospeech.AudioEncoding.OGG_OPUS
+    def _build_watermark(self, _width, height):
+        text = self.watermark_text_var.get().strip()
+        if not text:
+            return None
+        color = self.watermark_color_var.get().lstrip('#')
+        font_raw = self.watermark_font_var.get()
+        font = font_raw.split(" ")[0] if " " in font_raw else font_raw
+        font_map = {'simhei.ttf': 'Microsoft YaHei', 'simsun.ttc': 'SimSun',
+                    'msyh.ttc': 'Microsoft YaHei', 'simkai.ttf': 'KaiTi', 'arial.ttf': 'Arial'}
+        font_name = font_map.get(font, 'Microsoft YaHei')
+        font_size = int(36 * height / 1080)
+        opacity = self.watermark_opacity_var.get()
+        pos_raw = self.watermark_position_var.get()
+        pos = pos_raw.split('(')[1].split(')')[0] if '(' in pos_raw else pos_raw
+        margin = int(30 * height / 1080)
+        coords = {
+            "topright":    (f"w-tw-{margin}", str(margin)),
+            "topleft":     (str(margin), str(margin)),
+            "bottomright": (f"w-tw-{margin}", f"h-th-{margin}"),
+            "bottomleft":  (str(margin), f"h-th-{margin}"),
         }
+        x, y = coords.get(pos, coords["topright"])
+        escaped = text.replace(":", "\\:").replace("'", "")
+        return (f"drawtext=text='{escaped}':fontcolor={color}@{opacity}:"
+                f"fontsize={font_size}:font='{font_name}':x={x}:y={y}:"
+                f"borderw=2:bordercolor=black")
 
-        # 设置音频配置，包含语速、音调、音量增益
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=audio_encoding_map.get(params['audio_format'], texttospeech.AudioEncoding.MP3),
-            speaking_rate=params['speaking_rate'],
-            pitch=params['pitch'],
-            volume_gain_db=params['volume_gain_db']
-        )
 
-        response = client.synthesize_speech(
-            input=synthesis_input, voice=voice, audio_config=audio_config
-        )
+# ── 兼容旧入口（Hub 直接引用 Text2VideoApp 时不报错）──────────────────────────
+Text2VideoApp = TTSApp
 
-        with open(output_file, "wb") as out:
-            out.write(response.audio_content)
-
-        print(f"语音文件已保存到: {output_file}")
-    
-    except Exception as e:
-        print(f"生成语音时出错: {e}")
-        import traceback
-        traceback.print_exc()
-        raise
 
 if __name__ == "__main__":
+    import sys
+    tool = sys.argv[1] if len(sys.argv) > 1 else "tts"
     root = tk.Tk()
-    app = Text2VideoApp(root)
+    if tool == "srt":
+        SRTFromTextApp(root)
+    elif tool == "video":
+        AudioVideoApp(root)
+    else:
+        TTSApp(root)
     root.mainloop()
