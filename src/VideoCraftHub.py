@@ -34,6 +34,7 @@ TOOL_MAP = {
     "speech2text": {"file": "Speech2Text-lemonfoxAPI-Online.py", "class": "Speech2TextApp"},
     "translate":   {"file": "Translate-srt-gemini.py",          "class": "TranslateApp"},
     "subtitle":    {"file": "SubtitleTool.py",                   "class": "SubtitleToolApp"},
+    "word-subtitle": {"file": "WordSubtitleTool.py",             "class": "WordSubtitleApp"},
     "srttools":               {"file": "SrtTools.py", "class": "YouTubeSegmentsApp"},
     "srt-extract-subtitles":  {"file": "SrtTools.py", "class": "SrtExtractSubtitlesApp"},
     "srt-gen-segments":       {"file": "SrtTools.py", "class": "SrtGenerateSegmentsApp"},
@@ -116,6 +117,8 @@ class VideoCraftHub:
         menubar.add_cascade(label="视频", menu=vid_menu)
         vid_menu.add_command(label="字幕烧录",
                              command=lambda: self.open_tool("subtitle"))
+        vid_menu.add_command(label="逐字字幕",
+                             command=lambda: self.open_tool("word-subtitle"))
         vid_menu.add_command(label="视频分段",
                              command=lambda: self.open_tool("splitvideo"))
         vid_menu.add_separator()
@@ -335,7 +338,55 @@ class VideoCraftHub:
                 command=lambda o=op, fp=file_path: self._run_operation(o, fp)
             )
 
+        menu.add_separator()
+        menu.add_command(
+            label="删除",
+            command=lambda fp=file_path: self._delete_item(fp)
+        )
+
         menu.tk_popup(event.x_root, event.y_root)
+
+    def _delete_item(self, file_path: str):
+        name = os.path.basename(file_path)
+        kind = "文件夹" if os.path.isdir(file_path) else "文件"
+        confirmed = messagebox.askyesno(
+            "确认删除",
+            f"将 {kind} 移至回收站：\n\n{name}\n\n确定吗？",
+            default="no"
+        )
+        if not confirmed:
+            return
+        try:
+            import send2trash
+            send2trash.send2trash(file_path)
+        except ImportError:
+            # send2trash 未安装，回退到 Windows Shell API
+            import ctypes
+            from ctypes import wintypes
+            class SHFILEOPSTRUCT(ctypes.Structure):
+                _fields_ = [
+                    ("hwnd",    wintypes.HWND),
+                    ("wFunc",   ctypes.c_uint),
+                    ("pFrom",   ctypes.c_wchar_p),
+                    ("pTo",     ctypes.c_wchar_p),
+                    ("fFlags",  ctypes.c_ushort),
+                    ("fAnyOperationsAborted", wintypes.BOOL),
+                    ("hNameMappings", ctypes.c_void_p),
+                    ("lpszProgressTitle", ctypes.c_wchar_p),
+                ]
+            FO_DELETE  = 0x0003
+            FOF_ALLOWUNDO      = 0x0040
+            FOF_NOCONFIRMATION = 0x0010
+            FOF_SILENT         = 0x0004
+            op = SHFILEOPSTRUCT()
+            op.wFunc  = FO_DELETE
+            op.pFrom  = file_path + "\0"
+            op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT
+            ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
+        except Exception as e:
+            messagebox.showerror("删除失败", str(e))
+            return
+        self.refresh_sidebar()
 
     def _run_operation(self, op, file_path: str):
         if op.handler in ("quick", "common"):

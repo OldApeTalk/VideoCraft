@@ -262,7 +262,11 @@ class Speech2TextApp:
 
         self.translate_var = tk.BooleanVar()
         tk.Checkbutton(f, text="自动将识别的字幕转换为英语",
-                       variable=self.translate_var).pack(pady=5)
+                       variable=self.translate_var).pack(pady=(5, 0))
+
+        self.speaker_var = tk.BooleanVar()
+        tk.Checkbutton(f, text="说话人区分（Speaker Labels）",
+                       variable=self.speaker_var).pack(pady=(0, 5))
 
         tk.Button(f, text="转录为 SRT", command=self._transcribe_audio,
                   width=20, bg="#0078d4", fg="white").pack(pady=10)
@@ -321,12 +325,17 @@ class Speech2TextApp:
         self.master.update_idletasks()
 
     def _verbose_json_to_srt(self, data: dict) -> str:
-        """将 verbose_json 响应的 segments 转换为 SRT 格式字符串。"""
+        """将 verbose_json 响应的 segments 转换为 SRT 格式字符串。
+        若 segment 含 speaker 字段（说话人区分模式），文本前置 [SPEAKER_xx]。
+        """
         lines = []
         for i, seg in enumerate(data.get("segments", []), 1):
-            start = format_timestamp(seg["start"])
-            end   = format_timestamp(seg["end"])
-            text  = seg["text"].strip()
+            start   = format_timestamp(seg["start"])
+            end     = format_timestamp(seg["end"])
+            text    = seg["text"].strip()
+            speaker = seg.get("speaker", "")
+            if speaker:
+                text = f"[{speaker}] {text}"
             lines.append(f"{i}\n{start} --> {end}\n{text}\n")
         return "\n".join(lines)
 
@@ -365,11 +374,17 @@ class Speech2TextApp:
             file_ext = os.path.splitext(mp3_path)[1].lower()
             mime_type = "video/mp4" if file_ext == ".mp4" else "audio/mpeg"
             files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
-            data  = {"response_format": "verbose_json"}
+            data  = [
+                ("response_format", "verbose_json"),
+                ("timestamp_granularities[]", "segment"),
+                ("timestamp_granularities[]", "word"),
+            ]
             if api_lang:
-                data["language"] = api_lang
+                data.append(("language", api_lang))
             if self.translate_var.get():
-                data["translate_to_english"] = True
+                data.append(("translate_to_english", "true"))
+            if self.speaker_var.get():
+                data.append(("speaker_labels", "true"))
 
             response = requests.post(url, headers=headers, data=data, files=files)
             if not response.ok:
@@ -429,6 +444,9 @@ class Speech2TextApp:
             self._log(f"SRT 已生成：{srt_path}\n")
             self._log(f"音频时长：{result.get('duration', '?')} 秒\n")
             self._log(f"段落数：{len(result.get('segments', []))}\n")
+            word_count = len(result.get("words", []))
+            if word_count:
+                self._log(f"逐字时间戳数：{word_count}（已保存至 .json）\n")
             logger.info(f"语音转字幕完成 → {os.path.basename(srt_path)}")
 
         except Exception as e:
