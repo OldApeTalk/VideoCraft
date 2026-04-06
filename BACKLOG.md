@@ -43,6 +43,16 @@
 
 | 完成时间 | 功能 | 备注 |
 |---------|------|------|
+| 2026-04 | 每日要闻合成模块（DailyNewsApp） | PIL像素级自动换行、ffmpeg滚屏叠加、9:16/16:9分辨率选择、字幕背景透明度、可编辑水印 |
+| 2026-04 | Speech2Text verbose_json 模式 | 同时保存 .json + .srt；自动检测语言；文件名附ISO语言码；语言不匹配时 Hub 警告 |
+| 2026-04 | 统一文件命名规范 | 下载文件：`{short}_{date}[_{quality}].{ext}`；SRT：`_{lang}.srt`；烧录后：`_sub_{lang}.mp4` |
+| 2026-04 | yt-dlp 文件名截断优化 | 原标题 >20 字符显示为「前10…后10」，左侧资源栏可读 |
+| 2026-04 | yt-dlp 传入 project folder | Hub 打开 yt-dlp 工具时自动填入当前项目目录 |
+| 2026-04 | SubtitleTool 单语字幕烧录 | 仅选中一条轨道也可正常烧录；修复 output_path 赋值顺序 bug |
+| 2026-04 | SRT 编码自动识别 | `read_srt()` 回退链：utf-8-sig → utf-8 → gbk → gb2312 → big5 → latin-1，全工具统一 |
+| 2026-04 | Hub 全屏启动 + 侧边栏加宽 | 启动即 zoomed 全屏；侧边栏 200→320px |
+| 2026-04 | ASR 默认语言改为英文 | 原为中文，大多数转录场景为英文内容 |
+| 2026-04 | 媒体格式模块设计规范 | `docs/design/10-media-format-modules.md`；每种节目形态一个独立 class |
 | 2026-04 | GitHub Actions CI/CD 打包发布 | tag 触发自动构建，生成 portable zip |
 | 2026-04 | README 重写（中文，面向用户） | 三部分：介绍 / 安装 / 功能 |
 | 2026-04 | 产品战略设计文档 | `docs/design/08-product-strategy.md` |
