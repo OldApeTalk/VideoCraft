@@ -1,8 +1,13 @@
 import tkinter as tk
 from tkinter import filedialog, ttk
 import os
+import sys
 import srt
 from hub_logger import logger
+_SRC = os.path.dirname(os.path.abspath(__file__))
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+from core.subtitle_ops import read_srt
 import re
 import time
 import asyncio
@@ -350,8 +355,7 @@ Return the translated subtitles in the same special 【number】 format with {{b
         
         # 读取SRT
         try:
-            with open(srt_path, 'r', encoding='utf-8') as f:
-                subs = list(srt.parse(f))
+            subs = list(srt.parse(read_srt(srt_path)))
         except Exception as e:
             logger.error(f"解析SRT文件失败: {e}")
             self.status_var.set(f"⚠ 解析SRT失败: {e}")

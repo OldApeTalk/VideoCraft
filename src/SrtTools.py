@@ -13,6 +13,7 @@ _SRC = os.path.dirname(os.path.abspath(__file__))
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 from core import srt_ops
+from core.subtitle_ops import read_srt
 
 # ===================== AI Router (统一路由) =====================
 # AI 调用统一由 ai_router.router 处理，档位配置见 AI Router 管理界面
@@ -36,8 +37,7 @@ def generate_youtube_segments(srt_path, prompt=None, tier=None):
     if not os.path.exists(srt_path):
         raise FileNotFoundError(f'SRT文件 \'{srt_path}\' 不存在')
 
-    with open(srt_path, 'r', encoding='utf-8') as f:
-        subs = list(srt.parse(f))
+    subs = list(srt.parse(read_srt(srt_path)))
 
     if not subs:
         raise ValueError('SRT文件为空或格式错误')
@@ -103,11 +103,10 @@ def extract_paragraphs_from_segments(srt_path, segments_path):
         str: 提取的段落内容
     """
     # 读取并解析SRT文件
-    with open(srt_path, 'r', encoding='utf-8') as f:
-        subs = list(srt.parse(f))
+    subs = list(srt.parse(read_srt(srt_path)))
 
     # 读取时间戳分割文件
-    with open(segments_path, 'r', encoding='utf-8') as f:
+    with open(segments_path, 'r', encoding='utf-8', errors='replace') as f:
         segments_lines = f.readlines()
 
     # 解析时间戳分割
@@ -189,7 +188,7 @@ def generate_video_titles(subs_path, prompt, tier=None):
         str: 生成的标题内容
     """
     # 读取subs文件内容
-    with open(subs_path, 'r', encoding='utf-8') as f:
+    with open(subs_path, 'r', encoding='utf-8', errors='replace') as f:
         subs_content = f.read()
 
     # 构建完整的prompt
@@ -214,8 +213,7 @@ def extract_all_subtitles(srt_path):
         str: 提取的字幕文字，每行一条
     """
     # 读取并解析SRT文件
-    with open(srt_path, 'r', encoding='utf-8') as f:
-        subs = list(srt.parse(f))
+    subs = list(srt.parse(read_srt(srt_path)))
 
     # 提取所有字幕文字
     subtitles_text = ""

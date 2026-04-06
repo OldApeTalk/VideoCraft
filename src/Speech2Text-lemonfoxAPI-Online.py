@@ -254,7 +254,7 @@ class Speech2TextApp:
 
         # 语言
         tk.Label(f, text="识别语言:").pack(pady=(8, 2))
-        self.combo_language = tk.StringVar(value=language_options[0])
+        self.combo_language = tk.StringVar(value="English (英语)")
         self.combo_language.trace_add("write", lambda *_: self._auto_fill_output())
         combo_menu = ttk.Combobox(f, textvariable=self.combo_language,
                                   values=language_options, state="readonly", width=50)
@@ -320,63 +320,115 @@ class Speech2TextApp:
         self.log_text.see(tk.END)
         self.master.update_idletasks()
 
+    def _verbose_json_to_srt(self, data: dict) -> str:
+        """将 verbose_json 响应的 segments 转换为 SRT 格式字符串。"""
+        lines = []
+        for i, seg in enumerate(data.get("segments", []), 1):
+            start = format_timestamp(seg["start"])
+            end   = format_timestamp(seg["end"])
+            text  = seg["text"].strip()
+            lines.append(f"{i}\n{start} --> {end}\n{text}\n")
+        return "\n".join(lines)
+
     def _transcribe_audio(self):
-        """执行转录并生成原始SRT（不拆分）"""
+        """调用 verbose_json，同时保存 .json 和 .srt 两个文件。"""
+        import json as _json
         mp3_path = self.entry_mp3_path.get()
         selected_language = self.combo_language.get()
         api_key = router.get_asr_key("lemonfox")
 
         if not mp3_path or not os.path.exists(mp3_path):
-            self._log("⚠ 请选择有效的MP3文件。\n")
+            self._log("⚠ 请选择有效的音视频文件。\n")
             return
-
         if not api_key:
             self._log("⚠ LemonFox API Key 未配置，请在 AI Router 管理界面中设置。\n")
             logger.warning("LemonFox API Key 未配置")
             return
-
-        # 解析语言
-        if selected_language.startswith("Auto Detect"):
-            api_lang = None
-        else:
-            eng_name = selected_language.split(" (")[0].lower()
-            api_lang = eng_name
 
         srt_path = self.entry_srt_path.get().strip()
         if not srt_path:
             self._log("⚠ 请指定输出 SRT 文件路径。\n")
             return
 
-        try:
-            self._log("开始调用API进行转录...\n")
+        # 解析语言参数
+        if selected_language.startswith("Auto Detect"):
+            api_lang = None
+        else:
+            eng_name = selected_language.split(" (")[0].lower()
+            api_lang = eng_name
 
-            url = "https://api.lemonfox.ai/v1/audio/transcriptions"
+        try:
+            self._log("开始调用 API（verbose_json 模式）...\n")
+
+            url     = "https://api.lemonfox.ai/v1/audio/transcriptions"
             headers = {"Authorization": f"Bearer {api_key}"}
             file_ext = os.path.splitext(mp3_path)[1].lower()
             mime_type = "video/mp4" if file_ext == ".mp4" else "audio/mpeg"
             files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
-            data = {"response_format": "srt"}
+            data  = {"response_format": "verbose_json"}
             if api_lang:
                 data["language"] = api_lang
             if self.translate_var.get():
                 data["translate_to_english"] = True
 
             response = requests.post(url, headers=headers, data=data, files=files)
-
             if not response.ok:
                 raise Exception(f"API错误：{response.status_code} - {response.text}")
 
-            raw_srt_content = response.text
-            self._log(f"Raw SRT content from API (first 200 chars): {raw_srt_content[:200]}\n")
+            result = response.json()
 
-            srt_content = clean_srt_content(raw_srt_content)
-            self._log(f"Cleaned SRT content (first 200 chars): {srt_content[:200]}\n")
-            self._log("转录完成。生成SRT文件...\n")
+            # 拿到实际识别语言
+            detected_lang = result.get("language", "")  # Whisper 返回英文名，如 "english"
+            if detected_lang:
+                iso_detected = next(
+                    (code for code, (e, _) in language_dict.items()
+                     if e.lower() == detected_lang.lower()),
+                    detected_lang[:2].lower()
+                )
+                self._log(f"检测到语言：{detected_lang} → ISO: {iso_detected}\n")
 
-            with open(srt_path, "w", encoding="utf-8", newline='') as f:
-                f.write(srt_content)
+                # 判断是否需要重命名：
+                # 1. Auto Detect 模式（srt_path 含 _auto）
+                # 2. 指定了语言，但实际检测结果与选择不一致
+                is_auto = selected_language.startswith("Auto Detect")
+                iso_selected = api_lang[:2] if api_lang else None  # 已是小写英文名前两字母，粗略比较
+                # 更精确：从 language_dict 反查选择语言的 ISO 码
+                if not is_auto and api_lang:
+                    iso_selected = next(
+                        (code for code, (e, _) in language_dict.items()
+                         if e.lower() == api_lang.lower()),
+                        api_lang[:2].lower()
+                    )
+                mismatch = (not is_auto) and iso_selected and (iso_selected != iso_detected)
 
-            self._log(f"原始SRT文件已生成：{srt_path}\n")
+                if is_auto or mismatch:
+                    if mismatch:
+                        self._log(f"⚠ 选择语言({iso_selected}) 与检测结果({iso_detected})不符，按实际语言命名。\n")
+                        logger.warning(f"语言不一致：选择 {iso_selected}，实际检测为 {iso_detected}，文件已按实际语言命名")
+                    base_no_lang = srt_path
+                    # 去掉原有语言后缀（_auto 或 _xx）
+                    import re as _re
+                    base_no_lang = _re.sub(r'_[a-z]{2,5}(\.srt)$', r'\1', srt_path)
+                    new_srt = base_no_lang[:-4] + f"_{iso_detected}.srt"
+                    self.entry_srt_path.delete(0, tk.END)
+                    self.entry_srt_path.insert(0, new_srt)
+                    srt_path = new_srt
+
+            # 保存 verbose_json 原始文件
+            json_path = os.path.splitext(srt_path)[0] + ".json"
+            with open(json_path, "w", encoding="utf-8") as jf:
+                _json.dump(result, jf, ensure_ascii=False, indent=2)
+            self._log(f"verbose_json 已保存：{json_path}\n")
+
+            # 从 segments 组装 SRT
+            srt_content = self._verbose_json_to_srt(result)
+            srt_content = clean_srt_content(srt_content)
+            with open(srt_path, "w", encoding="utf-8", newline='') as sf:
+                sf.write(srt_content)
+
+            self._log(f"SRT 已生成：{srt_path}\n")
+            self._log(f"音频时长：{result.get('duration', '?')} 秒\n")
+            self._log(f"段落数：{len(result.get('segments', []))}\n")
             logger.info(f"语音转字幕完成 → {os.path.basename(srt_path)}")
 
         except Exception as e:

@@ -61,6 +61,7 @@ class VideoCraftHub:
         self.root.title("VideoCraft")
         self.root.geometry("900x600")
         self.root.minsize(600, 400)
+        self.root.state("zoomed")   # 启动最大化
 
         self.project: Project | None = None
         self._recent_menu: tk.Menu | None = None
@@ -188,7 +189,7 @@ class VideoCraftHub:
         self._pane.pack(fill="both", expand=True)
 
         # ── 左：Sidebar ──
-        sidebar_frame = tk.Frame(self._pane, width=200, bg="#f5f5f5")
+        sidebar_frame = tk.Frame(self._pane, width=320, bg="#f5f5f5")
         sidebar_frame.pack_propagate(False)
         self._pane.add(sidebar_frame, weight=0)
 

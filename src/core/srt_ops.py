@@ -7,6 +7,7 @@ core/srt_ops.py - SRT 字幕纯逻辑操作
 import os
 import re
 import srt
+from core.subtitle_ops import read_srt
 
 
 def extract_text(srt_path: str, output_path: str = None,
@@ -22,8 +23,7 @@ def extract_text(srt_path: str, output_path: str = None,
     if progress_callback:
         progress_callback("读取字幕文件...")
 
-    with open(srt_path, "r", encoding="utf-8-sig") as f:
-        content = f.read()
+    content = read_srt(srt_path)
 
     # 去除序号行（纯数字）、时间轴行（含 --> ）、空行
     lines = content.splitlines()
@@ -57,8 +57,7 @@ def get_stats(srt_path: str) -> dict:
     返回字幕统计信息：
     {"count": int, "duration_sec": float, "has_chinese": bool}
     """
-    with open(srt_path, "r", encoding="utf-8-sig") as f:
-        content = f.read()
+    content = read_srt(srt_path)
 
     lines = content.splitlines()
     count = 0
@@ -95,8 +94,7 @@ def generate_youtube_segments(srt_path, prompt=None, tier=None):
     if not os.path.exists(srt_path):
         raise FileNotFoundError(f'SRT文件 \'{srt_path}\' 不存在')
 
-    with open(srt_path, 'r', encoding='utf-8') as f:
-        subs = list(srt.parse(f))
+    subs = list(srt.parse(read_srt(srt_path)))
 
     if not subs:
         raise ValueError('SRT文件为空或格式错误')
@@ -146,11 +144,9 @@ xx:xx 标题
 
 def extract_paragraphs_from_segments(srt_path, segments_path):
     """根据时间戳分割文件从SRT字幕中提取段落内容，返回格式化文本。"""
-    with open(srt_path, 'r', encoding='utf-8') as f:
-        subs = list(srt.parse(f))
+    subs = list(srt.parse(read_srt(srt_path)))
 
-    with open(segments_path, 'r', encoding='utf-8') as f:
-        segments_lines = f.readlines()
+    segments_lines = read_srt(segments_path).splitlines(keepends=True)
 
     segments = []
     for line in segments_lines:
@@ -202,8 +198,7 @@ def extract_paragraphs_from_segments(srt_path, segments_path):
 
 def generate_video_titles(subs_path, prompt, tier=None):
     """根据subs文件内容生成视频标题，返回 AI 生成的文本。"""
-    with open(subs_path, 'r', encoding='utf-8') as f:
-        subs_content = f.read()
+    subs_content = read_srt(subs_path)
 
     full_prompt = f"{prompt}\n\n以下是视频的分段描述内容：\n\n{subs_content}\n\n请根据以上内容生成合适的视频标题。"
 
@@ -247,8 +242,7 @@ def refine_segment_descriptions(paragraphs_path, prompt, tier=None):
     if not os.path.exists(paragraphs_path):
         raise FileNotFoundError(f'段落内容文件 \'{paragraphs_path}\' 不存在')
 
-    with open(paragraphs_path, 'r', encoding='utf-8') as f:
-        paragraphs_content = f.read()
+    paragraphs_content = read_srt(paragraphs_path)
 
     segments = parse_segments_paragraphs_content(paragraphs_content)
     if not segments:

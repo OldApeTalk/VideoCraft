@@ -27,6 +27,22 @@ LAYOUT_DEFAULTS = {
 }
 
 
+# ── 编码自动检测 ──────────────────────────────────────────────────────────────
+
+_ENCODINGS = ['utf-8-sig', 'utf-8', 'gbk', 'gb2312', 'big5', 'latin-1']
+
+
+def read_srt(path: str) -> str:
+    """自动检测编码读取 SRT 文件，依次尝试常见编码，失败则 raise。"""
+    for enc in _ENCODINGS:
+        try:
+            with open(path, 'r', encoding=enc) as f:
+                return f.read()
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    raise ValueError(f"无法识别文件编码：{path}")
+
+
 # ── 字幕分割 ─────────────────────────────────────────────────────────────────
 
 def split_subtitle(sub, max_chars: int, is_chinese: bool = False):
@@ -89,8 +105,7 @@ def process_srt_split(input_path: str, max_chars: int,
     """
     读取 SRT 文件，对每条字幕执行分割，重新编号后返回字幕列表。
     """
-    with open(input_path, 'r', encoding='utf-8-sig') as f:
-        subs = list(srt.parse(f.read()))
+    subs = list(srt.parse(read_srt(input_path)))
     result = []
     for sub in subs:
         result.extend(split_subtitle(sub, max_chars, is_chinese))

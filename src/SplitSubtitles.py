@@ -3,6 +3,11 @@ from tkinter import filedialog, messagebox
 import srt
 from datetime import timedelta
 import re
+import os, sys
+_SRC = os.path.dirname(os.path.abspath(__file__))
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+from core.subtitle_ops import read_srt
 
 def split_subtitle(sub, max_chars, is_chinese=False):
     """
@@ -75,8 +80,7 @@ def split_subtitle(sub, max_chars, is_chinese=False):
 
 def process_srt(input_path, output_path, max_chars, is_chinese=False):
     try:
-        with open(input_path, 'r', encoding='utf-8') as f:
-            subs = list(srt.parse(f))
+        subs = list(srt.parse(read_srt(input_path)))
         
         new_subs = []
         for sub in subs:
