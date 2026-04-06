@@ -513,7 +513,9 @@ class ExtractAudioApp:
             extract_audio_to_mp3(src, dst, self.bitrate_var.get(), _progress_cb)
             self._btn.config(state="normal")
             self.status_var.set("提取完成！")
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -590,7 +592,9 @@ class ConvertBitrateApp:
             convert_mp3_bitrate(src, dst, self.bitrate_var.get(), _progress_cb)
             self._btn.config(state="normal")
             self.status_var.set("转换完成！")
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -676,7 +680,9 @@ class AdjustVolumeApp:
             adjust_volume(src, dst, db, _progress_cb)
             self._btn.config(state="normal")
             self.status_var.set("音量调整完成！")
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -810,7 +816,9 @@ class ExtractClipApp:
                 srt_msg = f"\n字幕：{msg}" + (f"，已保存到 {os.path.basename(out_srt)}" if ok and count > 0 else "")
             self._btn.config(state="normal")
             self.status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}")
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -927,7 +935,9 @@ class AutoSplitApp:
             else:
                 self.status_var.set(f"✗ 分割失败：{message}")
                 logger.error(f"视频分割失败: {message}")
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 

@@ -199,6 +199,7 @@ class TTSApp:
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
         self.status_var.set("正在准备...")
+        getattr(self.master, 'set_status', lambda _: None)("running")
         t = threading.Thread(
             target=self._run_single if self.mode_var.get() == "single" else self._run_multi,
             daemon=True)
@@ -211,6 +212,7 @@ class TTSApp:
     def _finish_generation(self):
         self.generate_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
+        self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
     def _run_single(self):
         try:
@@ -852,6 +854,7 @@ class AudioVideoApp:
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
         self.status_var.set("正在准备...")
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=self._generate,
                          args=(audio, image, output), daemon=True).start()
 
@@ -953,6 +956,7 @@ class AudioVideoApp:
             if tmp_srt and os.path.exists(tmp_srt):
                 try: os.unlink(tmp_srt)
                 except Exception: pass
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
     def _hex_to_ffmpeg(self, hex_color):
         h = hex_color.lstrip('#')
@@ -1274,6 +1278,7 @@ class DailyNewsApp:
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
         self.status_var.set("正在准备...")
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=self._generate,
                          args=(audio, image, output, script), daemon=True).start()
 
@@ -1517,6 +1522,7 @@ class DailyNewsApp:
                     os.unlink(tmp_png)
                 except Exception:
                     pass
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
 
 # ── 兼容旧入口（Hub 直接引用 Text2VideoApp 时不报错）──────────────────────────

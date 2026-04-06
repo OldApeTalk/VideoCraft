@@ -494,6 +494,7 @@ class SubtitleToolApp:
         self.progress_bar['value'] = 0
         self.label_elapsed.config(text="已用时间: 00:00:00")
         self.label_remaining.config(text="剩余时间: 未知")
+        getattr(self.master, 'set_status', lambda _: None)("running")
 
         threading.Thread(
             target=self._run_ffmpeg,
@@ -543,6 +544,7 @@ class SubtitleToolApp:
         finally:
             self.processing = False
             self.master.after(0, lambda: self.btn_merge.config(state=tk.NORMAL))
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
 
 if __name__ == "__main__":

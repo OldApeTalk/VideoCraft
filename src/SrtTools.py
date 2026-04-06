@@ -443,7 +443,9 @@ class SrtExtractSubtitlesApp:
                 self.status_var.set(f"失败: {e}")
             finally:
                 self._btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
     def _copy(self):
@@ -572,7 +574,9 @@ xx:xx 标题
                 self.status_var.set("生成失败")
             finally:
                 self._btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -664,7 +668,9 @@ class SrtExtractParagraphsApp:
                 self.status_var.set("提取失败")
             finally:
                 self._btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -776,7 +782,9 @@ class SrtRefineSegmentsApp:
                 self.status_var.set("精炼失败")
             finally:
                 self._btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -877,7 +885,9 @@ class SrtGenerateTitlesApp:
                 self.status_var.set("生成失败")
             finally:
                 self._btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -1236,7 +1246,9 @@ xx:xx 标题
                 self.status_var.set("生成失败")
             finally:
                 self.generate_btn.config(state="normal")
-        
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=run_generation, daemon=True).start()
 
     def select_paragraphs_srt(self):
@@ -1315,7 +1327,9 @@ xx:xx 标题
                 self.paragraphs_status_var.set("提取失败")
             finally:
                 self.extract_btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=run_extraction, daemon=True).start()
 
     def select_titles_subs(self):
@@ -1396,7 +1410,9 @@ xx:xx 标题
                 self.refine_status_var.set("精炼失败")
             finally:
                 self.refine_btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=run_refinement, daemon=True).start()
 
     def select_titles_output(self):
@@ -1461,7 +1477,9 @@ xx:xx 标题
                 self.titles_status_var.set("生成失败")
             finally:
                 self.titles_btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=run_title_generation, daemon=True).start()
 
     def select_subtitles_srt(self):
@@ -1531,7 +1549,9 @@ xx:xx 标题
                 self.subtitles_status_var.set(f"提取失败: {e}")
             finally:
                 self.subtitles_btn.config(state="normal")
+                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(target=run_subtitle_extraction, daemon=True).start()
 
     def display_subtitles_content(self, content):

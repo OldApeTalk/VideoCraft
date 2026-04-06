@@ -54,6 +54,109 @@ TOOL_MAP = {
     "daily-news":     {"file": "text2Video.py", "class": "DailyNewsApp"},
 }
 
+# ── Tab 状态颜色 ──────────────────────────────────────────────────────────────
+
+STATUS_COLORS = {
+    "idle":    "#9e9e9e",   # 灰：待命
+    "running": "#ffc107",   # 黄：运行中
+    "done":    "#4caf50",   # 绿：完成
+}
+
+
+class ToolFrame(ttk.Frame):
+    """
+    工具容器。作为 master 传入工具类，静默吸收 Toplevel 专属方法
+    (geometry / title / resizable)，并提供 set_status() 供工具回调。
+    """
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self._tool_title = ""
+        self._set_status_cb = None          # 由 Hub 在创建后注入
+
+    def geometry(self, spec=None):
+        return ""
+
+    def title(self, string=None):
+        if string is not None:
+            self._tool_title = string
+        return self._tool_title
+
+    def resizable(self, width=None, height=None):
+        pass
+
+    def set_status(self, status: str):
+        """工具调用：set_status('running') / set_status('done')"""
+        if self._set_status_cb:
+            self._set_status_cb(status)
+
+
+class TabBar(tk.Frame):
+    """
+    自定义横向 Tab 栏。每个 Tab 含彩色状态圆点 + 标题 + 关闭按钮。
+    """
+    def __init__(self, master, on_select, on_close, **kwargs):
+        super().__init__(master, bg="#e8e8e8", height=34, **kwargs)
+        self.pack_propagate(False)
+        self._on_select = on_select
+        self._on_close  = on_close
+        self._tabs: dict[str, dict] = {}    # key → {frame, dot, title_lbl}
+        self._active_key: str | None = None
+
+    def add_tab(self, key: str, title: str, status: str = "idle") -> None:
+        btn = tk.Frame(self, bg="#d0d0d0", cursor="hand2", padx=6, pady=0)
+        btn.pack(side="left", padx=(4, 0), pady=3)
+
+        dot = tk.Label(btn, text="●", fg=STATUS_COLORS[status],
+                       bg="#d0d0d0", font=("", 8))
+        dot.pack(side="left", pady=4)
+
+        lbl = tk.Label(btn, text=f" {title} ", bg="#d0d0d0",
+                       font=("Segoe UI", 9))
+        lbl.pack(side="left", pady=4)
+
+        cls_btn = tk.Label(btn, text=" × ", bg="#d0d0d0",
+                           font=("Segoe UI", 10), cursor="hand2",
+                           fg="#666")
+        cls_btn.pack(side="left", pady=4)
+
+        for w in (btn, dot, lbl):
+            w.bind("<Button-1>", lambda e, k=key: self._on_select(k))
+        cls_btn.bind("<Button-1>", lambda e, k=key: self._on_close(k))
+        cls_btn.bind("<Enter>",    lambda e, w=cls_btn: w.configure(fg="#c00"))
+        cls_btn.bind("<Leave>",    lambda e, w=cls_btn: w.configure(fg="#666"))
+
+        self._tabs[key] = {"frame": btn, "dot": dot, "title": lbl,
+                           "close": cls_btn}
+        self.set_active(key)
+
+    def set_active(self, key: str) -> None:
+        for k, t in self._tabs.items():
+            is_active = (k == key)
+            bg = "#ffffff" if is_active else "#d0d0d0"
+            for w in t["frame"].winfo_children():
+                w.configure(bg=bg)
+            t["frame"].configure(bg=bg)
+        self._active_key = key
+
+    def set_status(self, key: str, status: str) -> None:
+        if key in self._tabs:
+            color = STATUS_COLORS.get(status, STATUS_COLORS["idle"])
+            self._tabs[key]["dot"].configure(fg=color)
+
+    def remove_tab(self, key: str) -> "str | None":
+        """删除 Tab，返回应激活的下一个 key（无则返回 None）。"""
+        if key not in self._tabs:
+            return None
+        self._tabs[key]["frame"].destroy()
+        del self._tabs[key]
+        remaining = list(self._tabs.keys())
+        if remaining:
+            nxt = remaining[-1]
+            self.set_active(nxt)
+            return nxt
+        return None
+
+
 # ── Hub 主类 ──────────────────────────────────────────────────────────────────
 
 class VideoCraftHub:
@@ -68,6 +171,14 @@ class VideoCraftHub:
         self._recent_menu: tk.Menu | None = None
         self._tool_instances: list = []   # 防止工具实例被 GC 回收
         self._last_snapshot: set = set()  # 上次文件夹快照，用于自动刷新检测
+        self._status_var = tk.StringVar() # 状态栏变量（保持向后兼容）
+
+        # Tab 系统
+        self._tab_registry: dict[str, str] = {}      # tool_key → tool_key
+        self._tab_frames: dict[str, ToolFrame] = {}  # tool_key → ToolFrame
+        self._tab_bar: TabBar | None = None
+        self._content_area: tk.Frame | None = None   # Tab 内容切换区
+        self._welcome_frame: tk.Frame | None = None
 
         self._build_menu()
         self._build_layout()
@@ -221,24 +332,63 @@ class VideoCraftHub:
         self._content = tk.Frame(self._pane, bg="white")
         self._pane.add(self._content, weight=1)
 
+        # Tab 栏（首次打开工具前隐藏）
+        self._tab_bar = TabBar(self._content,
+                               on_select=self._select_tab,
+                               on_close=self._close_tab)
+        # 工具内容切换区
+        self._content_area = tk.Frame(self._content, bg="white")
+
         # ── 底部日志面板 ──
         self._build_logpanel()
 
     # ── 欢迎页 ────────────────────────────────────────────────────────────────
 
     def _show_welcome(self):
-        for w in self._content.winfo_children():
-            w.destroy()
-        frame = tk.Frame(self._content, bg="white")
-        frame.place(relx=0.5, rely=0.45, anchor="center")
-        tk.Label(frame, text="VideoCraft", font=("", 22, "bold"),
-                 bg="white", fg="#333").pack(pady=(0, 6))
-        tk.Label(frame, text="打开一个文件夹以开始工作",
-                 font=("", 11), bg="white", fg="#888").pack(pady=(0, 20))
-        tk.Button(frame, text="  打开文件夹  ", font=("", 11),
-                  command=self.open_folder,
-                  bg="#0078d4", fg="white", relief="flat",
-                  padx=10, pady=6).pack()
+        """隐藏 Tab 系统，显示欢迎页（懒加载）。"""
+        self._tab_bar.pack_forget()
+        self._content_area.pack_forget()
+        if self._welcome_frame is None:
+            self._welcome_frame = tk.Frame(self._content, bg="white")
+            inner = tk.Frame(self._welcome_frame, bg="white")
+            inner.place(relx=0.5, rely=0.45, anchor="center")
+            tk.Label(inner, text="VideoCraft", font=("", 22, "bold"),
+                     bg="white", fg="#333").pack(pady=(0, 6))
+            tk.Label(inner, text="打开一个文件夹以开始工作",
+                     font=("", 11), bg="white", fg="#888").pack(pady=(0, 20))
+            tk.Button(inner, text="  打开文件夹  ", font=("", 11),
+                      command=self.open_folder,
+                      bg="#0078d4", fg="white", relief="flat",
+                      padx=10, pady=6).pack()
+        self._welcome_frame.pack(fill="both", expand=True)
+
+    def _show_tabs(self):
+        """隐藏欢迎页，显示 Tab 栏 + 内容区。"""
+        if self._welcome_frame:
+            self._welcome_frame.pack_forget()
+        self._tab_bar.pack(side="top", fill="x")
+        self._content_area.pack(fill="both", expand=True)
+
+    def _select_tab(self, key: str):
+        """切换到指定 Tab。"""
+        for tf in self._tab_frames.values():
+            tf.pack_forget()
+        if key in self._tab_frames:
+            self._tab_frames[key].pack(fill="both", expand=True)
+        self._tab_bar.set_active(key)
+
+    def _close_tab(self, key: str):
+        """关闭指定 Tab；若无剩余 Tab 则恢复欢迎页。"""
+        if key in self._tab_frames:
+            self._tab_frames[key].destroy()
+            del self._tab_frames[key]
+        self._tab_registry.pop(key, None)
+        # 从 _tool_instances 中移除对应实例（无法精确匹配时保持原样）
+        nxt = self._tab_bar.remove_tab(key)
+        if nxt:
+            self._select_tab(nxt)
+        else:
+            self._show_welcome()
 
     # ── Project 操作 ──────────────────────────────────────────────────────────
 
@@ -258,10 +408,6 @@ class VideoCraftHub:
         self._status_var.set(self.project.folder)
         self._last_snapshot = self._folder_snapshot(self.project.folder)
         self.refresh_sidebar()
-
-        # 清空欢迎页
-        for w in self._content.winfo_children():
-            w.destroy()
 
     def refresh_sidebar(self):
         self._tree.delete(*self._tree.get_children())
@@ -485,7 +631,8 @@ class VideoCraftHub:
         if cfg["class"] is None:
             self._open_subprocess(file_path, initial_file=initial_file)
         else:
-            self._open_toplevel(file_path, cfg["class"], initial_file=initial_file)
+            self._open_in_tab(file_path, cfg["class"], key,
+                              initial_file=initial_file)
 
     def _open_toplevel(self, file_path: str, class_name: str, initial_file: str = None):
         try:
@@ -495,11 +642,41 @@ class VideoCraftHub:
             spec.loader.exec_module(mod)
             cls  = getattr(mod, class_name)
             win  = tk.Toplevel(self.root)
-            win.transient(self.root)           # 保持在 Hub 之上，对话框关闭后不被遮挡
+            win.transient(self.root)
             app  = cls(win, initial_file=initial_file) if initial_file else cls(win)
-            self._tool_instances.append(app)   # 持有引用，防止 GC
+            self._tool_instances.append(app)
             win.bind("<Destroy>", lambda e, a=app: self._tool_instances.remove(a)
                      if a in self._tool_instances else None)
+        except Exception as e:
+            messagebox.showerror("启动失败", str(e))
+
+    def _open_in_tab(self, file_path: str, class_name: str, tool_key: str,
+                     initial_file: str = None):
+        # 去重：已打开则直接切换
+        if tool_key in self._tab_registry:
+            self._select_tab(tool_key)
+            self._show_tabs()
+            return
+        try:
+            mod_name = os.path.splitext(os.path.basename(file_path))[0]
+            spec = importlib.util.spec_from_file_location(mod_name, file_path)
+            mod  = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            cls  = getattr(mod, class_name)
+
+            tf = ToolFrame(self._content_area)
+            tf._set_status_cb = lambda s, k=tool_key: self._tab_bar.set_status(k, s)
+
+            app = cls(tf, initial_file=initial_file) if initial_file else cls(tf)
+
+            label = tf._tool_title or class_name
+            self._tab_bar.add_tab(tool_key, label, status="idle")
+            self._tab_frames[tool_key]   = tf
+            self._tab_registry[tool_key] = tool_key
+            self._tool_instances.append(app)
+
+            self._show_tabs()
+            self._select_tab(tool_key)
         except Exception as e:
             messagebox.showerror("启动失败", str(e))
 

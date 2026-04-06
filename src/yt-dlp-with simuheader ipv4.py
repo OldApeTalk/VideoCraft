@@ -503,9 +503,11 @@ class YouTubeDownloader:
             finally:
                 self.root.after(0, lambda: self.download_btn.config(state="normal"))
                 self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
-        
+                self.root.after(0, lambda: getattr(self.root, 'set_status', lambda _: None)("done"))
+
         # Start the download thread
         self.log("Starting download thread...")
+        getattr(self.root, 'set_status', lambda _: None)("running")
         threading.Thread(target=download, daemon=True).start()
         
     def create_progress_hook(self, video):

@@ -547,6 +547,7 @@ class WordSubtitleApp:
         self.btn_start.config(state=tk.DISABLED)
         self.progress_bar["value"] = 0
         self._progress_label.config(text="")
+        getattr(self.master, 'set_status', lambda _: None)("running")
         threading.Thread(
             target=self._run_ffmpeg,
             args=(cmd, output, ass_path),
@@ -609,6 +610,7 @@ class WordSubtitleApp:
             self.processing = False
             self.master.after(0, lambda: self.btn_start.config(state=tk.NORMAL))
             self.master.after(0, lambda: self.progress_bar.config(value=100))
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
     def _update_progress(self, pct: float, elapsed: float, remain: float):
         self.progress_bar["value"] = pct
