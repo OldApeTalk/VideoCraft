@@ -20,7 +20,7 @@ if sys.stdout and hasattr(sys.stdout, "buffer"):
 if sys.stderr and hasattr(sys.stderr, "buffer"):
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-from project import Project, add_recent_project, get_recent_projects
+from project import Project, add_recent_project, get_recent_projects, file_icon
 from router_manager import open_router_manager
 from operations import get_operations
 
@@ -334,6 +334,7 @@ class VideoCraftHub:
         vsb.pack(side="right", fill="y")
         self._tree.bind("<Double-1>", self._on_tree_double_click)
         self._tree.bind("<Button-3>", self._on_tree_right_click)
+        self._tree.bind("<<TreeviewOpen>>", self._on_tree_open)
 
         # ── 右：内容区 ──
         self._content = tk.Frame(self._pane, bg="white")
@@ -430,9 +431,11 @@ class VideoCraftHub:
         for entry in self.project.get_files():
             icon = entry["icon"]
             label = f"  {icon}  {entry['name']}"
-            self._tree.insert(root_node, "end", text=label,
-                              values=(entry["path"],),
-                              tags=("dir" if entry["is_dir"] else "file",))
+            node = self._tree.insert(root_node, "end", text=label,
+                                     values=(entry["path"],),
+                                     tags=("dir" if entry["is_dir"] else "file",))
+            if entry["is_dir"]:
+                self._tree.insert(node, "end", tags=("_placeholder",))
 
     def _schedule_auto_refresh(self):
         """每 2 秒检查文件夹变化，有变化时自动刷新 Sidebar。"""
@@ -466,7 +469,32 @@ class VideoCraftHub:
             if os.path.isfile(path):
                 os.startfile(path)
             elif os.path.isdir(path):
-                self.open_folder(path)
+                is_open = self._tree.item(item, "open")
+                self._tree.item(item, open=not is_open)
+
+    def _on_tree_open(self, _event):
+        item = self._tree.focus()
+        children = self._tree.get_children(item)
+        # 如果只有一个占位子节点，替换为真实内容
+        if len(children) == 1 and "_placeholder" in self._tree.item(children[0], "tags"):
+            self._tree.delete(children[0])
+            vals = self._tree.item(item, "values")
+            if not vals:
+                return
+            path = vals[0]
+            try:
+                names = sorted(os.listdir(path), key=lambda s: s.lower())
+            except OSError:
+                return
+            for name in names:
+                full = os.path.join(path, name)
+                is_dir = os.path.isdir(full)
+                icon = file_icon(name, is_dir)
+                node = self._tree.insert(item, "end", text=f"  {icon}  {name}",
+                                         values=(full,),
+                                         tags=("dir" if is_dir else "file",))
+                if is_dir:
+                    self._tree.insert(node, "end", tags=("_placeholder",))
 
     def _on_tree_right_click(self, event):
         item = self._tree.identify_row(event.y)
