@@ -1,3 +1,4 @@
+from tools.base import ToolBase
 import os
 import re
 import srt
@@ -345,7 +346,7 @@ def _ensure_dir(path):
         os.makedirs(d)
 
 
-class SrtExtractSubtitlesApp:
+class SrtExtractSubtitlesApp(ToolBase):
     """Tab 1：提取字幕文字 — 独立窗口版。"""
 
     def __init__(self, master, initial_file=None):
@@ -459,7 +460,7 @@ class SrtExtractSubtitlesApp:
         self.status_var.set("内容已拷贝到剪贴板 ✓")
 
 
-class SrtGenerateSegmentsApp:
+class SrtGenerateSegmentsApp(ToolBase):
     """Tab 2：生成分段描述 — 独立窗口版。"""
 
     _DEFAULT_PROMPT = """\
@@ -580,7 +581,7 @@ xx:xx 标题
         threading.Thread(target=_work, daemon=True).start()
 
 
-class SrtExtractParagraphsApp:
+class SrtExtractParagraphsApp(ToolBase):
     """Tab 3：提取段落内容 — 独立窗口版。"""
 
     def __init__(self, master, initial_file=None):
@@ -674,7 +675,7 @@ class SrtExtractParagraphsApp:
         threading.Thread(target=_work, daemon=True).start()
 
 
-class SrtRefineSegmentsApp:
+class SrtRefineSegmentsApp(ToolBase):
     """Tab 4：精炼分段 — 独立窗口版。"""
 
     _DEFAULT_PROMPT = """\
@@ -788,7 +789,7 @@ class SrtRefineSegmentsApp:
         threading.Thread(target=_work, daemon=True).start()
 
 
-class SrtGenerateTitlesApp:
+class SrtGenerateTitlesApp(ToolBase):
     """Tab 5：生成标题 — 独立窗口版。"""
 
     _DEFAULT_PROMPT = """\
@@ -892,7 +893,7 @@ class SrtGenerateTitlesApp:
 
 
 # ===================== GUI 主界面 =====================
-class YouTubeSegmentsApp:
+class YouTubeSegmentsApp(ToolBase):
     def __init__(self, master):
         self.master = master
         master.title("YouTube工具箱")

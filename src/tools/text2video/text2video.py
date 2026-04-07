@@ -7,6 +7,7 @@ text2Video.py - 文字转视频工具集
   AudioVideoApp  - 音频+图片合成视频（ffmpeg）
 """
 
+from tools.base import ToolBase
 import os
 import tkinter as tk
 from tkinter import filedialog, ttk
@@ -28,7 +29,7 @@ from router_manager import open_router_manager
 # 工具1：文字合成语音
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TTSApp:
+class TTSApp(ToolBase):
     def __init__(self, master):
         self.master = master
         master.title("VideoCraft - 文字合成语音")
@@ -344,7 +345,7 @@ class TTSApp:
 # 工具2：文本 → SRT 字幕
 # ══════════════════════════════════════════════════════════════════════════════
 
-class SRTFromTextApp:
+class SRTFromTextApp(ToolBase):
     """
     文本已知（来自 TTS 工具），根据音频总时长按字符比例分配时间轴，生成 SRT。
     不需要 ASR，适合文字视频制作流水线的字幕步骤。
@@ -543,7 +544,7 @@ from core.subtitle_ops import (
 )
 
 
-class AudioVideoApp:
+class AudioVideoApp(ToolBase):
     def __init__(self, master):
         self.master = master
         master.title("VideoCraft - 音频合成视频")
@@ -995,7 +996,7 @@ _NEWS_RESOLUTIONS = {
 }
 
 
-class DailyNewsApp:
+class DailyNewsApp(ToolBase):
     """
     每日要闻合成：音频 + 背景图 + 稿子文字(.txt)滚动 → 视频。
     文字在屏幕中间区域（1/4 ~ 3/4）匀速向上滚动，时长与音频同步。

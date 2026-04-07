@@ -1,3 +1,4 @@
+from tools.base import ToolBase
 import tkinter as tk
 from tkinter import filedialog, ttk
 import yt_dlp
@@ -7,7 +8,7 @@ import subprocess
 from urllib.parse import urlparse
 from hub_logger import logger
 
-class YouTubeDownloader:
+class YouTubeDownloader(ToolBase):
     def __init__(self, root, initial_file=None):
         self.root = root
         self.root.title("YouTube Downloader")

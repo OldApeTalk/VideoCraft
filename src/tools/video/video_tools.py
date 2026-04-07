@@ -12,6 +12,7 @@
 # 4. Extract video clip, extract video segment based on start and end time, with optional subtitle extraction
 # 5. Auto split video
 
+from tools.base import ToolBase
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -441,7 +442,7 @@ def extract_subtitle_clip(input_srt, output_srt, start_time_str, end_time_str):
 
 # ===================== 独立操作窗口（每个 Tab 拆为单窗口）=====================
 
-class ExtractAudioApp:
+class ExtractAudioApp(ToolBase):
     """Tab 1：提取 MP3 — 独立窗口版。"""
 
     def __init__(self, master, initial_file=None):
@@ -519,7 +520,7 @@ class ExtractAudioApp:
         threading.Thread(target=_work, daemon=True).start()
 
 
-class ConvertBitrateApp:
+class ConvertBitrateApp(ToolBase):
     """Tab 2：码率转换 — 独立窗口版。"""
 
     def __init__(self, master, initial_file=None):
@@ -598,7 +599,7 @@ class ConvertBitrateApp:
         threading.Thread(target=_work, daemon=True).start()
 
 
-class AdjustVolumeApp:
+class AdjustVolumeApp(ToolBase):
     """Tab 3：调整音量 — 独立窗口版。"""
 
     def __init__(self, master, initial_file=None):
@@ -686,7 +687,7 @@ class AdjustVolumeApp:
         threading.Thread(target=_work, daemon=True).start()
 
 
-class ExtractClipApp:
+class ExtractClipApp(ToolBase):
     """Tab 4：视频片段提取 — 独立窗口版。"""
 
     def __init__(self, master, initial_file=None):
@@ -822,7 +823,7 @@ class ExtractClipApp:
         threading.Thread(target=_work, daemon=True).start()
 
 
-class AutoSplitApp:
+class AutoSplitApp(ToolBase):
     """Tab 5：自动分割视频 — 独立窗口版。"""
 
     def __init__(self, master, initial_file=None):
@@ -942,7 +943,7 @@ class AutoSplitApp:
 
 
 # ===================== GUI 主界面（保留，向后兼容）=====================
-class VideoToolsGUI:
+class VideoToolsGUI(ToolBase):
     def __init__(self, root):
         self.root = root
         self.root.title("VideoTools - 视频音频工具")

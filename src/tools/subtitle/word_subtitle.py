@@ -10,6 +10,7 @@ ASS 卡拉OK原理：
   ASS Style 中：PrimaryColour = 高亮色（已播），SecondaryColour = 默认色（未播）
 """
 
+from tools.base import ToolBase
 import json
 import os
 import re
@@ -101,7 +102,7 @@ def _is_cjk(char: str) -> bool:
 
 # ── 主类 ──────────────────────────────────────────────────────────────────────
 
-class WordSubtitleApp:
+class WordSubtitleApp(ToolBase):
     """逐字字幕烧录工具（Toplevel 内嵌版）。"""
 
     def __init__(self, master, initial_file=None):

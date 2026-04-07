@@ -1,3 +1,4 @@
+from tools.base import ToolBase
 import tkinter as tk
 from tkinter import filedialog, ttk
 import os
@@ -221,7 +222,7 @@ def split_audio_by_size(audio_path, max_size_kb=100):
     return segments
 
 # ===================== GUI 主界面 =====================
-class TranslateApp:
+class TranslateApp(ToolBase):
     def __init__(self, master, initial_file: str = None):
         self.master = master
         master.title("SRT 字幕批量翻译")

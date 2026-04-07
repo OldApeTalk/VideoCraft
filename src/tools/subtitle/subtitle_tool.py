@@ -4,6 +4,7 @@
 提供统一的界面来处理字幕分割和视频字幕烧录。
 """
 
+from tools.base import ToolBase
 import tkinter as tk
 from tkinter import filedialog, messagebox, colorchooser, ttk
 import os
@@ -74,7 +75,7 @@ def get_video_resolution(video_path):
 
 # ── 主界面 class ─────────────────────────────────────────────────────────────
 
-class SubtitleToolApp:
+class SubtitleToolApp(ToolBase):
     """双语字幕烧录工具 — Toplevel 内嵌版。"""
 
     def __init__(self, master, initial_file=None):

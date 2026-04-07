@@ -1,3 +1,4 @@
+from tools.base import ToolBase
 import os
 import sys
 import tkinter as tk
@@ -218,7 +219,7 @@ def split_long_segment(start, end, text, max_chars=60):
     return sub_segments
 
 
-class Speech2TextApp:
+class Speech2TextApp(ToolBase):
     """语音转字幕工具（LemonFox API）— Toplevel 内嵌版。"""
 
     def __init__(self, master, initial_file=None):

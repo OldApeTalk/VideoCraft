@@ -1,3 +1,4 @@
+from tools.base import ToolBase
 import os
 import re
 import tkinter as tk
@@ -148,7 +149,7 @@ def split_video(video_path, segments, output_dir, status_var=None):
         except ffmpeg.Error as e:
             print(f"错误：切分失败 - {title}，原因：{e.stderr.decode()}")
 
-class SplitVideoApp:
+class SplitVideoApp(ToolBase):
     def __init__(self, master, initial_file: str = None):
         self.master = master
         master.title("视频分段切割工具")
