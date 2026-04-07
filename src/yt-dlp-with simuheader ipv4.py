@@ -15,8 +15,9 @@ class YouTubeDownloader:
 
         # Initialize yt-dlp
         self.ydl_opts = {}
-        self.video_list = []  # List of videos from URLs/playlists
+        self.video_list = []       # List of videos from URLs/playlists
         self.selected_videos = []  # Selected videos for download
+        self.checkbox_vars = []    # BooleanVar per video for checkbox selection
 
         # Network configuration
         self.network_speed = "fast"  # fast, medium, slow
@@ -85,18 +86,29 @@ class YouTubeDownloader:
         
         # Video List Display with Checkboxes
         tk.Label(left_frame, text="Available Videos:", font=("Arial", 10, "bold")).pack(anchor="w", pady=(0,5))
-        self.list_frame = tk.Frame(left_frame)
+        self.list_frame = tk.Frame(left_frame, relief=tk.SUNKEN, bd=1)
         self.list_frame.pack(fill=tk.BOTH, expand=True, pady=(0,10))
-        
-        # Scrollbar for list
-        self.scrollbar = tk.Scrollbar(self.list_frame)
+
+        # Scrollable canvas for checkboxes
+        self.list_canvas = tk.Canvas(self.list_frame, highlightthickness=0)
+        self.list_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.scrollbar = tk.Scrollbar(self.list_frame, command=self.list_canvas.yview)
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.video_listbox = tk.Listbox(self.list_frame, selectmode=tk.MULTIPLE, height=12, width=50, 
-                                       yscrollcommand=self.scrollbar.set, font=("Arial", 9))
-        self.video_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.scrollbar.config(command=self.video_listbox.yview)
-        
+        self.list_canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.check_frame = tk.Frame(self.list_canvas)
+        self._check_window = self.list_canvas.create_window((0, 0), window=self.check_frame, anchor="nw")
+
+        self.check_frame.bind("<Configure>", lambda e: self.list_canvas.configure(
+            scrollregion=self.list_canvas.bbox("all")))
+        self.list_canvas.bind("<Configure>", lambda e: self.list_canvas.itemconfig(
+            self._check_window, width=e.width))
+
+        # Mousewheel scrolling on the canvas
+        self.list_canvas.bind("<MouseWheel>", lambda e: self.list_canvas.yview_scroll(
+            int(-1 * (e.delta / 120)), "units"))
+
         # Select All / Deselect All Buttons
         select_frame = tk.Frame(left_frame)
         select_frame.pack(pady=(0,10))
@@ -169,10 +181,12 @@ class YouTubeDownloader:
             self.dir_entry.insert(0, directory)
             
     def select_all(self):
-        self.video_listbox.select_set(0, tk.END)
-        
+        for var in self.checkbox_vars:
+            var.set(True)
+
     def deselect_all(self):
-        self.video_listbox.selection_clear(0, tk.END)
+        for var in self.checkbox_vars:
+            var.set(False)
         
     def get_video_list(self):
         urls = self.url_text.get("1.0", tk.END).strip().split('\n')
@@ -185,7 +199,10 @@ class YouTubeDownloader:
         self.get_list_btn.config(state="disabled")
         self.log("Fetching video list...")
         self.video_list = []
-        self.video_listbox.delete(0, tk.END)
+        # Clear existing checkboxes on the main thread before the fetch thread runs
+        for w in self.check_frame.winfo_children():
+            w.destroy()
+        self.checkbox_vars = []
         
         def fetch_list():
             try:
@@ -280,6 +297,12 @@ class YouTubeDownloader:
         threading.Thread(target=fetch_list, daemon=True).start()
             
     def update_video_listbox(self):
+        """Rebuild the checkbox list from self.video_list. Called on the main thread via after()."""
+        # Destroy any previously rendered checkboxes
+        for w in self.check_frame.winfo_children():
+            w.destroy()
+        self.checkbox_vars = []
+
         for video in self.video_list:
             duration = int(video['duration']) if video['duration'] else 0
             duration_str = f"{duration // 60}:{duration % 60:02d}" if duration > 0 else "Unknown"
@@ -287,14 +310,23 @@ class YouTubeDownloader:
                 display_text = f"[{video['playlist']}] {video['title']} - {duration_str} - {video['uploader']}"
             else:
                 display_text = f"{video['title']} - {duration_str} - {video['uploader']}"
-            self.video_listbox.insert(tk.END, display_text)
+            var = tk.BooleanVar(value=True)  # default: all selected
+            cb = tk.Checkbutton(self.check_frame, text=display_text, variable=var,
+                                anchor="w", justify=tk.LEFT, font=("Arial", 9),
+                                wraplength=380)
+            cb.pack(fill=tk.X, padx=4, pady=1)
+            self.checkbox_vars.append(var)
+
+        self.check_frame.update_idletasks()
+        self.list_canvas.configure(scrollregion=self.list_canvas.bbox("all"))
+
         self.get_list_btn.config(state="normal")
         if self.video_list:
             self.download_btn.config(state="normal")
         self.log(f"Found {len(self.video_list)} videos")
         
     def start_download(self):
-        selected_indices = self.video_listbox.curselection()
+        selected_indices = [i for i, v in enumerate(self.checkbox_vars) if v.get()]
         if not selected_indices:
             self.log("⚠ Please select at least one video to download")
             return
@@ -307,7 +339,7 @@ class YouTubeDownloader:
         if not os.path.exists(output_dir):
             self.log("⚠ Invalid output directory")
             return
-            
+
         self.selected_videos = [self.video_list[i] for i in selected_indices]
         quality = self.quality_combo.get()
         force_ipv4 = self.force_ipv4_var.get()

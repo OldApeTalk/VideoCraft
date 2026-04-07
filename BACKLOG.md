@@ -1,3 +1,5 @@
+# 待分配需求
+
 # VideoCraft Backlog
 
 > 开发计划看板。优先级：🔴 P1 必须修 / 🟡 P2 重要增强 / 🟢 P3 体验提升
@@ -41,6 +43,8 @@
 
 | 完成时间 | 功能 | 备注 |
 |---------|------|------|
+| 2026-04 | 语音转字幕界面异步化 | `_transcribe_audio` 改 threading；按钮转录中禁用；后台 after(0) 回写日志 |
+| 2026-04 | yt-dlp 下载列表改 Checkbutton | 替换 Listbox 蓝色高亮；Canvas 滚动框架；默认全选；Select All/Deselect All 同步 |
 | 2026-04 | 每日要闻合成模块（DailyNewsApp） | PIL像素级自动换行、ffmpeg滚屏叠加、9:16/16:9分辨率选择、字幕背景透明度、可编辑水印 |
 | 2026-04 | Speech2Text verbose_json 模式 | 同时保存 .json + .srt；自动检测语言；文件名附ISO语言码；语言不匹配时 Hub 警告 |
 | 2026-04 | 统一文件命名规范 | 下载文件：`{short}_{date}[_{quality}].{ext}`；SRT：`_{lang}.srt`；烧录后：`_sub_{lang}.mp4` |

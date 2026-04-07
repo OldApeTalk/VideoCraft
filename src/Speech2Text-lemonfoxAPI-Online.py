@@ -268,8 +268,9 @@ class Speech2TextApp:
         tk.Checkbutton(f, text="说话人区分（Speaker Labels）",
                        variable=self.speaker_var).pack(pady=(0, 5))
 
-        tk.Button(f, text="转录为 SRT", command=self._transcribe_audio,
-                  width=20, bg="#0078d4", fg="white").pack(pady=10)
+        self.btn_transcribe = tk.Button(f, text="转录为 SRT", command=self._transcribe_audio,
+                                        width=20, bg="#0078d4", fg="white")
+        self.btn_transcribe.pack(pady=10)
 
         tk.Label(f, text="日志:").pack(pady=(0, 2))
         self.log_text = tk.Text(f, height=8, width=70)
@@ -319,10 +320,9 @@ class Speech2TextApp:
             self.entry_srt_path.insert(0, file_path)
 
     def _log(self, msg: str):
-        """向内部日志文本框写一行。"""
+        """Append a message to the log text widget. Must be called from the main thread."""
         self.log_text.insert(tk.END, msg)
         self.log_text.see(tk.END)
-        self.master.update_idletasks()
 
     def _verbose_json_to_srt(self, data: dict) -> str:
         """将 verbose_json 响应的 segments 转换为 SRT 格式字符串。
@@ -340,8 +340,10 @@ class Speech2TextApp:
         return "\n".join(lines)
 
     def _transcribe_audio(self):
-        """调用 verbose_json，同时保存 .json 和 .srt 两个文件。"""
-        import json as _json
+        """Validate inputs on the main thread, then launch a background thread for the API call
+        so the UI stays responsive during the (potentially long) transcription request."""
+        import threading
+
         mp3_path = self.entry_mp3_path.get()
         selected_language = self.combo_language.get()
         api_key = router.get_asr_key("lemonfox")
@@ -359,99 +361,115 @@ class Speech2TextApp:
             self._log("⚠ 请指定输出 SRT 文件路径。\n")
             return
 
-        # 解析语言参数
+        # Read all UI state on the main thread before handing off to the worker
         if selected_language.startswith("Auto Detect"):
             api_lang = None
         else:
             eng_name = selected_language.split(" (")[0].lower()
             api_lang = eng_name
 
-        try:
-            self._log("开始调用 API（verbose_json 模式）...\n")
+        translate = self.translate_var.get()
+        speaker   = self.speaker_var.get()
 
-            url     = "https://api.lemonfox.ai/v1/audio/transcriptions"
-            headers = {"Authorization": f"Bearer {api_key}"}
-            file_ext = os.path.splitext(mp3_path)[1].lower()
-            mime_type = "video/mp4" if file_ext == ".mp4" else "audio/mpeg"
-            files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
-            data  = [
-                ("response_format", "verbose_json"),
-                ("timestamp_granularities[]", "segment"),
-                ("timestamp_granularities[]", "word"),
-            ]
-            if api_lang:
-                data.append(("language", api_lang))
-            if self.translate_var.get():
-                data.append(("translate_to_english", "true"))
-            if self.speaker_var.get():
-                data.append(("speaker_labels", "true"))
+        self.btn_transcribe.config(state="disabled", text="转录中…")
+        self._log("开始调用 API（verbose_json 模式）...\n")
 
-            response = requests.post(url, headers=headers, data=data, files=files)
-            if not response.ok:
-                raise Exception(f"API错误：{response.status_code} - {response.text}")
+        def _do_transcribe():
+            import json as _json
+            import re as _re
 
-            result = response.json()
+            def log(msg):
+                # Route all log writes back to the main thread via after()
+                self.master.after(0, self._log, msg)
 
-            # 拿到实际识别语言
-            detected_lang = result.get("language", "")  # Whisper 返回英文名，如 "english"
-            if detected_lang:
-                iso_detected = next(
-                    (code for code, (e, _) in language_dict.items()
-                     if e.lower() == detected_lang.lower()),
-                    detected_lang[:2].lower()
-                )
-                self._log(f"检测到语言：{detected_lang} → ISO: {iso_detected}\n")
+            def finish():
+                # Re-enable button on the main thread when done or on error
+                self.master.after(0, lambda: self.btn_transcribe.config(
+                    state="normal", text="转录为 SRT"))
 
-                # 判断是否需要重命名：
-                # 1. Auto Detect 模式（srt_path 含 _auto）
-                # 2. 指定了语言，但实际检测结果与选择不一致
-                is_auto = selected_language.startswith("Auto Detect")
-                iso_selected = api_lang[:2] if api_lang else None  # 已是小写英文名前两字母，粗略比较
-                # 更精确：从 language_dict 反查选择语言的 ISO 码
-                if not is_auto and api_lang:
-                    iso_selected = next(
+            try:
+                url      = "https://api.lemonfox.ai/v1/audio/transcriptions"
+                headers  = {"Authorization": f"Bearer {api_key}"}
+                file_ext = os.path.splitext(mp3_path)[1].lower()
+                mime_type = "video/mp4" if file_ext == ".mp4" else "audio/mpeg"
+                files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
+                data  = [
+                    ("response_format", "verbose_json"),
+                    ("timestamp_granularities[]", "segment"),
+                    ("timestamp_granularities[]", "word"),
+                ]
+                if api_lang:
+                    data.append(("language", api_lang))
+                if translate:
+                    data.append(("translate_to_english", "true"))
+                if speaker:
+                    data.append(("speaker_labels", "true"))
+
+                response = requests.post(url, headers=headers, data=data, files=files)
+                if not response.ok:
+                    raise Exception(f"API错误：{response.status_code} - {response.text}")
+
+                result = response.json()
+                current_srt_path = srt_path
+
+                # Resolve the detected language ISO code reported by the Whisper model
+                detected_lang = result.get("language", "")
+                if detected_lang:
+                    iso_detected = next(
                         (code for code, (e, _) in language_dict.items()
-                         if e.lower() == api_lang.lower()),
-                        api_lang[:2].lower()
+                         if e.lower() == detected_lang.lower()),
+                        detected_lang[:2].lower()
                     )
-                mismatch = (not is_auto) and iso_selected and (iso_selected != iso_detected)
+                    log(f"检测到语言：{detected_lang} → ISO: {iso_detected}\n")
 
-                if is_auto or mismatch:
-                    if mismatch:
-                        self._log(f"⚠ 选择语言({iso_selected}) 与检测结果({iso_detected})不符，按实际语言命名。\n")
-                        logger.warning(f"语言不一致：选择 {iso_selected}，实际检测为 {iso_detected}，文件已按实际语言命名")
-                    base_no_lang = srt_path
-                    # 去掉原有语言后缀（_auto 或 _xx）
-                    import re as _re
-                    base_no_lang = _re.sub(r'_[a-z]{2,5}(\.srt)$', r'\1', srt_path)
-                    new_srt = base_no_lang[:-4] + f"_{iso_detected}.srt"
-                    self.entry_srt_path.delete(0, tk.END)
-                    self.entry_srt_path.insert(0, new_srt)
-                    srt_path = new_srt
+                    is_auto = selected_language.startswith("Auto Detect")
+                    iso_selected = None
+                    if not is_auto and api_lang:
+                        iso_selected = next(
+                            (code for code, (e, _) in language_dict.items()
+                             if e.lower() == api_lang.lower()),
+                            api_lang[:2].lower()
+                        )
+                    mismatch = (not is_auto) and iso_selected and (iso_selected != iso_detected)
 
-            # 保存 verbose_json 原始文件
-            json_path = os.path.splitext(srt_path)[0] + ".json"
-            with open(json_path, "w", encoding="utf-8") as jf:
-                _json.dump(result, jf, ensure_ascii=False, indent=2)
-            self._log(f"verbose_json 已保存：{json_path}\n")
+                    if is_auto or mismatch:
+                        if mismatch:
+                            log(f"⚠ 选择语言({iso_selected}) 与检测结果({iso_detected})不符，按实际语言命名。\n")
+                            logger.warning(f"语言不一致：选择 {iso_selected}，实际检测为 {iso_detected}，文件已按实际语言命名")
+                        base_no_lang = _re.sub(r'_[a-z]{2,5}(\.srt)$', r'\1', current_srt_path)
+                        current_srt_path = base_no_lang[:-4] + f"_{iso_detected}.srt"
+                        self.master.after(0, lambda p=current_srt_path: (
+                            self.entry_srt_path.delete(0, tk.END),
+                            self.entry_srt_path.insert(0, p)
+                        ))
 
-            # 从 segments 组装 SRT
-            srt_content = self._verbose_json_to_srt(result)
-            srt_content = clean_srt_content(srt_content)
-            with open(srt_path, "w", encoding="utf-8", newline='') as sf:
-                sf.write(srt_content)
+                # Save raw verbose_json alongside the SRT for word-level timestamp access
+                json_path = os.path.splitext(current_srt_path)[0] + ".json"
+                with open(json_path, "w", encoding="utf-8") as jf:
+                    _json.dump(result, jf, ensure_ascii=False, indent=2)
+                log(f"verbose_json 已保存：{json_path}\n")
 
-            self._log(f"SRT 已生成：{srt_path}\n")
-            self._log(f"音频时长：{result.get('duration', '?')} 秒\n")
-            self._log(f"段落数：{len(result.get('segments', []))}\n")
-            word_count = len(result.get("words", []))
-            if word_count:
-                self._log(f"逐字时间戳数：{word_count}（已保存至 .json）\n")
-            logger.info(f"语音转字幕完成 → {os.path.basename(srt_path)}")
+                # Build SRT from the segments array in the verbose_json response
+                srt_content = self._verbose_json_to_srt(result)
+                srt_content = clean_srt_content(srt_content)
+                with open(current_srt_path, "w", encoding="utf-8", newline='') as sf:
+                    sf.write(srt_content)
 
-        except Exception as e:
-            self._log(f"错误：{str(e)}\n")
-            logger.error(f"语音转字幕失败: {e}")
+                log(f"SRT 已生成：{current_srt_path}\n")
+                log(f"音频时长：{result.get('duration', '?')} 秒\n")
+                log(f"段落数：{len(result.get('segments', []))}\n")
+                word_count = len(result.get("words", []))
+                if word_count:
+                    log(f"逐字时间戳数：{word_count}（已保存至 .json）\n")
+                logger.info(f"语音转字幕完成 → {os.path.basename(current_srt_path)}")
+
+            except Exception as e:
+                log(f"错误：{str(e)}\n")
+                logger.error(f"语音转字幕失败: {e}")
+            finally:
+                finish()
+
+        threading.Thread(target=_do_transcribe, daemon=True).start()
 
 
 if __name__ == "__main__":

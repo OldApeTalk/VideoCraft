@@ -337,185 +337,111 @@ Return the translated subtitles in the same special 【number】 format with {{b
         if path:
             self.srt_path_var.set(path)
 
-    def translate_with_standard_api(self, custom_prompt=None):
-        srt_path = self.srt_path_var.get()
-        source_lang = self.get_lang_code(self.source_lang_var.get())
-        target_lang = self.get_lang_code(self.target_lang_var.get())
-        
-        if not srt_path or not os.path.exists(srt_path):
-            self.status_var.set("⚠ 请选择有效的SRT文件")
-            return
+    def _set_status(self, msg: str):
+        """Thread-safe status bar update; safe to call from any thread."""
+        self.master.after(0, self.status_var.set, msg)
 
-        if source_lang == target_lang:
-            self.status_var.set("⚠ 源语言和目标语言不能相同")
-            return
-            
-        self.status_var.set("正在读取字幕...")
-        self.master.update()
-        
-        # 读取SRT
+    def translate_with_standard_api(self, srt_path, source_lang, target_lang,
+                                     custom_prompt, batch_size, tier):
+        """Run the full translation pipeline in a background thread.
+        All UI updates are posted back to the main thread via after(0, ...)."""
+        def set_status(msg):
+            self.master.after(0, self.status_var.set, msg)
+
+        def finish():
+            # Always re-enable the button, even on failure
+            self.master.after(0, lambda: self.trans_btn.config(state="normal", text="开始翻译"))
+
         try:
-            subs = list(srt.parse(read_srt(srt_path)))
-        except Exception as e:
-            logger.error(f"解析SRT文件失败: {e}")
-            self.status_var.set(f"⚠ 解析SRT失败: {e}")
-            return
-            
-        # Gemini翻译逻辑：分批发送，请求间隔6秒
-        try:
-            # Gemini翻译逻辑
+            # Parse SRT on the worker thread (file I/O, no UI involved)
+            try:
+                subs = list(srt.parse(read_srt(srt_path)))
+            except Exception as e:
+                logger.error(f"解析SRT文件失败: {e}")
+                set_status(f"⚠ 解析SRT失败: {e}")
+                return
+
             source_lang_name = SUPPORTED_LANGUAGES.get(source_lang, ('Unknown', '未知'))[0]
             target_lang_name = SUPPORTED_LANGUAGES.get(target_lang, ('Unknown', '未知'))[0]
 
-            # 直接处理每个字幕，不进行合并
             print(f"📋 准备翻译 {len(subs)} 条字幕")
 
-            # 准备所有字幕文本 - 使用醒目的编号格式确保API不会合并字幕
-            subtitle_contents = []
-            for i, sub in enumerate(subs):
-                # 使用醒目的【编号】格式，确保每条字幕都被单独处理
-                subtitle_contents.append(f"【{i+1}】{sub.content}")
+            subtitle_contents = [f"【{i+1}】{sub.content}" for i, sub in enumerate(subs)]
 
-            # 分批处理，每批最多包含一定数量的字幕（而不是字符数）
-            max_subs_per_batch = int(self.batch_size_var.get())  # 从 GUI 获取批次大小
             batches = []
-
-            for i in range(0, len(subtitle_contents), max_subs_per_batch):
-                batch_contents = subtitle_contents[i:i + max_subs_per_batch]
-                batches.append({
-                    'start_idx': i,
-                    'contents': batch_contents
-                })
+            for i in range(0, len(subtitle_contents), batch_size):
+                batches.append({'start_idx': i, 'contents': subtitle_contents[i:i + batch_size]})
 
             print(f"📦 分成 {len(batches)} 个批次进行翻译")
 
-            # 翻译每批
             translated_subs = {}
-            total_processed = 0
 
             for batch_idx, batch in enumerate(batches):
-                self.status_var.set(f"正在翻译 ({source_lang.upper()} -> {target_lang.upper()}) - 批次 {batch_idx+1}/{len(batches)}")
-                self.master.update()
+                set_status(f"正在翻译 ({source_lang.upper()} -> {target_lang.upper()}) - 批次 {batch_idx+1}/{len(batches)}")
 
                 batch_start_idx = batch['start_idx']
-                batch_contents = batch['contents']
-                batch_size = len(batch_contents)
+                batch_contents  = batch['contents']
+                cur_batch_size  = len(batch_contents)
+                numbered_input  = '\n\n'.join(batch_contents)
 
-                # 创建编号文本输入
-                numbered_input = '\n\n'.join(batch_contents)
-
-                # 使用自定义prompt，替换占位符
                 prompt = custom_prompt.replace("{source_lang_name}", source_lang_name)
                 prompt = prompt.replace("{target_lang_name}", target_lang_name)
-                prompt = prompt.replace("{batch_size}", str(batch_size))
+                prompt = prompt.replace("{batch_size}", str(cur_batch_size))
                 prompt = prompt.replace("{numbered_input}", numbered_input)
 
-                translated_batch = router.complete(prompt, tier=self.tier_var.get())
+                translated_batch = router.complete(prompt, tier=tier)
 
-                # 处理可能的markdown代码块格式
+                # Strip markdown code-fence wrappers that some models add
                 if translated_batch.startswith('```'):
-                    # 移除开头的```json或```
                     lines = translated_batch.split('\n')
-                    # 找到第一个非空行且不是代码块标记的行
-                    start_idx = 0
-                    for i, line in enumerate(lines):
-                        line = line.strip()
-                        if line and not line.startswith('```'):
-                            start_idx = i
-                            break
-
-                    # 移除结尾的```
-                    end_idx = len(lines)
-                    for i in range(len(lines) - 1, -1, -1):
-                        line = lines[i].strip()
-                        if line and not line.startswith('```'):
-                            end_idx = i + 1
-                            break
-
+                    start_idx = next((i for i, l in enumerate(lines) if l.strip() and not l.startswith('```')), 0)
+                    end_idx = next((i for i in range(len(lines)-1, -1, -1) if lines[i].strip() and not lines[i].startswith('```')), len(lines)-1) + 1
                     translated_batch = '\n'.join(lines[start_idx:end_idx]).strip()
 
-                # 调试：保存原始响应用于诊断（仅在出错时保存，正常翻译不保存）
-                # 如果需要调试，取消下面的注释
-                # debug_file = f"debug_response_batch_{batch_idx+1}.txt"
-                # try:
-                #     with open(debug_file, 'w', encoding='utf-8') as f:
-                #         f.write(f"=== 批次 {batch_idx+1} 原始响应 ===\n")
-                #         f.write(translated_batch)
-                #         f.write(f"\n\n=== 批次 {batch_idx+1} 输入编号文本 ===\n")
-                #         f.write(numbered_input)
-                #     print(f"  💾 调试信息已保存到: {debug_file}")
-                # except:
-                #     pass  # 调试文件保存失败不影响主流程
-
-                # 解析编号响应
+                # Parse 【N】 numbered response back into a dict keyed by 0-based index
                 try:
-                    # 按行分割并解析编号格式
-                    lines = translated_batch.split('\n')
                     parsed_subs = {}
-
                     current_num = None
                     current_content = []
 
-                    for line in lines:
+                    for line in translated_batch.split('\n'):
                         line = line.strip()
                         if not line:
                             continue
-
-                        # 检查是否是编号行 (如 "【1】", "【2】", etc.)
-                        import re
                         match = re.match(r'^【(\d+)】\s*(.*)$', line)
                         if match:
-                            # 保存之前的字幕（如果有）
                             if current_num is not None and current_content:
                                 parsed_subs[current_num] = '\n'.join(current_content).strip()
-
-                            # 开始新的字幕
-                            current_num = int(match.group(1)) - 1  # 转换为0-based索引
+                            current_num = int(match.group(1)) - 1
                             current_content = [match.group(2)]
                         elif current_num is not None:
-                            # 继续当前字幕的内容
                             current_content.append(line)
 
-                    # 保存最后一个字幕
                     if current_num is not None and current_content:
                         parsed_subs[current_num] = '\n'.join(current_content).strip()
 
-                    # 验证数量
-                    if len(parsed_subs) != batch_size:
-                        print(f"  ⚠️  批次 {batch_idx+1} 字幕数量不匹配: 期望 {batch_size}, 实际 {len(parsed_subs)}")
-                        actual_size = min(batch_size, len(parsed_subs))
+                    actual_size = min(cur_batch_size, len(parsed_subs))
+                    if len(parsed_subs) != cur_batch_size:
+                        print(f"  ⚠️  批次 {batch_idx+1} 字幕数量不匹配: 期望 {cur_batch_size}, 实际 {len(parsed_subs)}")
                     else:
-                        actual_size = batch_size
                         print(f"  ✅ 批次 {batch_idx+1} 编号解析成功: {actual_size} 条字幕")
 
-                    # 存储翻译结果
                     for i in range(actual_size):
                         global_idx = batch_start_idx + i
-                        if global_idx in parsed_subs:  # 修复：使用全局索引而不是批次内索引
-                            translated_content = parsed_subs[global_idx]
-
-                            # 清理可能的多余引号（如果API添加了引号包围）
-                            if isinstance(translated_content, str):
-                                # 清理首尾引号 - 更激进的清理
-                                original_content = translated_content
-                                while (len(translated_content) > 1 and
-                                       translated_content.startswith('"') and
-                                       translated_content.endswith('"')):
-                                    # 检查清理后是否仍然有效
-                                    cleaned = translated_content[1:-1]  # 移除最外层引号
-                                    # 如果清理后内容仍然合理，则接受清理
+                        if global_idx in parsed_subs:
+                            content = parsed_subs[global_idx]
+                            if isinstance(content, str):
+                                original = content
+                                while (len(content) > 1 and
+                                       content.startswith('"') and content.endswith('"')):
+                                    cleaned = content[1:-1]
                                     if cleaned.strip():
-                                        translated_content = cleaned
+                                        content = cleaned
                                     else:
                                         break
-
-                                # 如果内容被清理了，记录一下
-                                if translated_content != original_content:
+                                if content != original:
                                     print(f"  🧹 清理字幕 {global_idx} 的多余引号")
-                                    print(f"     原文: '{original_content}'")
-                                    print(f"     清理后: '{translated_content}'")
-
-                            translated_subs[global_idx] = translated_content
+                            translated_subs[global_idx] = content
 
                     print(f"  📍 批次 {batch_idx+1} 处理完成 (全局索引 {batch_start_idx}-{batch_start_idx+actual_size-1})")
 
@@ -523,36 +449,27 @@ Return the translated subtitles in the same special 【number】 format with {{b
                     print(f"  ❌ 批次 {batch_idx+1} 编号解析失败: {e}")
                     print(f"  📄 原始响应: {translated_batch[:200]}...")
 
-                    # 后备解析：尝试按行分割（不推荐，但作为最后手段）
-                    lines = translated_batch.split('\n')
-                    valid_lines = [line.strip() for line in lines if line.strip() and not line.startswith('```')]
-
-                    if len(valid_lines) >= batch_size:
+                    valid_lines = [l.strip() for l in translated_batch.split('\n')
+                                   if l.strip() and not l.startswith('```')]
+                    if len(valid_lines) >= cur_batch_size:
                         print(f"  🔄 使用后备解析方法...")
-                        for i in range(batch_size):
-                            global_idx = batch_start_idx + i
+                        for i in range(cur_batch_size):
                             if i < len(valid_lines):
-                                translated_subs[global_idx] = valid_lines[i]
-                        print(f"  ✅ 后备解析完成: {batch_size} 条字幕")
+                                translated_subs[batch_start_idx + i] = valid_lines[i]
+                        print(f"  ✅ 后备解析完成: {cur_batch_size} 条字幕")
                     else:
                         print(f"  ❌ 后备解析也失败: 只有 {len(valid_lines)} 行可用文本")
 
-                # 更新已处理的字幕数量
-                total_processed += batch_size
-
-                # API调用间隔，避免速率限制（付费版：0.5秒 ≈ 120 RPM）
                 if batch_idx < len(batches) - 1:
                     print("  ⏳ 等待0.5秒...")
-                    import time
                     time.sleep(0.5)
 
-            # 直接应用翻译结果 - 未翻译的字幕保持原文
+            # Apply translated content; keep originals for any subtitle that failed translation
             untranslated_count = 0
             for i, sub in enumerate(subs):
                 if i in translated_subs:
                     sub.content = translated_subs[i]
                 else:
-                    # 保持原文
                     untranslated_count += 1
                     print(f"字幕 {i+1} 未翻译，保持原文: '{sub.content[:50]}...'")
 
@@ -560,32 +477,48 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 print(f"共 {untranslated_count} 条字幕未翻译，保持原文")
             else:
                 print(f"成功: 所有 {len(subs)} 条字幕都已翻译")
-            
-        except Exception as e:
-            logger.error(f"翻译失败: {e}")
-            self.status_var.set(f"✗ 翻译失败: {e}")
-            return
-        
-        # 输出
-        target_lang_name = SUPPORTED_LANGUAGES[target_lang][0]  # 获取目标语言的英文名
-        output_dir = os.path.dirname(srt_path)  # 获取原文件的目录
-        output_file = os.path.join(output_dir, f"{target_lang_name}.srt")
-        try:
+
+            # Write output SRT named after the target language
+            output_dir  = os.path.dirname(srt_path)
+            output_file = os.path.join(output_dir, f"{target_lang_name}.srt")
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(srt.compose(subs))
-            self.status_var.set(f"翻译完成，已保存: {output_file}")
+            set_status(f"翻译完成，已保存: {output_file}")
             logger.info(f"翻译完成 → {os.path.basename(output_file)}")
+
         except Exception as e:
-            logger.error(f"保存翻译结果失败: {e}")
-            self.status_var.set(f"✗ 保存失败: {e}")
+            logger.error(f"翻译失败: {e}")
+            set_status(f"✗ 翻译失败: {e}")
+        finally:
+            finish()
 
     def translate_srt(self):
         custom_prompt = self.translate_prompt_text.get("1.0", tk.END).strip()
         if not custom_prompt:
             self.status_var.set("⚠ 请输入Prompt提示语")
             return
-        # 使用标准 API 进行翻译
-        self.translate_with_standard_api(custom_prompt)
+
+        srt_path    = self.srt_path_var.get()
+        source_lang = self.get_lang_code(self.source_lang_var.get())
+        target_lang = self.get_lang_code(self.target_lang_var.get())
+        batch_size  = int(self.batch_size_var.get())
+        tier        = self.tier_var.get()
+
+        if not srt_path or not os.path.exists(srt_path):
+            self.status_var.set("⚠ 请选择有效的SRT文件")
+            return
+        if source_lang == target_lang:
+            self.status_var.set("⚠ 源语言和目标语言不能相同")
+            return
+
+        self.trans_btn.config(state="disabled", text="翻译中…")
+        self.status_var.set("正在读取字幕...")
+
+        threading.Thread(
+            target=self.translate_with_standard_api,
+            args=(srt_path, source_lang, target_lang, custom_prompt, batch_size, tier),
+            daemon=True
+        ).start()
 
 # 启动主界面
 if __name__ == "__main__":
