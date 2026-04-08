@@ -50,27 +50,31 @@ def split_subtitle(sub, max_chars: int, is_chinese: bool = False):
     将单条字幕按 max_chars 分割为多条。
     - 优先在标点处断开
     - 英文额外在空格处断开
-    - 按字符比例分配时间轴
+    - 直接从 sub.start 按累计字符比例计算每段时间，避免浮点累加漂移
     """
     content = sub.content.strip()
     if len(content) <= max_chars:
         return [sub]
 
-    new_subs = []
-    start = sub.start
     end = sub.end
-    total_duration = (end - start).total_seconds()
+    total_duration = (end - sub.start).total_seconds()
+    if total_duration <= 0:
+        return [sub]
 
     if is_chinese:
-        breaks = [m.start() for m in re.finditer(r'[，。？！；]', content)] + [len(content)]
+        breaks = [m.start() for m in re.finditer(r'[，。？！；]', content)]
     else:
-        breaks = [m.start() for m in re.finditer(r'[.?!,]', content)] + [len(content)]
+        breaks = [m.start() for m in re.finditer(r'[.?!,]', content)]
 
+    new_subs = []
+    chars_so_far = 0      # 累计已处理字符数（整数，无浮点误差）
     current_pos = 0
-    while current_pos < len(content):
+    n = len(content)
+
+    while current_pos < n:
         split_pos = current_pos + max_chars
-        if split_pos >= len(content):
-            split_pos = len(content)
+        if split_pos >= n:
+            split_pos = n
         else:
             candidates = [b + 1 for b in breaks if current_pos < b + 1 <= split_pos]
             if candidates:
@@ -80,24 +84,27 @@ def split_subtitle(sub, max_chars: int, is_chinese: bool = False):
                 if last_space > current_pos:
                     split_pos = last_space + 1
 
+        slice_len = split_pos - current_pos
         part = content[current_pos:split_pos].strip()
-        if not part:
-            break
 
-        part_dur = (len(part) / len(content)) * total_duration
-        part_end = start + timedelta(seconds=part_dur)
-        new_subs.append(srt.Subtitle(
-            index=len(new_subs) + 1,
-            start=start,
-            end=part_end,
-            content=part,
-        ))
-        start = part_end
+        # 直接从 sub.start 计算，完全消除浮点累加误差
+        t_start = sub.start + timedelta(seconds=chars_so_far / n * total_duration)
+        chars_so_far += slice_len
+        t_end   = sub.start + timedelta(seconds=chars_so_far / n * total_duration)
+
+        if part:                          # 纯空白切片跳过，但位置和时间比例照常推进
+            new_subs.append(srt.Subtitle(
+                index=len(new_subs) + 1,
+                start=t_start,
+                end=t_end,
+                content=part,
+            ))
+
         current_pos = split_pos
 
     if new_subs:
-        new_subs[-1].end = end
-    return new_subs
+        new_subs[-1].end = end            # 最后一段精确对齐原始结束时间
+    return new_subs if new_subs else [sub]
 
 
 def process_srt_split(input_path: str, max_chars: int,

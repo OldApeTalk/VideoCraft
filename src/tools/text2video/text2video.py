@@ -545,61 +545,100 @@ from core.subtitle_ops import (
 
 
 class AudioVideoApp(ToolBase):
+    """多章节音频合成视频：每章节独立配置音频/字幕/背景图/背景视频，最终合并为单一输出。"""
+
     def __init__(self, master):
         self.master = master
-        master.title("VideoCraft - 音频合成视频")
-        master.geometry("1060x760")
+        master.title("VideoCraft - 多章节音频合成视频")
+        master.geometry("1180x860")
         master.resizable(True, True)
+        self.chapters = []          # list of chapter dicts
+        self._ffmpeg_proc = None
+        self._stop_flag = False
         self._build_ui()
+
+    # ── UI 构建 ──────────────────────────────────────────────────────────────
 
     def _build_ui(self):
         tab = self.master
-        left_frame = tk.Frame(tab)
-        left_frame.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
-        right_frame = tk.Frame(tab)
-        right_frame.grid(row=0, column=1, padx=8, pady=8, sticky="nsew")
-        tab.columnconfigure(0, weight=1)
-        tab.columnconfigure(1, weight=1)
+        tab.columnconfigure(0, weight=3)
+        tab.columnconfigure(1, weight=2)
         tab.rowconfigure(0, weight=1)
 
-        # ── 左侧：文件选择 + 视频参数 ──
-        file_frame = tk.LabelFrame(left_frame, text="文件选择", padx=8, pady=8)
-        file_frame.pack(fill="both", padx=4, pady=4)
-        file_frame.columnconfigure(1, weight=1)
+        # ── 左侧：章节列表 ──
+        left = tk.Frame(tab)
+        left.grid(row=0, column=0, padx=6, pady=6, sticky="nsew")
+        left.rowconfigure(1, weight=1)
+        left.columnconfigure(0, weight=1)
 
-        def _file_row(parent, row, label, var, cmd, readonly=True, info_var=None):
-            tk.Label(parent, text=label).grid(row=row, column=0, padx=4, pady=6, sticky="e")
-            state = 'readonly' if readonly else 'normal'
-            tk.Entry(parent, textvariable=var, width=36, state=state).grid(
-                row=row, column=1, sticky="ew", padx=4)
-            tk.Button(parent, text="选择" if readonly else "浏览", command=cmd,
-                      width=7).grid(row=row, column=2, padx=4)
-            if info_var is not None:
-                tk.Label(parent, textvariable=info_var, fg="gray",
-                         font=("Arial", 8)).grid(row=row+1, column=1, sticky="w", padx=4)
+        hdr = tk.Frame(left)
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 4))
+        tk.Label(hdr, text="章节列表", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        tk.Button(hdr, text="＋ 添加章节", command=self._add_chapter,
+                  bg="#2196F3", fg="white", width=14).pack(side=tk.RIGHT, padx=4)
 
-        self.audio_path_var = tk.StringVar()
-        self.audio_info_var = tk.StringVar(value="未选择音频文件")
-        _file_row(file_frame, 0, "音频文件:", self.audio_path_var,
-                  self._select_audio, info_var=self.audio_info_var)
+        # 可滚动容器
+        self._chap_canvas = tk.Canvas(left, borderwidth=1, relief=tk.SUNKEN, bg="#f0f0f0")
+        _sb = ttk.Scrollbar(left, orient="vertical", command=self._chap_canvas.yview)
+        self._chap_canvas.configure(yscrollcommand=_sb.set)
+        self._chap_canvas.grid(row=1, column=0, sticky="nsew")
+        _sb.grid(row=1, column=1, sticky="ns")
+        self._chap_inner = tk.Frame(self._chap_canvas, bg="#f0f0f0")
+        self._chap_win = self._chap_canvas.create_window((0, 0), window=self._chap_inner, anchor="nw")
+        self._chap_inner.bind("<Configure>", lambda e: self._chap_canvas.configure(
+            scrollregion=self._chap_canvas.bbox("all")))
+        self._chap_canvas.bind("<Configure>", lambda e: self._chap_canvas.itemconfig(
+            self._chap_win, width=e.width))
+        self._chap_canvas.bind("<Enter>",
+            lambda e: self._chap_canvas.bind_all("<MouseWheel>", self._on_mousewheel))
+        self._chap_canvas.bind("<Leave>",
+            lambda e: self._chap_canvas.unbind_all("<MouseWheel>"))
 
-        self.image_path_var = tk.StringVar()
-        self.image_info_var = tk.StringVar(value="未选择图片文件")
-        _file_row(file_frame, 2, "图片文件:", self.image_path_var,
-                  self._select_image, info_var=self.image_info_var)
-
-        self.srt_path_var = tk.StringVar()
-        _file_row(file_frame, 4, "字幕 SRT:", self.srt_path_var, self._select_srt)
-        tk.Label(file_frame, text="（可选）若已生成 SRT 可直接烧录",
-                 fg="gray", font=("Arial", 8)).grid(row=5, column=1, sticky="w", padx=4)
-
+        # 输出文件
+        out_f = tk.Frame(left)
+        out_f.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 2))
+        tk.Label(out_f, text="输出视频:").pack(side=tk.LEFT, padx=4)
         self.video_output_var = tk.StringVar(value="output.mp4")
-        _file_row(file_frame, 6, "输出视频:", self.video_output_var,
-                  self._select_video_output, readonly=False)
+        tk.Entry(out_f, textvariable=self.video_output_var, width=38).pack(
+            side=tk.LEFT, padx=4, fill=tk.X, expand=True)
+        tk.Button(out_f, text="浏览", command=self._select_video_output,
+                  width=6).pack(side=tk.LEFT, padx=4)
 
-        # 视频参数
-        cfg = tk.LabelFrame(left_frame, text="视频配置", padx=8, pady=8)
-        cfg.pack(fill="both", padx=4, pady=4)
+        # ── 右侧：全局设置 ──
+        right = tk.Frame(tab)
+        right.grid(row=0, column=1, padx=6, pady=6, sticky="nsew")
+        self._build_right_panel(right)
+
+        # ── 底部：按钮 + 进度 ──
+        bottom = tk.Frame(tab)
+        bottom.grid(row=1, column=0, columnspan=2, pady=6, sticky="ew")
+        bottom.columnconfigure(0, weight=1)
+
+        btn_row = tk.Frame(bottom)
+        btn_row.grid(row=0, column=0)
+        self.generate_btn = tk.Button(btn_row, text="合成视频", command=self._start,
+                                      width=22, height=2, bg="#4CAF50", fg="white",
+                                      font=("Arial", 11, "bold"))
+        self.generate_btn.pack(side=tk.LEFT, padx=10)
+        self.stop_btn = tk.Button(btn_row, text="停止", command=self._stop,
+                                  width=8, height=2, state="disabled")
+        self.stop_btn.pack(side=tk.LEFT, padx=4)
+
+        self.progress_var = tk.DoubleVar(value=0)
+        ttk.Progressbar(bottom, variable=self.progress_var, maximum=100, length=700).grid(
+            row=1, column=0, padx=12, pady=(6, 0), sticky="ew")
+        self.status_var = tk.StringVar(value="")
+        tk.Label(bottom, textvariable=self.status_var, fg="blue",
+                 font=("Arial", 9), anchor="w").grid(
+            row=2, column=0, padx=12, pady=2, sticky="ew")
+
+        # 默认添加第一章节
+        self._add_chapter()
+
+    def _build_right_panel(self, right):
+        # 视频配置
+        cfg = tk.LabelFrame(right, text="视频配置", padx=8, pady=8)
+        cfg.pack(fill="x", padx=4, pady=4)
 
         tk.Label(cfg, text="视频方向:", font=("Arial", 9, "bold")).grid(
             row=0, column=0, padx=4, pady=4, sticky="w")
@@ -614,7 +653,7 @@ class AudioVideoApp(ToolBase):
         tk.Label(cfg, text="分辨率:").grid(row=1, column=0, padx=4, pady=4, sticky="e")
         self.resolution_var = tk.StringVar(value="1920x1080 (1080p)")
         self.resolution_combo = ttk.Combobox(cfg, textvariable=self.resolution_var,
-                                              state="readonly", width=28)
+                                              state="readonly", width=26)
         self._update_resolution()
         self.resolution_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=4)
 
@@ -639,11 +678,9 @@ class AudioVideoApp(ToolBase):
                      values=["libx264 (H.264)", "libx265 (H.265/HEVC)", "mpeg4"],
                      state="readonly", width=22).grid(row=4, column=1, columnspan=2, sticky="w", padx=4)
 
-        # ── 右侧：字幕样式 + 水印 ──
-
-        # 字幕设置
-        sub_frame = tk.LabelFrame(right_frame, text="字幕设置", padx=8, pady=8)
-        sub_frame.pack(fill="both", padx=4, pady=4)
+        # 字幕设置（全局）
+        sub_frame = tk.LabelFrame(right, text="字幕设置（全局）", padx=8, pady=8)
+        sub_frame.pack(fill="x", padx=4, pady=4)
         sub_frame.columnconfigure(1, weight=1)
 
         self.sub_split_var = tk.BooleanVar(value=True)
@@ -656,9 +693,8 @@ class AudioVideoApp(ToolBase):
         self.sub_max_chars_var = tk.IntVar(value=20)
         tk.Spinbox(sub_frame, textvariable=self.sub_max_chars_var,
                    from_=5, to=80, width=6).grid(row=1, column=1, sticky="w", padx=4)
-        self.sub_maxchars_hint = tk.Label(sub_frame, text="(横屏推荐 20，竖屏推荐 10)",
-                                          fg="gray", font=("Arial", 8))
-        self.sub_maxchars_hint.grid(row=1, column=2, sticky="w")
+        tk.Label(sub_frame, text="(横屏推荐 20，竖屏推荐 10)",
+                 fg="gray", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
 
         self.sub_is_chinese_var = tk.BooleanVar(value=True)
         tk.Checkbutton(sub_frame, text="中文断句优先（按标点）",
@@ -679,19 +715,19 @@ class AudioVideoApp(ToolBase):
         self.sub_fontsize_var = tk.IntVar(value=28)
         tk.Spinbox(sub_frame, textvariable=self.sub_fontsize_var,
                    from_=10, to=72, width=6).grid(row=4, column=1, sticky="w", padx=4)
-        tk.Label(sub_frame, text="(横屏推荐 28，竖屏推荐 20)",
+        tk.Label(sub_frame, text="(横屏 28，竖屏 20)",
                  fg="gray", font=("Arial", 8)).grid(row=4, column=2, sticky="w")
 
         tk.Label(sub_frame, text="底部边距:").grid(row=5, column=0, padx=4, pady=5, sticky="e")
         self.sub_margin_v_var = tk.IntVar(value=80)
         tk.Spinbox(sub_frame, textvariable=self.sub_margin_v_var,
                    from_=10, to=300, width=6).grid(row=5, column=1, sticky="w", padx=4)
-        tk.Label(sub_frame, text="像素（横屏推荐 80，竖屏推荐 60）",
+        tk.Label(sub_frame, text="像素 (横 80，竖 60)",
                  fg="gray", font=("Arial", 8)).grid(row=5, column=2, sticky="w")
 
         # 水印设置
-        wm_frame = tk.LabelFrame(right_frame, text="水印设置", padx=8, pady=8)
-        wm_frame.pack(fill="both", padx=4, pady=4)
+        wm_frame = tk.LabelFrame(right, text="水印设置", padx=8, pady=8)
+        wm_frame.pack(fill="x", padx=4, pady=4)
         wm_frame.columnconfigure(1, weight=1)
 
         self.watermark_enabled_var = tk.BooleanVar(value=True)
@@ -701,7 +737,7 @@ class AudioVideoApp(ToolBase):
 
         tk.Label(wm_frame, text="水印文字:").grid(row=1, column=0, padx=4, pady=5, sticky="e")
         self.watermark_text_var = tk.StringVar(value="老猿世界观察")
-        tk.Entry(wm_frame, textvariable=self.watermark_text_var, width=28).grid(
+        tk.Entry(wm_frame, textvariable=self.watermark_text_var, width=26).grid(
             row=1, column=1, columnspan=2, sticky="ew", padx=4)
 
         tk.Label(wm_frame, text="文字颜色:").grid(row=2, column=0, padx=4, pady=5, sticky="e")
@@ -717,7 +753,7 @@ class AudioVideoApp(ToolBase):
         tk.Label(wm_frame, text="透明度:").grid(row=3, column=0, padx=4, pady=5, sticky="e")
         self.watermark_opacity_var = tk.DoubleVar(value=0.5)
         tk.Scale(wm_frame, from_=0.1, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
-                 variable=self.watermark_opacity_var, length=200).grid(
+                 variable=self.watermark_opacity_var, length=180).grid(
             row=3, column=1, columnspan=2, sticky="ew", padx=4)
 
         tk.Label(wm_frame, text="位置:").grid(row=4, column=0, padx=4, pady=5, sticky="e")
@@ -727,62 +763,71 @@ class AudioVideoApp(ToolBase):
                              "右下角 (bottomright)", "左下角 (bottomleft)"],
                      state="readonly", width=24).grid(row=4, column=1, columnspan=2, sticky="ew", padx=4)
 
-        # ── 底部：按钮 + 进度 ──
-        bottom = tk.Frame(tab)
-        bottom.grid(row=1, column=0, columnspan=2, pady=8, sticky="ew")
-        bottom.columnconfigure(0, weight=1)
+    # ── 章节管理 ─────────────────────────────────────────────────────────────
 
-        btn_row = tk.Frame(bottom)
-        btn_row.grid(row=0, column=0)
-        self.generate_btn = tk.Button(btn_row, text="合成视频", command=self._start,
-                                      width=22, height=2, bg="#4CAF50", fg="white",
-                                      font=("Arial", 11, "bold"))
-        self.generate_btn.pack(side=tk.LEFT, padx=10)
-        self.stop_btn = tk.Button(btn_row, text="停止", command=self._stop,
-                                  width=8, height=2, state="disabled")
-        self.stop_btn.pack(side=tk.LEFT, padx=4)
+    def _on_mousewheel(self, event):
+        self._chap_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        self.progress_var = tk.DoubleVar(value=0)
-        ttk.Progressbar(bottom, variable=self.progress_var, maximum=100, length=600).grid(
-            row=1, column=0, padx=12, pady=(6, 0), sticky="ew")
+    def _add_chapter(self):
+        chap = {
+            'audio': tk.StringVar(),
+            'srt':   tk.StringVar(),
+            'image': tk.StringVar(),
+            'video': tk.StringVar(),
+            'frame': None,
+        }
+        idx = len(self.chapters) + 1
+        frame = tk.LabelFrame(self._chap_inner, text=f"章节 {idx}",
+                              padx=8, pady=6, font=("Arial", 9, "bold"))
+        frame.pack(fill="x", padx=6, pady=4)
+        frame.columnconfigure(1, weight=1)
+        chap['frame'] = frame
 
-        self.status_var = tk.StringVar(value="")
-        tk.Label(bottom, textvariable=self.status_var, fg="blue",
-                 font=("Arial", 9), anchor="w").grid(
-            row=2, column=0, padx=12, pady=2, sticky="ew")
+        AUDIO_FT = [("音频文件", "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"), ("所有文件", "*.*")]
+        SRT_FT   = [("SRT字幕",  "*.srt"), ("所有文件", "*.*")]
+        IMG_FT   = [("图片文件", "*.jpg *.jpeg *.png *.bmp *.webp"), ("所有文件", "*.*")]
+        VID_FT   = [("视频文件", "*.mp4 *.avi *.mov *.mkv *.webm"), ("所有文件", "*.*")]
 
-        self._ffmpeg_proc = None
+        rows = [
+            (0, "音频:",   chap['audio'], AUDIO_FT, ""),
+            (1, "字幕:",   chap['srt'],   SRT_FT,   "（可选）"),
+            (2, "背景图:", chap['image'], IMG_FT,   "（可选）"),
+            (3, "背景视频:", chap['video'], VID_FT, "（可选，在背景图之上）"),
+        ]
+        for r, lbl, var, ft, hint in rows:
+            tk.Label(frame, text=lbl, width=8, anchor="e").grid(
+                row=r, column=0, padx=4, pady=3, sticky="e")
+            tk.Entry(frame, textvariable=var, width=34, state='readonly').grid(
+                row=r, column=1, sticky="ew", padx=4)
+            tk.Button(frame, text="选择", width=5,
+                      command=lambda v=var, f=ft: self._pick_file(v, f)).grid(
+                row=r, column=2, padx=2)
+            tk.Button(frame, text="清除", width=4,
+                      command=lambda v=var: v.set("")).grid(row=r, column=3, padx=2)
+            if hint:
+                tk.Label(frame, text=hint, fg="gray", font=("Arial", 7)).grid(
+                    row=r, column=4, sticky="w", padx=2)
 
-    def _select_audio(self):
-        path = filedialog.askopenfilename(
-            title="选择音频文件",
-            filetypes=[("音频文件", "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"), ("所有文件", "*.*")])
+        tk.Button(frame, text="✕ 删除本章节", fg="red", font=("Arial", 8),
+                  command=lambda c=chap: self._remove_chapter(c)).grid(
+            row=4, column=0, columnspan=5, pady=(6, 2))
+
+        self.chapters.append(chap)
+
+    def _remove_chapter(self, chap):
+        if len(self.chapters) <= 1:
+            return
+        chap['frame'].destroy()
+        self.chapters.remove(chap)
+        for i, c in enumerate(self.chapters):
+            c['frame'].config(text=f"章节 {i + 1}")
+
+    def _pick_file(self, var, file_types):
+        path = filedialog.askopenfilename(filetypes=file_types)
         if path:
-            self.audio_path_var.set(path)
-            dur = self._get_duration(path)
-            self.audio_info_var.set(
-                f"{os.path.basename(path)} | {dur:.1f} 秒" if dur > 0
-                else os.path.basename(path))
+            var.set(path)
 
-    def _select_image(self):
-        path = filedialog.askopenfilename(
-            title="选择图片文件",
-            filetypes=[("图片文件", "*.jpg *.jpeg *.png *.bmp *.webp"), ("所有文件", "*.*")])
-        if path:
-            self.image_path_var.set(path)
-            try:
-                from PIL import Image as _Img
-                img = _Img.open(path)
-                self.image_info_var.set(f"{os.path.basename(path)} | {img.width}×{img.height}")
-            except Exception:
-                self.image_info_var.set(os.path.basename(path))
-
-    def _select_srt(self):
-        path = filedialog.askopenfilename(
-            title="选择字幕文件",
-            filetypes=[("SRT files", "*.srt"), ("所有文件", "*.*")])
-        if path:
-            self.srt_path_var.set(path)
+    # ── 右侧控件辅助 ──────────────────────────────────────────────────────────
 
     def _select_video_output(self):
         path = filedialog.asksaveasfilename(
@@ -792,7 +837,6 @@ class AudioVideoApp(ToolBase):
             self.video_output_var.set(path)
 
     def _on_orientation(self):
-        """方向切换时同步更新分辨率和字幕默认参数"""
         self._update_resolution()
         ori = self.orientation_var.get()
         d = LAYOUT_DEFAULTS.get(ori, LAYOUT_DEFAULTS["horizontal"])
@@ -830,6 +874,263 @@ class AudioVideoApp(ToolBase):
         if c[1]:
             self.watermark_color_var.set(c[1]); self.wm_color_preview.config(bg=c[1])
 
+    # ── 合成逻辑 ──────────────────────────────────────────────────────────────
+
+    def _start(self):
+        mb = __import__('tkinter').messagebox
+        for i, c in enumerate(self.chapters):
+            audio = c['audio'].get().strip()
+            if not audio or not os.path.exists(audio):
+                mb.showerror("错误", f"章节 {i + 1}：请选择有效的音频文件")
+                return
+        output = self.video_output_var.get().strip()
+        if not output:
+            mb.showerror("错误", "请指定输出视频文件路径")
+            return
+        self._stop_flag = False
+        self.generate_btn.config(state="disabled")
+        self.stop_btn.config(state="normal")
+        self.progress_var.set(0)
+        self.status_var.set("正在准备...")
+        getattr(self.master, 'set_status', lambda _: None)("running")
+        threading.Thread(target=self._generate, args=(output,), daemon=True).start()
+
+    def _stop(self):
+        self._stop_flag = True
+        if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
+            self._ffmpeg_proc.terminate()
+        self.status_var.set("正在停止...")
+
+    def _generate(self, output):
+        import re as _re
+        tmp_segments = []   # temp video files per chapter
+        tmp_srts = []       # 分割后的中间 SRT 文件（保留，不删除）
+        try:
+            res_str = self.resolution_var.get().split(" ")[0]
+            width, height = map(int, res_str.split('x'))
+            fps = int(self.fps_var.get())
+            codec = self.codec_var.get().split(" ")[0]
+            bg_hex = self._hex_to_ffmpeg(self.bg_color_var.get())
+            orientation = self.orientation_var.get()
+
+            subtitle_style = build_subtitle_style(
+                orientation=orientation,
+                fontsize=self.sub_fontsize_var.get(),
+                color=self.sub_color_var.get(),
+                margin_v=self.sub_margin_v_var.get(),
+            )
+            watermark_filter = (self._build_watermark(height)
+                                if self.watermark_enabled_var.get() else None)
+
+            total = len(self.chapters)
+            for i, chap in enumerate(self.chapters):
+                if self._stop_flag:
+                    self.status_var.set("已停止"); return
+
+                self.status_var.set(f"正在合成章节 {i + 1}/{total}...")
+                base_pct = i / total * 95
+
+                audio = chap['audio'].get().strip()
+                srt   = chap['srt'].get().strip()
+                image = chap['image'].get().strip()
+                video = chap['video'].get().strip()
+
+                duration = self._get_duration(audio)
+                if duration <= 0:
+                    raise RuntimeError(f"章节 {i + 1}：无法获取音频时长")
+
+                # 处理字幕换行分割
+                burn_srt = None
+                if srt and os.path.exists(srt):
+                    burn_srt = srt
+                    if self.sub_split_var.get():
+                        tmp_srt = srt.replace('.srt', f'_split_ch{i}.srt')
+                        try:
+                            split_srt_to_file(srt,
+                                              max_chars=self.sub_max_chars_var.get(),
+                                              is_chinese=self.sub_is_chinese_var.get(),
+                                              output_path=tmp_srt)
+                            burn_srt = tmp_srt
+                            tmp_srts.append(tmp_srt)
+                        except Exception as e:
+                            self.status_var.set(f"章节 {i + 1} 字幕分割失败，用原始 SRT：{e}")
+
+                # 临时输出文件
+                tmp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                tmp_f.close()
+                tmp_segments.append(tmp_f.name)
+
+                cmd = self._build_chapter_cmd(
+                    audio=audio,
+                    image=image if image and os.path.exists(image) else None,
+                    bg_video=video if video and os.path.exists(video) else None,
+                    srt=burn_srt,
+                    width=width, height=height, fps=fps, codec=codec,
+                    bg_hex=bg_hex, duration=duration,
+                    subtitle_style=subtitle_style,
+                    watermark_filter=watermark_filter,
+                    output=tmp_f.name,
+                )
+
+                self._ffmpeg_proc = subprocess.Popen(
+                    cmd, stderr=subprocess.PIPE, text=True,
+                    encoding='utf-8', errors='replace')
+
+                for line in self._ffmpeg_proc.stderr:
+                    if self._stop_flag:
+                        self._ffmpeg_proc.terminate()
+                        self.status_var.set("已停止"); return
+                    m = _re.search(r'time=(\d+):(\d+):([\d.]+)', line)
+                    if m and duration > 0:
+                        elapsed = (int(m.group(1)) * 3600 +
+                                   int(m.group(2)) * 60 + float(m.group(3)))
+                        self.progress_var.set(
+                            base_pct + min(1.0, elapsed / duration) / total * 95)
+
+                self._ffmpeg_proc.wait()
+                if self._ffmpeg_proc.returncode != 0:
+                    raise RuntimeError(f"章节 {i + 1} ffmpeg 返回非零退出码")
+
+            if self._stop_flag:
+                return
+
+            # 合并所有章节
+            if len(tmp_segments) == 1:
+                import shutil
+                shutil.copy2(tmp_segments[0], output)
+            else:
+                self.status_var.set(f"正在合并 {total} 个章节...")
+                self.progress_var.set(96)
+                self._concat_videos(tmp_segments, output)
+
+            self.progress_var.set(100)
+            self.status_var.set(f"完成！共 {total} 个章节 → {output}")
+            __import__('tkinter').messagebox.showinfo("成功", f"视频已保存到：\n{output}")
+
+        except Exception as e:
+            self.status_var.set("生成失败")
+            __import__('tkinter').messagebox.showerror("错误", f"视频生成失败：\n{e}")
+        finally:
+            self.master.after(0, lambda: self.generate_btn.config(state="normal"))
+            self.master.after(0, lambda: self.stop_btn.config(state="disabled"))
+            self._ffmpeg_proc = None
+            for f in tmp_segments:
+                try: os.unlink(f)
+                except Exception: pass
+            # 分割后的 SRT 作为中间文件保留，不删除
+            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+
+    def _build_chapter_cmd(self, audio, image, bg_video, srt, width, height,
+                            fps, codec, bg_hex, duration, subtitle_style,
+                            watermark_filter, output):
+        """为单个章节构建 ffmpeg 命令列表。
+
+        图层顺序：背景图（底） → 背景视频（叠上） → 字幕 → 水印
+        """
+        scale_pad = (f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                     f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color={bg_hex}")
+
+        if image and bg_video:
+            # 两路视觉输入：[0]=bg_image  [1]=bg_video  [2]=audio
+            inputs = [
+                'ffmpeg',
+                '-loop', '1', '-t', str(duration), '-i', image,
+                '-stream_loop', '-1', '-i', bg_video,
+                '-i', audio,
+            ]
+            fc = [
+                f"[0:v]{scale_pad}[base]",
+                (f"[1:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2[ov]"),
+                "[base][ov]overlay=0:0[v0]",
+            ]
+            last, cnt = "v0", 1
+            if srt:
+                srt_ff = escape_ffmpeg_path(srt)
+                nxt = f"v{cnt}"; cnt += 1
+                fc.append(f"[{last}]subtitles='{srt_ff}':force_style='{subtitle_style}'[{nxt}]")
+                last = nxt
+            if watermark_filter:
+                nxt = f"v{cnt}"
+                fc.append(f"[{last}]{watermark_filter}[{nxt}]")
+                last = nxt
+            return inputs + [
+                '-filter_complex', ';'.join(fc),
+                '-map', f'[{last}]', '-map', '2:a',
+                '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
+                '-r', str(fps), '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart', '-t', str(duration), '-y', output,
+            ]
+
+        elif image:
+            # 仅背景图
+            inputs = ['ffmpeg', '-loop', '1', '-t', str(duration), '-i', image, '-i', audio]
+            vf = [scale_pad]
+            if srt:
+                srt_ff = escape_ffmpeg_path(srt)
+                vf.append(f"subtitles='{srt_ff}':force_style='{subtitle_style}'")
+            if watermark_filter:
+                vf.append(watermark_filter)
+            return inputs + [
+                '-vf', ','.join(vf),
+                '-map', '0:v', '-map', '1:a',
+                '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
+                '-r', str(fps), '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart', '-y', output,
+            ]
+
+        elif bg_video:
+            # 仅背景视频（循环到音频时长）
+            inputs = ['ffmpeg', '-stream_loop', '-1', '-i', bg_video, '-i', audio]
+            vf = [scale_pad]
+            if srt:
+                srt_ff = escape_ffmpeg_path(srt)
+                vf.append(f"subtitles='{srt_ff}':force_style='{subtitle_style}'")
+            if watermark_filter:
+                vf.append(watermark_filter)
+            return inputs + [
+                '-vf', ','.join(vf),
+                '-map', '0:v', '-map', '1:a',
+                '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
+                '-r', str(fps), '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart', '-t', str(duration), '-y', output,
+            ]
+
+        else:
+            # 纯色背景
+            inputs = ['ffmpeg',
+                      '-f', 'lavfi',
+                      '-i', f'color=c={bg_hex}:s={width}x{height}:r={fps}',
+                      '-i', audio]
+            vf = []
+            if srt:
+                srt_ff = escape_ffmpeg_path(srt)
+                vf.append(f"subtitles='{srt_ff}':force_style='{subtitle_style}'")
+            if watermark_filter:
+                vf.append(watermark_filter)
+            cmd = inputs
+            if vf:
+                cmd = cmd + ['-vf', ','.join(vf)]
+            return cmd + [
+                '-map', '0:v', '-map', '1:a',
+                '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
+                '-r', str(fps), '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart', '-t', str(duration), '-y', output,
+            ]
+
+    def _concat_videos(self, files, output):
+        lf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8')
+        for f in files:
+            lf.write(f"file '{f}'\n")
+        lf.close()
+        try:
+            subprocess.run(
+                ['ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+                 '-i', lf.name, '-c', 'copy', output],
+                capture_output=True, check=True)
+        finally:
+            os.unlink(lf.name)
+
     def _get_duration(self, path):
         try:
             r = subprocess.run(
@@ -840,129 +1141,10 @@ class AudioVideoApp(ToolBase):
         except Exception:
             return 0.0
 
-    def _start(self):
-        audio = self.audio_path_var.get()
-        image = self.image_path_var.get()
-        output = self.video_output_var.get()
-        mb = __import__('tkinter').messagebox
-        if not audio or not os.path.exists(audio):
-            mb.showerror("错误", "请选择有效的音频文件"); return
-        if not image or not os.path.exists(image):
-            mb.showerror("错误", "请选择有效的图片文件"); return
-        if not output:
-            mb.showerror("错误", "请指定输出视频文件路径"); return
-        self.generate_btn.config(state="disabled")
-        self.stop_btn.config(state="normal")
-        self.progress_var.set(0)
-        self.status_var.set("正在准备...")
-        getattr(self.master, 'set_status', lambda _: None)("running")
-        threading.Thread(target=self._generate,
-                         args=(audio, image, output), daemon=True).start()
-
-    def _stop(self):
-        if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
-            self._ffmpeg_proc.terminate()
-            self.status_var.set("已停止")
-
-    def _generate(self, audio, image, output):
-        tmp_srt = None
-        try:
-            res_str = self.resolution_var.get().split(" ")[0]
-            width, height = map(int, res_str.split('x'))
-            fps = int(self.fps_var.get())
-            codec = self.codec_var.get().split(" ")[0]
-            bg = self._hex_to_ffmpeg(self.bg_color_var.get())
-            orientation = self.orientation_var.get()
-
-            # 获取音频总时长，用于进度计算
-            total_dur = self._get_duration(audio)
-
-            vf = [
-                f"scale={width}:{height}:force_original_aspect_ratio=decrease",
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color={bg}",
-            ]
-
-            # SRT 字幕处理
-            srt_path = self.srt_path_var.get().strip()
-            if srt_path and os.path.exists(srt_path):
-                burn_srt = srt_path
-                # 如果启用换行分割，先处理 SRT
-                if self.sub_split_var.get():
-                    self.status_var.set("正在分割字幕...")
-                    try:
-                        tmp_srt = srt_path.replace('.srt', '_tmp_split.srt')
-                        split_srt_to_file(
-                            srt_path,
-                            max_chars=self.sub_max_chars_var.get(),
-                            is_chinese=self.sub_is_chinese_var.get(),
-                            output_path=tmp_srt,
-                        )
-                        burn_srt = tmp_srt
-                    except Exception as e:
-                        self.status_var.set(f"字幕分割失败，使用原始 SRT：{e}")
-                        burn_srt = srt_path
-
-                # 构建字幕样式
-                style = build_subtitle_style(
-                    orientation=orientation,
-                    fontsize=self.sub_fontsize_var.get(),
-                    color=self.sub_color_var.get(),
-                    margin_v=self.sub_margin_v_var.get(),
-                )
-                srt_ff = escape_ffmpeg_path(burn_srt)
-                vf.append(f"subtitles='{srt_ff}':force_style='{style}'")
-
-            # 水印
-            if self.watermark_enabled_var.get():
-                wf = self._build_watermark(height)
-                if wf:
-                    vf.append(wf)
-
-            cmd = [
-                'ffmpeg', '-loop', '1', '-i', image, '-i', audio,
-                '-vf', ",".join(vf),
-                '-c:v', codec, '-c:a', 'aac', '-b:a', '192k',
-                '-shortest', '-r', str(fps), '-pix_fmt', 'yuv420p',
-                '-movflags', '+faststart', '-y', output,
-            ]
-
-            self.status_var.set("正在合成视频...")
-            import re as _re
-            self._ffmpeg_proc = subprocess.Popen(
-                cmd, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
-
-            for line in self._ffmpeg_proc.stderr:
-                m = _re.search(r'time=(\d+):(\d+):([\d.]+)', line)
-                if m and total_dur > 0:
-                    elapsed = (int(m.group(1)) * 3600 +
-                               int(m.group(2)) * 60 +
-                               float(m.group(3)))
-                    self.progress_var.set(min(99, elapsed / total_dur * 100))
-
-            self._ffmpeg_proc.wait()
-            if self._ffmpeg_proc.returncode != 0:
-                raise RuntimeError("ffmpeg 返回非零退出码，请检查参数")
-
-            self.progress_var.set(100)
-            self.status_var.set(f"完成！已保存：{output}")
-            __import__('tkinter').messagebox.showinfo("成功", f"视频已保存到：\n{output}")
-
-        except Exception as e:
-            self.status_var.set("生成失败")
-            __import__('tkinter').messagebox.showerror("错误", f"视频生成失败：\n{e}")
-        finally:
-            self.generate_btn.config(state="normal")
-            self.stop_btn.config(state="disabled")
-            self._ffmpeg_proc = None
-            if tmp_srt and os.path.exists(tmp_srt):
-                try: os.unlink(tmp_srt)
-                except Exception: pass
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
-
     def _hex_to_ffmpeg(self, hex_color):
         h = hex_color.lstrip('#')
         if len(h) == 3:
-            h = ''.join(c*2 for c in h)
+            h = ''.join(c * 2 for c in h)
         return f"0x{h.upper()}"
 
     def _build_watermark(self, height):
