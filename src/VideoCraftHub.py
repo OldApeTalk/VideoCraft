@@ -52,7 +52,8 @@ TOOL_MAP = {
     "tts-srt":        {"file": "tools/text2video/text2video.py", "class": "SRTFromTextApp"},
     "tts-video":      {"file": "tools/text2video/text2video.py", "class": "AudioVideoApp"},
     "daily-news":     {"file": "tools/text2video/text2video.py", "class": "DailyNewsApp"},
-    "tiktok-publish": {"file": "tools/publish/tiktok_publish.py", "class": "TikTokPublishApp"},
+    "tiktok-publish":   {"file": "tools/publish/tiktok_publish.py",  "class": "TikTokPublishApp"},
+    "youtube-publish":  {"file": "tools/publish/youtube_publish.py", "class": "YouTubePublishApp"},
 }
 
 # ── Tab 状态颜色 ──────────────────────────────────────────────────────────────
@@ -283,6 +284,8 @@ class VideoCraftHub:
         menubar.add_cascade(label="发布", menu=pub_menu)
         pub_menu.add_command(label="TikTok 发布",
                              command=lambda: self.open_tool("tiktok-publish"))
+        pub_menu.add_command(label="YouTube 发布",
+                             command=lambda: self.open_tool("youtube-publish"))
 
         # Help
         help_menu = tk.Menu(menubar, tearoff=0)
