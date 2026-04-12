@@ -7,6 +7,7 @@ VideoCraftHub.py - VS Code 风格主界面
 
 import importlib.util
 import io
+from typing import Callable
 import os
 import subprocess
 import sys
@@ -73,7 +74,7 @@ class ToolFrame(ttk.Frame):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self._tool_title = ""
-        self._set_status_cb = None          # 由 Hub 在创建后注入
+        self._set_status_cb: Callable[[str], None] | None = None  # 由 Hub 在创建后注入
 
     def geometry(self, spec=None):
         return ""
@@ -294,6 +295,7 @@ class VideoCraftHub:
                               command=self._show_about)
 
     def _rebuild_recent_menu(self):
+        assert self._recent_menu is not None
         self._recent_menu.delete(0, "end")
         recents = get_recent_projects()
         if not recents:
@@ -357,6 +359,7 @@ class VideoCraftHub:
 
     def _show_welcome(self):
         """隐藏 Tab 系统，显示欢迎页（懒加载）。"""
+        assert self._tab_bar is not None and self._content_area is not None
         self._tab_bar.pack_forget()
         self._content_area.pack_forget()
         if self._welcome_frame is None:
@@ -371,10 +374,12 @@ class VideoCraftHub:
                       command=self.open_folder,
                       bg="#0078d4", fg="white", relief="flat",
                       padx=10, pady=6).pack()
+        assert self._welcome_frame is not None
         self._welcome_frame.pack(fill="both", expand=True)
 
     def _show_tabs(self):
         """隐藏欢迎页，显示 Tab 栏 + 内容区。"""
+        assert self._tab_bar is not None and self._content_area is not None
         if self._welcome_frame:
             self._welcome_frame.pack_forget()
         self._tab_bar.pack(side="top", fill="x")
@@ -382,6 +387,7 @@ class VideoCraftHub:
 
     def _select_tab(self, key: str):
         """切换到指定 Tab。"""
+        assert self._tab_bar is not None
         for tf in self._tab_frames.values():
             tf.pack_forget()
         if key in self._tab_frames:
@@ -390,6 +396,7 @@ class VideoCraftHub:
 
     def _close_tab(self, key: str):
         """关闭指定 Tab；若无剩余 Tab 则恢复欢迎页。"""
+        assert self._tab_bar is not None
         if key in self._tab_frames:
             self._tab_frames[key].destroy()
             del self._tab_frames[key]
@@ -403,7 +410,7 @@ class VideoCraftHub:
 
     # ── Project 操作 ──────────────────────────────────────────────────────────
 
-    def open_folder(self, path: str = None):
+    def open_folder(self, path: str | None = None):
         if path is None:
             path = filedialog.askdirectory(title="打开文件夹")
             if not path:
@@ -541,7 +548,7 @@ class VideoCraftHub:
         if not confirmed:
             return
         try:
-            import send2trash
+            import send2trash  # noqa: PLC0415
             send2trash.send2trash(file_path)
         except ImportError:
             # send2trash 未安装，回退到 Windows Shell API
@@ -655,7 +662,7 @@ class VideoCraftHub:
 
     # ── 工具启动 ──────────────────────────────────────────────────────────────
 
-    def open_tool(self, key: str, initial_file: str = None):
+    def open_tool(self, key: str, initial_file: str | None = None):
         cfg = TOOL_MAP.get(key)
         if cfg is None:
             messagebox.showerror("错误", f"未知工具：{key}")
@@ -672,10 +679,11 @@ class VideoCraftHub:
             self._open_in_tab(file_path, cfg["class"], key,
                               initial_file=initial_file)
 
-    def _open_toplevel(self, file_path: str, class_name: str, initial_file: str = None):
+    def _open_toplevel(self, file_path: str, class_name: str, initial_file: str | None = None):
         try:
             mod_name = os.path.splitext(os.path.basename(file_path))[0]
             spec = importlib.util.spec_from_file_location(mod_name, file_path)
+            assert spec is not None and spec.loader is not None
             mod  = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             cls  = getattr(mod, class_name)
@@ -689,7 +697,7 @@ class VideoCraftHub:
             messagebox.showerror("启动失败", str(e))
 
     def _open_in_tab(self, file_path: str, class_name: str, tool_key: str,
-                     initial_file: str = None):
+                     initial_file: str | None = None):
         # 去重：已打开则直接切换
         if tool_key in self._tab_registry:
             self._select_tab(tool_key)
@@ -698,17 +706,21 @@ class VideoCraftHub:
         try:
             mod_name = os.path.splitext(os.path.basename(file_path))[0]
             spec = importlib.util.spec_from_file_location(mod_name, file_path)
+            assert spec is not None and spec.loader is not None
             mod  = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             cls  = getattr(mod, class_name)
 
+            assert self._content_area is not None
             tf = ToolFrame(self._content_area)
-            tf._set_status_cb = lambda s, k=tool_key: self._tab_bar.set_status(k, s)
+            tab_bar = self._tab_bar
+            assert tab_bar is not None
+            tf._set_status_cb = lambda s, k=tool_key: tab_bar.set_status(k, s)
 
             app = cls(tf, initial_file=initial_file) if initial_file else cls(tf)
 
             label = tf._tool_title or class_name
-            self._tab_bar.add_tab(tool_key, label, status="idle")
+            tab_bar.add_tab(tool_key, label, status="idle")
             self._tab_frames[tool_key]   = tf
             self._tab_registry[tool_key] = tool_key
             self._tool_instances.append(app)
@@ -718,7 +730,7 @@ class VideoCraftHub:
         except Exception as e:
             messagebox.showerror("启动失败", str(e))
 
-    def _open_subprocess(self, file_path: str, initial_file: str = None):
+    def _open_subprocess(self, file_path: str, initial_file: str | None = None):
         venv_python = os.path.join(_SRC, "..", "myenv", "Scripts", "python.exe")
         python = venv_python if os.path.exists(venv_python) else sys.executable
         try:
