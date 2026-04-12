@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+dist/
 develop-eggs/
 dist/
 downloads/
@@ -117,6 +118,7 @@ dmypy.json
 # IDE
 .vscode/
 .idea/
+.claude/
 
 # OS
 .DS_Store
