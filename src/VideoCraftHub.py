@@ -169,6 +169,7 @@ class VideoCraftHub:
         self.root.geometry("900x600")
         self.root.minsize(600, 400)
         self.root.state("zoomed")   # 启动最大化
+        self._set_app_icon()
 
         self.project: Project | None = None
         self._recent_menu: tk.Menu | None = None
@@ -187,6 +188,20 @@ class VideoCraftHub:
         self._build_layout()
         self._show_welcome()
         self._schedule_auto_refresh()
+
+    def _set_app_icon(self):
+        try:
+            from PIL import Image
+            _src = os.path.dirname(os.path.abspath(__file__))
+            logo_path = os.path.join(_src, "..", "Logo", "logo.png")
+            img = Image.open(logo_path).resize((64, 64), Image.Resampling.LANCZOS)
+            import base64
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            self._app_icon = tk.PhotoImage(data=base64.b64encode(buf.getvalue()))  # 持有引用防止 GC
+            self.root.iconphoto(True, self._app_icon)
+        except Exception:
+            pass  # 图标加载失败不影响启动
 
     # ── 菜单 ──────────────────────────────────────────────────────────────────
 
