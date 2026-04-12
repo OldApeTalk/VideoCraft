@@ -139,5 +139,3 @@ keys/
 DeepL.key
 *.key
 
-# Local launch scripts (temporary, not for distribution)
-启动VideoCraft.bat
