@@ -88,13 +88,21 @@ class SubtitleToolApp(ToolBase):
         self.processing = False
 
         # Tk 变量
-        self.watermark_text_var     = tk.StringVar(value="字幕By老猿@OldApeTalk")
-        self.watermark_alpha_var    = tk.DoubleVar(value=60.0)
-        self.watermark_color_var    = tk.StringVar(value="#00ffff")
-        self.watermark_fontsize_var = tk.IntVar(value=48)
-        self.watermark_show_var     = tk.BooleanVar(value=True)
-        self.watermark_show_date_var = tk.BooleanVar(value=False)
-        self.watermark_date_var     = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        self.watermark_text_var          = tk.StringVar(value="字幕By老猿@OldApeTalk")
+        self.watermark_txt_alpha_var     = tk.DoubleVar(value=60.0)   # 文字透明度
+        self.watermark_color_var         = tk.StringVar(value="#00ffff")
+        self.watermark_fontsize_var      = tk.IntVar(value=48)
+        self.watermark_show_var          = tk.BooleanVar(value=True)
+        self.watermark_show_date_var     = tk.BooleanVar(value=False)
+        self.watermark_date_var          = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        self.watermark_date_color_var    = tk.StringVar(value="#505050")
+        self.watermark_date_fontsize_var = tk.IntVar(value=36)
+        self.watermark_date_alpha_var    = tk.DoubleVar(value=80.0)   # 日期透明度
+        # 图片/文字水印（单选）: "image" | "text"
+        self.watermark_type_var          = tk.StringVar(value="image")
+        self.watermark_img_path_var      = tk.StringVar(value=self._default_watermark_path())
+        self.watermark_img_scale_var     = tk.DoubleVar(value=0.25)
+        self.watermark_img_alpha_var     = tk.DoubleVar(value=100.0)  # 图片透明度
 
         self.sub1_fontsize_var  = tk.IntVar(value=24)
         self.sub1_color_var     = tk.StringVar(value="#FFFF00")
@@ -194,32 +202,66 @@ class SubtitleToolApp(ToolBase):
         frame_watermark = tk.LabelFrame(root, text="水印设置（右上角）", padx=10, pady=5)
         frame_watermark.grid(row=4, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
-        tk.Label(frame_watermark, text="水印文字:").grid(row=0, column=0, sticky="e")
-        ttk.Combobox(frame_watermark, textvariable=self.watermark_text_var, width=25,
-                     values=["字幕By老猿@OldApeTalk", "字幕制作By 老猿"]).grid(row=0, column=1, padx=5)
-        tk.Label(frame_watermark, text="字号:").grid(row=0, column=2, sticky="e")
-        tk.Spinbox(frame_watermark, from_=10, to=100, width=4,
-                   textvariable=self.watermark_fontsize_var).grid(row=0, column=3, padx=2)
-        tk.Label(frame_watermark, text="透明度(%):").grid(row=0, column=4, sticky="e")
+        # Row 0：图片水印（单选）
+        tk.Radiobutton(frame_watermark, text="图片水印",
+                       variable=self.watermark_type_var, value="image").grid(row=0, column=0, sticky="e")
+        wm_img_files = self._scan_watermark_images()
+        wm_img_names = [os.path.basename(f) for f in wm_img_files]
+        self._wm_img_combo = ttk.Combobox(frame_watermark, values=wm_img_names, width=16, state="readonly")
+        cur_name = os.path.basename(self.watermark_img_path_var.get())
+        if cur_name in wm_img_names:
+            self._wm_img_combo.set(cur_name)
+        elif wm_img_names:
+            self._wm_img_combo.set(wm_img_names[0])
+        self._wm_img_combo.bind("<<ComboboxSelected>>", self._on_wm_img_selected)
+        self._wm_img_combo.grid(row=0, column=1, padx=4)
+        tk.Button(frame_watermark, text="浏览", command=self._select_watermark_image).grid(row=0, column=2, padx=3)
+        tk.Label(frame_watermark, text="比例:").grid(row=0, column=3, sticky="e")
+        tk.Spinbox(frame_watermark, from_=0.05, to=0.5, increment=0.05, width=5, format="%.2f",
+                   textvariable=self.watermark_img_scale_var).grid(row=0, column=4, padx=2)
+        tk.Label(frame_watermark, text="透明度(%):").grid(row=0, column=5, sticky="e")
         tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL,
-                 variable=self.watermark_alpha_var, length=100).grid(row=0, column=5, padx=5)
-        tk.Label(frame_watermark, text="颜色:").grid(row=0, column=6, sticky="e")
-        tk.Entry(frame_watermark, textvariable=self.watermark_color_var, width=10).grid(row=0, column=7, padx=5)
-        tk.Button(frame_watermark, text="选择", command=self._choose_watermark_color).grid(row=0, column=8, padx=5)
-        tk.Checkbutton(frame_watermark, text="显示", variable=self.watermark_show_var).grid(row=0, column=9, padx=10)
+                 variable=self.watermark_img_alpha_var, length=80).grid(row=0, column=6, padx=3)
+        tk.Checkbutton(frame_watermark, text="显示",
+                       variable=self.watermark_show_var).grid(row=0, column=7, padx=5)
 
+        # Row 1：文字水印（单选）
+        tk.Radiobutton(frame_watermark, text="文字水印",
+                       variable=self.watermark_type_var, value="text").grid(row=1, column=0, sticky="e")
+        ttk.Combobox(frame_watermark, textvariable=self.watermark_text_var, width=20,
+                     values=["字幕By老猿@OldApeTalk", "字幕制作By 老猿",
+                             "@VideoCraftNews"]).grid(row=1, column=1, padx=4)
+        tk.Label(frame_watermark, text="字号:").grid(row=1, column=2, sticky="e")
+        tk.Spinbox(frame_watermark, from_=10, to=100, width=4,
+                   textvariable=self.watermark_fontsize_var).grid(row=1, column=3, padx=2)
+        tk.Label(frame_watermark, text="颜色:").grid(row=1, column=4, sticky="e")
+        tk.Entry(frame_watermark, textvariable=self.watermark_color_var, width=9).grid(row=1, column=5, padx=2)
+        tk.Button(frame_watermark, text="选择",
+                  command=self._choose_watermark_color).grid(row=1, column=6, padx=2)
+        tk.Label(frame_watermark, text="透明度(%):").grid(row=1, column=7, sticky="e")
+        tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL,
+                 variable=self.watermark_txt_alpha_var, length=80).grid(row=1, column=8, padx=3)
+
+        # Row 2：日期（独立字号 + 颜色 + 透明度）
         tk.Checkbutton(frame_watermark, text="显示日期",
-                       variable=self.watermark_show_date_var).grid(row=1, column=0, sticky="e", padx=5)
-        tk.Label(frame_watermark, text="日期:").grid(row=1, column=1, sticky="w")
+                       variable=self.watermark_show_date_var).grid(row=2, column=0, sticky="e", padx=5)
         date_widget_cls = DateEntry if DateEntry else tk.Entry
         date_kwargs = (dict(textvariable=self.watermark_date_var, width=12,
                             background='darkblue', foreground='white', borderwidth=2,
                             date_pattern='yyyy-mm-dd')
                        if DateEntry else
                        dict(textvariable=self.watermark_date_var, width=12))
-        date_widget_cls(frame_watermark, **date_kwargs).grid(row=1, column=2, columnspan=2, sticky="w", padx=5)
-        tk.Label(frame_watermark, text="(日期将显示在文字上方)",
-                 font=("Arial", 8), fg="gray").grid(row=1, column=4, columnspan=2, sticky="w")
+        date_widget_cls(frame_watermark, **date_kwargs).grid(row=2, column=1, sticky="w", padx=4)
+        tk.Label(frame_watermark, text="字号:").grid(row=2, column=2, sticky="e")
+        tk.Spinbox(frame_watermark, from_=10, to=100, width=4,
+                   textvariable=self.watermark_date_fontsize_var).grid(row=2, column=3, padx=2)
+        tk.Label(frame_watermark, text="颜色:").grid(row=2, column=4, sticky="e")
+        tk.Entry(frame_watermark, textvariable=self.watermark_date_color_var, width=9).grid(row=2, column=5, padx=2)
+        tk.Button(frame_watermark, text="选择",
+                  command=self._choose_date_color).grid(row=2, column=6, padx=2)
+        tk.Label(frame_watermark, text="透明度(%):").grid(row=2, column=7, sticky="e")
+        tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL,
+                 variable=self.watermark_date_alpha_var, length=80).grid(row=2, column=8, padx=3)
 
         # 进度
         frame_progress = tk.Frame(root)
@@ -238,6 +280,55 @@ class SubtitleToolApp(ToolBase):
         self.btn_merge = tk.Button(root, text="开始烧录双语字幕",
                                    width=25, command=self._merge_videos)
         self.btn_merge.grid(row=6, column=1, pady=25)
+
+    # ── 图片水印辅助 ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _project_root():
+        """返回项目根目录（Logo/ 所在目录）。"""
+        # __file__ = .../src/tools/subtitle/subtitle_tool.py → 上移4级
+        return os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))))
+
+    def _scan_watermark_images(self):
+        """扫描 Logo/ 目录下所有 WaterMark*.png，返回绝对路径列表。"""
+        import glob as _glob
+        logo_dir = os.path.join(self._project_root(), "Logo")
+        return sorted(_glob.glob(os.path.join(logo_dir, "WaterMark*.png")))
+
+    def _default_watermark_path(self):
+        """返回默认水印图片路径（优先 WaterMark1.png，否则取第一个）。"""
+        files = self._scan_watermark_images()
+        preferred = os.path.join(self._project_root(), "Logo", "WaterMark1.png")
+        if preferred in files:
+            return preferred
+        return files[0] if files else ""
+
+    def _select_watermark_image(self):
+        path = filedialog.askopenfilename(
+            title="选择水印图片",
+            filetypes=[("PNG 图片", "*.png"), ("所有文件", "*.*")]
+        )
+        if path:
+            self.watermark_img_path_var.set(path)
+            # 同步刷新下拉列表
+            self._refresh_wm_img_combo()
+
+    def _refresh_wm_img_combo(self):
+        """刷新水印图片 Combobox 列表，并尝试匹配当前路径。"""
+        files = self._scan_watermark_images()
+        names = [os.path.basename(f) for f in files]
+        self._wm_img_combo['values'] = names
+        cur = self.watermark_img_path_var.get()
+        cur_name = os.path.basename(cur)
+        if cur_name in names:
+            self._wm_img_combo.set(cur_name)
+
+    def _on_wm_img_selected(self, event=None):
+        """Combobox 选中时更新完整路径。"""
+        name = self._wm_img_combo.get()
+        base = os.path.dirname(os.path.abspath(sys.argv[0]))
+        self.watermark_img_path_var.set(os.path.join(base, "Logo", name))
 
     # ── 文件选择 ────────────────────────────────────────────────────────────
 
@@ -308,6 +399,11 @@ class SubtitleToolApp(ToolBase):
         color = colorchooser.askcolor(title="选择水印颜色")
         if color and color[1]:
             self.watermark_color_var.set(color[1])
+
+    def _choose_date_color(self):
+        color = colorchooser.askcolor(title="选择日期颜色")
+        if color and color[1]:
+            self.watermark_date_color_var.set(color[1])
 
     def _choose_sub1_color(self):
         color = colorchooser.askcolor(title="选择中文字幕颜色")
@@ -431,37 +527,103 @@ class SubtitleToolApp(ToolBase):
         width, height = get_video_resolution(video_path_abs)
 
         # 水印
-        show_watermark        = self.watermark_show_var.get()
-        watermark_text        = self.watermark_text_var.get()
-        watermark_alpha       = self.watermark_alpha_var.get()
-        watermark_color       = self.watermark_color_var.get()
-        watermark_fontsize_base = self.watermark_fontsize_var.get()
-        watermark_ff_color    = hex_color_to_drawtext(watermark_color)
-        alpha_value           = round(watermark_alpha / 100, 2)
-        watermark_fontsize    = int((height / 1080) * watermark_fontsize_base) if height else watermark_fontsize_base
+        show_watermark           = self.watermark_show_var.get()
+        wm_type                  = self.watermark_type_var.get()
+        use_img_wm               = show_watermark and wm_type == "image"
+        use_txt_wm               = show_watermark and wm_type == "text"
+        show_date                = self.watermark_show_date_var.get()
+        watermark_text           = self.watermark_text_var.get()
+        watermark_color          = self.watermark_color_var.get()
+        watermark_fontsize_base  = self.watermark_fontsize_var.get()
+        watermark_ff_color       = hex_color_to_drawtext(watermark_color)
+        txt_alpha                = round(self.watermark_txt_alpha_var.get() / 100, 2)
+        img_alpha                = round(self.watermark_img_alpha_var.get() / 100, 2)
+        watermark_fontsize       = int((height / 1080) * watermark_fontsize_base) if height else watermark_fontsize_base
+        img_path                 = self.watermark_img_path_var.get()
+        img_scale                = self.watermark_img_scale_var.get()
+        img_exists               = use_img_wm and os.path.exists(img_path)
 
-        vf_filters = []
-        if show_sub2 and sub2_path_ff:
-            vf_filters.append(f"subtitles=filename='{sub2_path_ff}':force_style='{style2}'")
-        if show_sub1 and sub1_path_ff:
-            vf_filters.append(f"subtitles=filename='{sub1_path_ff}':force_style='{style1}'")
-        if show_watermark:
-            vf_filters.append(
-                f"drawtext=text='{watermark_text}':"
-                f"fontcolor={watermark_ff_color}@{alpha_value}:"
-                f"fontsize={watermark_fontsize}:font='Microsoft YaHei':"
-                f"x=w-tw-30:y=30:borderw=2:bordercolor=black"
-            )
-            if self.watermark_show_date_var.get():
-                date_y = 30 + watermark_fontsize + 10
-                vf_filters.append(
-                    f"drawtext=text='{self.watermark_date_var.get()}':"
-                    f"fontcolor={watermark_ff_color}@{alpha_value}:"
+        date_ff_color            = hex_color_to_drawtext(self.watermark_date_color_var.get())
+        date_fontsize_base       = self.watermark_date_fontsize_var.get()
+        date_fontsize            = int((height / 1080) * date_fontsize_base) if height else date_fontsize_base
+        date_alpha               = round(self.watermark_date_alpha_var.get() / 100, 2)
+
+        # 文字水印 drawtext 片段
+        def _txt_drawtext(y_expr="30"):
+            return (f"drawtext=text='{watermark_text}':"
+                    f"fontcolor={watermark_ff_color}@{txt_alpha}:"
                     f"fontsize={watermark_fontsize}:font='Microsoft YaHei':"
-                    f"x=w-tw-30:y={date_y}:borderw=2:bordercolor=black"
-                )
+                    f"x=w-tw-30:y={y_expr}:borderw=2:bordercolor=black")
 
-        vf = ",".join(vf_filters)
+        # 日期 drawtext 片段（独立颜色/字号/透明度）
+        def _date_drawtext(y_val):
+            return (f"drawtext=text='{self.watermark_date_var.get()}':"
+                    f"fontcolor={date_ff_color}@{date_alpha}:"
+                    f"fontsize={date_fontsize}:font='Microsoft YaHei':"
+                    f"x=w-tw-30:y={y_val}:borderw=2:bordercolor=black")
+
+        use_filter_complex = img_exists
+
+        # 精确计算日期 y 坐标（在主水印下方）
+        if use_filter_complex:
+            # 图片模式：用 PIL 读取图片实际尺寸计算缩放后高度
+            try:
+                from PIL import Image as _PILImg
+                with _PILImg.open(img_path) as _im:
+                    _orig_w, _orig_h = _im.size
+                img_w_px = int((width or 1920) * img_scale)
+                img_h_px = int(img_w_px * _orig_h / _orig_w)
+            except Exception:
+                img_w_px = int((width or 1920) * img_scale)
+                img_h_px = img_w_px  # 无法读取时假设正方形
+            date_y = 30 + img_h_px + 8
+        else:
+            # 文字模式：基于水印文字字号
+            img_w_px = int((width or 1920) * img_scale)
+            date_y = 30 + watermark_fontsize + 8
+
+        if use_filter_complex:
+            # ── filter_complex 路径（有图片水印）────────────────────────────
+            img_path_ff = img_path.replace("\\", "/").replace(":", "\\:")
+            fc_parts = []
+            cur = "[0:v]"
+
+            # 字幕滤镜
+            if show_sub2 and sub2_path_ff:
+                fc_parts.append(f"{cur}subtitles=filename='{sub2_path_ff}':force_style='{style2}'[s2]")
+                cur = "[s2]"
+            if show_sub1 and sub1_path_ff:
+                fc_parts.append(f"{cur}subtitles=filename='{sub1_path_ff}':force_style='{style1}'[s1]")
+                cur = "[s1]"
+
+            # 图片水印源（含独立透明度）
+            fc_parts.append(
+                f"movie='{img_path_ff}',scale={img_w_px}:-1,"
+                f"format=rgba,colorchannelmixer=aa={img_alpha}[wm]"
+            )
+
+            # overlay 链：图片叠加，日期独立追加
+            overlay_chain = f"{cur}[wm]overlay=W-w-30:30"
+            if show_date:
+                overlay_chain += "," + _date_drawtext(date_y)
+            overlay_chain += "[out]"
+            fc_parts.append(overlay_chain)
+
+            filter_complex = ";".join(fc_parts)
+            vf = None
+        else:
+            # ── -vf 路径（文字水印或无水印）─────────────────────────────────
+            filter_complex = None
+            vf_filters = []
+            if show_sub2 and sub2_path_ff:
+                vf_filters.append(f"subtitles=filename='{sub2_path_ff}':force_style='{style2}'")
+            if show_sub1 and sub1_path_ff:
+                vf_filters.append(f"subtitles=filename='{sub1_path_ff}':force_style='{style1}'")
+            if use_txt_wm and watermark_text.strip():
+                vf_filters.append(_txt_drawtext("30"))
+            if show_date:
+                vf_filters.append(_date_drawtext(date_y))
+            vf = ",".join(vf_filters)
 
         # 缓冲区
         if width and height:
@@ -478,10 +640,10 @@ class SubtitleToolApp(ToolBase):
         preset = self.encode_preset_var.get()
         crf    = crf_map.get(preset, '25')
 
-        cmd = [
-            'ffmpeg', '-y', '-i', video_path_abs,
-        ]
-        if vf:
+        cmd = ['ffmpeg', '-y', '-i', video_path_abs]
+        if use_filter_complex and filter_complex:
+            cmd += ['-filter_complex', filter_complex, '-map', '[out]', '-map', '0:a?']
+        elif vf:
             cmd += ['-vf', vf]
         cmd += [
             '-c:v', 'libx264', '-preset', preset, '-crf', crf,
