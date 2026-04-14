@@ -5,8 +5,9 @@
 """
 
 from tools.base import ToolBase
+from tools.subtitle import presets as burn_presets
 import tkinter as tk
-from tkinter import filedialog, messagebox, colorchooser, ttk
+from tkinter import filedialog, messagebox, colorchooser, simpledialog, ttk
 import os
 import sys
 import subprocess
@@ -78,6 +79,39 @@ def get_video_resolution(video_path):
 class SubtitleToolApp(ToolBase):
     """双语字幕烧录工具 — Toplevel 内嵌版。"""
 
+    # Maps preset-file key → the Tk variable attribute name on self.
+    # Keep in sync with presets.BUILTIN_DEFAULT_PARAMS. watermark_date is
+    # intentionally excluded: it always resets to today on open.
+    _PARAM_VARS = {
+        "watermark_text":          "watermark_text_var",
+        "watermark_txt_alpha":     "watermark_txt_alpha_var",
+        "watermark_color":         "watermark_color_var",
+        "watermark_fontsize":      "watermark_fontsize_var",
+        "watermark_show":          "watermark_show_var",
+        "watermark_show_date":     "watermark_show_date_var",
+        "watermark_date_color":    "watermark_date_color_var",
+        "watermark_date_fontsize": "watermark_date_fontsize_var",
+        "watermark_date_alpha":    "watermark_date_alpha_var",
+        "watermark_type":          "watermark_type_var",
+        "watermark_img_path":      "watermark_img_path_var",
+        "watermark_img_scale":     "watermark_img_scale_var",
+        "watermark_img_alpha":     "watermark_img_alpha_var",
+        "sub1_fontsize":   "sub1_fontsize_var",
+        "sub1_color":      "sub1_color_var",
+        "sub1_show":       "sub1_show_var",
+        "sub2_fontsize":   "sub2_fontsize_var",
+        "sub2_color":      "sub2_color_var",
+        "sub2_show":       "sub2_show_var",
+        "split_sub1":      "split_sub1_var",
+        "sub1_max_chars":  "sub1_max_chars_var",
+        "sub1_is_chinese": "sub1_is_chinese_var",
+        "split_sub2":      "split_sub2_var",
+        "sub2_max_chars":  "sub2_max_chars_var",
+        "sub2_is_chinese": "sub2_is_chinese_var",
+        "orientation":     "orientation_var",
+        "encode_preset":   "encode_preset_var",
+    }
+
     def __init__(self, master, initial_file=None):
         self.master = master
         master.title("双语字幕工具（分割与烧录）")
@@ -124,6 +158,18 @@ class SubtitleToolApp(ToolBase):
         self._build_ui()
         self._update_split_settings()
 
+        # Load preset store and apply last-used preset (after Tk vars exist,
+        # after _update_split_settings so preset values are authoritative).
+        self._preset_store = burn_presets.load_store()
+        last_name = burn_presets.get_last_used(self._preset_store)
+        last_params = burn_presets.get_preset(self._preset_store, last_name) \
+            or burn_presets.get_preset(self._preset_store, burn_presets.BUILTIN_DEFAULT_NAME)
+        if last_params:
+            self._apply_params(last_params)
+        self._refresh_preset_combo(select=last_name)
+        # Persist once so the file exists on first run.
+        burn_presets.save_store(self._preset_store)
+
         if initial_file and os.path.exists(initial_file):
             ext = os.path.splitext(initial_file)[1].lower()
             if ext == ".srt":
@@ -136,15 +182,33 @@ class SubtitleToolApp(ToolBase):
     def _build_ui(self):
         root = self.master
 
+        # 预设栏
+        frame_preset = tk.LabelFrame(root, text="参数预设 Preset", padx=10, pady=5)
+        frame_preset.grid(row=0, column=0, columnspan=3, padx=15, pady=(10, 2), sticky="we")
+        tk.Label(frame_preset, text="当前预设:").grid(row=0, column=0, padx=(0, 5))
+        self.preset_combo = ttk.Combobox(frame_preset, width=24, state="readonly")
+        self.preset_combo.grid(row=0, column=1, padx=2)
+        self.preset_combo.bind("<<ComboboxSelected>>", self._on_preset_selected)
+        self.btn_preset_save = tk.Button(frame_preset, text="保存", width=6,
+                                         command=self._on_preset_save)
+        self.btn_preset_save.grid(row=0, column=2, padx=3)
+        tk.Button(frame_preset, text="另存为...", width=8,
+                  command=self._on_preset_save_as).grid(row=0, column=3, padx=3)
+        self.btn_preset_delete = tk.Button(frame_preset, text="删除", width=6,
+                                           command=self._on_preset_delete)
+        self.btn_preset_delete.grid(row=0, column=4, padx=3)
+        tk.Button(frame_preset, text="重置为默认", width=10,
+                  command=self._on_preset_reset_default).grid(row=0, column=5, padx=3)
+
         # 视频文件
-        tk.Label(root, text="视频文件:").grid(row=0, column=0, padx=10, pady=15, sticky="e")
+        tk.Label(root, text="视频文件:").grid(row=1, column=0, padx=10, pady=15, sticky="e")
         self.entry_video = tk.Entry(root, width=55)
-        self.entry_video.grid(row=0, column=1, padx=5)
-        tk.Button(root, text="浏览", command=self._select_video).grid(row=0, column=2, padx=10)
+        self.entry_video.grid(row=1, column=1, padx=5)
+        tk.Button(root, text="浏览", command=self._select_video).grid(row=1, column=2, padx=10)
 
         # 屏幕方向设置
         frame_orientation = tk.LabelFrame(root, text="屏幕方向", padx=10, pady=5)
-        frame_orientation.grid(row=1, column=0, columnspan=3, padx=15, pady=5, sticky="we")
+        frame_orientation.grid(row=2, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
         tk.Radiobutton(frame_orientation, text="横屏", variable=self.orientation_var,
                        value="horizontal", command=self._update_split_settings).grid(row=0, column=0, padx=20)
@@ -164,7 +228,7 @@ class SubtitleToolApp(ToolBase):
 
         # 字幕1（中文）
         frame_sub1 = tk.LabelFrame(root, text="中文字幕（底部，之上）", padx=5, pady=5)
-        frame_sub1.grid(row=2, column=0, columnspan=3, padx=10, pady=5, sticky="we")
+        frame_sub1.grid(row=3, column=0, columnspan=3, padx=10, pady=5, sticky="we")
         self.entry_sub1 = tk.Entry(frame_sub1, width=35)
         self.entry_sub1.grid(row=0, column=0, padx=5)
         tk.Button(frame_sub1, text="浏览", command=self._select_subtitle1).grid(row=0, column=1, padx=5)
@@ -182,7 +246,7 @@ class SubtitleToolApp(ToolBase):
 
         # 字幕2（英文）
         frame_sub2 = tk.LabelFrame(root, text="英文字幕（底部，最下方）", padx=5, pady=5)
-        frame_sub2.grid(row=3, column=0, columnspan=3, padx=10, pady=5, sticky="we")
+        frame_sub2.grid(row=4, column=0, columnspan=3, padx=10, pady=5, sticky="we")
         self.entry_sub2 = tk.Entry(frame_sub2, width=35)
         self.entry_sub2.grid(row=0, column=0, padx=5)
         tk.Button(frame_sub2, text="浏览", command=self._select_subtitle2).grid(row=0, column=1, padx=5)
@@ -200,7 +264,7 @@ class SubtitleToolApp(ToolBase):
 
         # 水印设置
         frame_watermark = tk.LabelFrame(root, text="水印设置（右上角）", padx=10, pady=5)
-        frame_watermark.grid(row=4, column=0, columnspan=3, padx=15, pady=5, sticky="we")
+        frame_watermark.grid(row=5, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
         # Row 0：图片水印（单选）
         tk.Radiobutton(frame_watermark, text="图片水印",
@@ -265,7 +329,7 @@ class SubtitleToolApp(ToolBase):
 
         # 进度
         frame_progress = tk.Frame(root)
-        frame_progress.grid(row=5, column=0, columnspan=3, pady=10)
+        frame_progress.grid(row=6, column=0, columnspan=3, pady=10)
         self.progress_bar = ttk.Progressbar(frame_progress, orient=tk.HORIZONTAL,
                                             length=400, mode='determinate')
         self.progress_bar.pack(pady=5)
@@ -279,7 +343,7 @@ class SubtitleToolApp(ToolBase):
         # 开始按钮
         self.btn_merge = tk.Button(root, text="开始烧录双语字幕",
                                    width=25, command=self._merge_videos)
-        self.btn_merge.grid(row=6, column=1, pady=25)
+        self.btn_merge.grid(row=7, column=1, pady=25)
 
     # ── 图片水印辅助 ────────────────────────────────────────────────────────
 
@@ -414,6 +478,106 @@ class SubtitleToolApp(ToolBase):
         color = colorchooser.askcolor(title="选择英文字幕颜色")
         if color and color[1]:
             self.sub2_color_var.set(color[1])
+
+    # ── Preset 管理 ─────────────────────────────────────────────────────────
+
+    def _collect_params(self) -> dict:
+        """Snapshot current Tk variables into a plain-dict preset payload."""
+        params = {}
+        for key, attr in self._PARAM_VARS.items():
+            var = getattr(self, attr, None)
+            if var is not None:
+                params[key] = var.get()
+        return params
+
+    def _apply_params(self, params: dict) -> None:
+        """Push a preset payload into the Tk variables. Unknown/missing keys skipped."""
+        for key, attr in self._PARAM_VARS.items():
+            if key not in params:
+                continue
+            var = getattr(self, attr, None)
+            if var is None:
+                continue
+            try:
+                var.set(params[key])
+            except tk.TclError:
+                pass
+        # watermark_img_path may be empty (builtin default) or stale path →
+        # fall back to first available image under Logo/.
+        cur_img = self.watermark_img_path_var.get()
+        if not cur_img or not os.path.exists(cur_img):
+            self.watermark_img_path_var.set(self._default_watermark_path())
+        if hasattr(self, "_wm_img_combo"):
+            self._refresh_wm_img_combo()
+
+    def _refresh_preset_combo(self, select: str = None) -> None:
+        names = burn_presets.list_preset_names(self._preset_store)
+        self.preset_combo["values"] = names
+        if select and select in names:
+            self.preset_combo.set(select)
+        elif names:
+            self.preset_combo.set(names[0])
+        self._update_preset_button_state()
+
+    def _update_preset_button_state(self) -> None:
+        is_default = self.preset_combo.get() == burn_presets.BUILTIN_DEFAULT_NAME
+        state = "disabled" if is_default else "normal"
+        self.btn_preset_save.config(state=state)
+        self.btn_preset_delete.config(state=state)
+
+    def _on_preset_selected(self, event=None) -> None:
+        name = self.preset_combo.get()
+        params = burn_presets.get_preset(self._preset_store, name)
+        if params is None:
+            return
+        self._apply_params(params)
+        burn_presets.set_last_used(self._preset_store, name)
+        burn_presets.save_store(self._preset_store)
+        self._update_preset_button_state()
+
+    def _on_preset_save(self) -> None:
+        name = self.preset_combo.get()
+        if name == burn_presets.BUILTIN_DEFAULT_NAME:
+            messagebox.showinfo("提示", "Default 预设受保护，请使用『另存为...』创建新预设。")
+            return
+        burn_presets.upsert_preset(self._preset_store, name, self._collect_params())
+        burn_presets.save_store(self._preset_store)
+        messagebox.showinfo("已保存", f"预设『{name}』已更新。")
+
+    def _on_preset_save_as(self) -> None:
+        name = simpledialog.askstring("另存为预设", "请输入预设名称：", parent=self.master)
+        if not name:
+            return
+        name = name.strip()
+        if not name:
+            return
+        if name in self._preset_store.get("presets", {}):
+            if not messagebox.askyesno("覆盖确认", f"预设『{name}』已存在，是否覆盖？"):
+                return
+        burn_presets.upsert_preset(self._preset_store, name, self._collect_params())
+        burn_presets.set_last_used(self._preset_store, name)
+        burn_presets.save_store(self._preset_store)
+        self._refresh_preset_combo(select=name)
+
+    def _on_preset_delete(self) -> None:
+        name = self.preset_combo.get()
+        if name == burn_presets.BUILTIN_DEFAULT_NAME:
+            return
+        if not messagebox.askyesno("删除确认", f"确定删除预设『{name}』？"):
+            return
+        burn_presets.delete_preset(self._preset_store, name)
+        burn_presets.save_store(self._preset_store)
+        self._refresh_preset_combo(select=burn_presets.BUILTIN_DEFAULT_NAME)
+        # Re-apply Default after deletion so the UI reflects the fallback.
+        default_params = burn_presets.get_preset(self._preset_store, burn_presets.BUILTIN_DEFAULT_NAME)
+        if default_params:
+            self._apply_params(default_params)
+
+    def _on_preset_reset_default(self) -> None:
+        """Reload the Default preset values into the UI without changing last_used."""
+        params = burn_presets.get_preset(self._preset_store, burn_presets.BUILTIN_DEFAULT_NAME)
+        if params:
+            self._apply_params(params)
 
     # ── 辅助 ────────────────────────────────────────────────────────────────
 
