@@ -1,10 +1,12 @@
 from tools.base import ToolBase
+from i18n import tr
+import i18n
 import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, ttk
 import requests
-import textwrap  # 用于辅助文本处理
+import textwrap  # for text helper utilities
 from hub_logger import logger
 
 # Whisper支持的语言字典：ISO代码 -> (英文名, 中文名)
@@ -112,14 +114,20 @@ language_dict = {
     "yue": ("Cantonese", "粤语")
 }
 
-# 生成双语选项列表
-language_options = ["Auto Detect (自动检测，用于混合或未知语言)"]
-un_languages = ["ar", "zh", "en", "fr", "ru", "es"]
-other_languages = sorted([code for code in language_dict if code not in un_languages])
+def build_language_options() -> list:
+    """Build the combobox option list based on current UI locale.
+    In zh mode shows bilingual "English (英语)" form; in en mode shows
+    plain English names so the list isn't cluttered with Chinese text."""
+    un_languages = ["ar", "zh", "en", "fr", "ru", "es"]
+    other_languages = sorted([code for code in language_dict if code not in un_languages])
+    ordered = un_languages + other_languages
 
-for code in un_languages + other_languages:
-    eng, chn = language_dict[code]
-    language_options.append(f"{eng} ({chn})")
+    auto = tr("tool.speech.auto_detect")
+    if i18n.get_current_lang() == "zh":
+        return [auto] + [
+            f"{language_dict[code][0]} ({language_dict[code][1]})" for code in ordered
+        ]
+    return [auto] + [language_dict[code][0] for code in ordered]
 
 from ai_router import router
 
@@ -180,7 +188,7 @@ def parse_srt(srt_content, log_callback=None):
             segments.append((index, start, end, text))
         except Exception as e:
             if log_callback:
-                log_callback(f"解析块错误：{str(e)} - 块内容：{block[:100]}\n")
+                log_callback(f"Block parse error: {str(e)} - block: {block[:100]}\n")
     return segments
 
 
@@ -224,7 +232,7 @@ class Speech2TextApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("MP3 to SRT Converter using LemonFox API")
+        master.title(tr("tool.speech.title"))
         master.geometry("600x580")
         self._build_ui()
         if initial_file and os.path.exists(initial_file):
@@ -235,45 +243,49 @@ class Speech2TextApp(ToolBase):
     def _build_ui(self):
         f = self.master
 
-        # 源文件
-        tk.Label(f, text="音视频文件:").pack(pady=(10, 2))
+        # Source file
+        tk.Label(f, text=tr("tool.speech.source_label")).pack(pady=(10, 2))
         row1 = tk.Frame(f)
         row1.pack(fill=tk.X, padx=10)
         self.entry_mp3_path = tk.Entry(row1, width=52)
         self.entry_mp3_path.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        tk.Button(row1, text="浏览", width=6,
+        tk.Button(row1, text=tr("tool.speech.browse"), width=6,
                   command=self._select_mp3_file).pack(side=tk.LEFT, padx=(4, 0))
 
-        # 输出 SRT
-        tk.Label(f, text="输出 SRT 文件:").pack(pady=(8, 2))
+        # Output SRT
+        tk.Label(f, text=tr("tool.speech.output_label")).pack(pady=(8, 2))
         row2 = tk.Frame(f)
         row2.pack(fill=tk.X, padx=10)
         self.entry_srt_path = tk.Entry(row2, width=52)
         self.entry_srt_path.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        tk.Button(row2, text="浏览", width=6,
+        tk.Button(row2, text=tr("tool.speech.browse"), width=6,
                   command=self._select_srt_path).pack(side=tk.LEFT, padx=(4, 0))
 
-        # 语言
-        tk.Label(f, text="识别语言:").pack(pady=(8, 2))
-        self.combo_language = tk.StringVar(value="English (英语)")
+        # Recognition language
+        tk.Label(f, text=tr("tool.speech.language_label")).pack(pady=(8, 2))
+        options = build_language_options()
+        # Default to English (first non-auto entry, which is "English" or "English (英语)").
+        default_value = next((o for o in options if o.startswith("English")), options[0])
+        self.combo_language = tk.StringVar(value=default_value)
         self.combo_language.trace_add("write", lambda *_: self._auto_fill_output())
         combo_menu = ttk.Combobox(f, textvariable=self.combo_language,
-                                  values=language_options, state="readonly", width=50)
+                                  values=options, state="readonly", width=50)
         combo_menu.pack(fill=tk.X, padx=10)
 
         self.translate_var = tk.BooleanVar()
-        tk.Checkbutton(f, text="自动将识别的字幕转换为英语",
+        tk.Checkbutton(f, text=tr("tool.speech.translate_to_en"),
                        variable=self.translate_var).pack(pady=(5, 0))
 
         self.speaker_var = tk.BooleanVar()
-        tk.Checkbutton(f, text="说话人区分（Speaker Labels）",
+        tk.Checkbutton(f, text=tr("tool.speech.speaker_labels"),
                        variable=self.speaker_var).pack(pady=(0, 5))
 
-        self.btn_transcribe = tk.Button(f, text="转录为 SRT", command=self._transcribe_audio,
+        self.btn_transcribe = tk.Button(f, text=tr("tool.speech.btn_transcribe"),
+                                        command=self._transcribe_audio,
                                         width=20, bg="#0078d4", fg="white")
         self.btn_transcribe.pack(pady=10)
 
-        tk.Label(f, text="日志:").pack(pady=(0, 2))
+        tk.Label(f, text=tr("tool.speech.log_label")).pack(pady=(0, 2))
         self.log_text = tk.Text(f, height=8, width=70)
         self.log_text.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
 
@@ -298,9 +310,9 @@ class Speech2TextApp(ToolBase):
 
     def _select_mp3_file(self):
         file_path = filedialog.askopenfilename(
-            title="选择音视频文件",
-            filetypes=[("Audio/Video Files", "*.mp3;*.mp4;*.wav;*.m4a;*.mkv"),
-                       ("All Files", "*.*")]
+            title=tr("tool.speech.dialog.select_audio"),
+            filetypes=[(tr("tool.speech.filter.audio_video"), "*.mp3;*.mp4;*.wav;*.m4a;*.mkv"),
+                       (tr("tool.speech.filter.all_files"), "*.*")]
         )
         if file_path:
             self.entry_mp3_path.delete(0, tk.END)
@@ -311,9 +323,9 @@ class Speech2TextApp(ToolBase):
         src = self.entry_mp3_path.get().strip()
         init_dir = os.path.dirname(src) if src else ""
         file_path = filedialog.asksaveasfilename(
-            title="保存 SRT 文件",
+            title=tr("tool.speech.dialog.save_srt"),
             defaultextension=".srt",
-            filetypes=[("SRT Files", "*.srt")],
+            filetypes=[(tr("tool.speech.filter.srt"), "*.srt")],
             initialdir=init_dir,
         )
         if file_path:
@@ -350,16 +362,16 @@ class Speech2TextApp(ToolBase):
         api_key = router.get_asr_key("lemonfox")
 
         if not mp3_path or not os.path.exists(mp3_path):
-            self._log("⚠ 请选择有效的音视频文件。\n")
+            self._log(tr("tool.speech.warning.no_audio"))
             return
         if not api_key:
-            self._log("⚠ LemonFox API Key 未配置，请在 AI Router 管理界面中设置。\n")
-            logger.warning("LemonFox API Key 未配置")
+            self._log(tr("tool.speech.warning.no_apikey"))
+            logger.warning(tr("tool.speech.warning.no_apikey_log"))
             return
 
         srt_path = self.entry_srt_path.get().strip()
         if not srt_path:
-            self._log("⚠ 请指定输出 SRT 文件路径。\n")
+            self._log(tr("tool.speech.warning.no_output"))
             return
 
         # Read all UI state on the main thread before handing off to the worker
@@ -372,9 +384,9 @@ class Speech2TextApp(ToolBase):
         translate = self.translate_var.get()
         speaker   = self.speaker_var.get()
 
-        self.btn_transcribe.config(state="disabled", text="转录中…")
+        self.btn_transcribe.config(state="disabled", text=tr("tool.speech.btn_running"))
         self.set_busy()
-        self._log("开始调用 API（verbose_json 模式）...\n")
+        self._log(tr("tool.speech.log.starting"))
 
         def _do_transcribe():
             import json as _json
@@ -387,7 +399,7 @@ class Speech2TextApp(ToolBase):
             def finish():
                 # Re-enable button on the main thread when done or on error
                 self.master.after(0, lambda: self.btn_transcribe.config(
-                    state="normal", text="转录为 SRT"))
+                    state="normal", text=tr("tool.speech.btn_transcribe")))
 
             try:
                 url      = "https://api.lemonfox.ai/v1/audio/transcriptions"
@@ -409,7 +421,8 @@ class Speech2TextApp(ToolBase):
 
                 response = requests.post(url, headers=headers, data=data, files=files)
                 if not response.ok:
-                    raise Exception(f"API错误：{response.status_code} - {response.text}")
+                    raise Exception(tr("tool.speech.error.api_error",
+                                       code=response.status_code, text=response.text))
 
                 result = response.json()
                 current_srt_path = srt_path
@@ -422,7 +435,7 @@ class Speech2TextApp(ToolBase):
                          if e.lower() == detected_lang.lower()),
                         detected_lang[:2].lower()
                     )
-                    log(f"检测到语言：{detected_lang} → ISO: {iso_detected}\n")
+                    log(tr("tool.speech.log.detected_lang", detected=detected_lang, iso=iso_detected))
 
                     is_auto = selected_language.startswith("Auto Detect")
                     iso_selected = None
@@ -436,8 +449,9 @@ class Speech2TextApp(ToolBase):
 
                     if is_auto or mismatch:
                         if mismatch:
-                            log(f"⚠ 选择语言({iso_selected}) 与检测结果({iso_detected})不符，按实际语言命名。\n")
-                            self.set_warning(f"语言不一致：选择 {iso_selected}，实际检测为 {iso_detected}，文件已按实际语言命名")
+                            log(tr("tool.speech.log.lang_mismatch", selected=iso_selected, detected=iso_detected))
+                            self.set_warning(tr("tool.speech.warning.lang_mismatch",
+                                                selected=iso_selected, detected=iso_detected))
                         base_no_lang = _re.sub(r'_[a-z]{2,5}(\.srt)$', r'\1', current_srt_path)
                         current_srt_path = base_no_lang[:-4] + f"_{iso_detected}.srt"
                         self.master.after(0, lambda p=current_srt_path: (
@@ -449,7 +463,7 @@ class Speech2TextApp(ToolBase):
                 json_path = os.path.splitext(current_srt_path)[0] + ".json"
                 with open(json_path, "w", encoding="utf-8") as jf:
                     _json.dump(result, jf, ensure_ascii=False, indent=2)
-                log(f"verbose_json 已保存：{json_path}\n")
+                log(tr("tool.speech.log.json_saved", path=json_path))
 
                 # Build SRT from the segments array in the verbose_json response
                 srt_content = self._verbose_json_to_srt(result)
@@ -457,18 +471,18 @@ class Speech2TextApp(ToolBase):
                 with open(current_srt_path, "w", encoding="utf-8", newline='') as sf:
                     sf.write(srt_content)
 
-                log(f"SRT 已生成：{current_srt_path}\n")
-                log(f"音频时长：{result.get('duration', '?')} 秒\n")
-                log(f"段落数：{len(result.get('segments', []))}\n")
+                log(tr("tool.speech.log.srt_saved", path=current_srt_path))
+                log(tr("tool.speech.log.duration", seconds=result.get('duration', '?')))
+                log(tr("tool.speech.log.segments", count=len(result.get('segments', []))))
                 word_count = len(result.get("words", []))
                 if word_count:
-                    log(f"逐字时间戳数：{word_count}（已保存至 .json）\n")
-                logger.info(f"语音转字幕完成 → {os.path.basename(current_srt_path)}")
+                    log(tr("tool.speech.log.words", count=word_count))
+                logger.info(tr("tool.speech.log.complete", filename=os.path.basename(current_srt_path)))
                 self.set_done()
 
             except Exception as e:
-                log(f"错误：{str(e)}\n")
-                self.set_error(f"语音转字幕失败: {e}")
+                log(tr("tool.speech.error.generic", e=str(e)))
+                self.set_error(tr("tool.speech.error.transcribe_failed", e=e))
             finally:
                 finish()
 

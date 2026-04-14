@@ -1,4 +1,5 @@
 from tools.base import ToolBase
+from i18n import tr
 import tkinter as tk
 from tkinter import filedialog, ttk
 import yt_dlp
@@ -12,7 +13,7 @@ class YouTubeDownloader(ToolBase):
     def __init__(self, root, initial_file=None):
         self.root = root
         self.master = root   # ToolBase.set_busy/done/error expect self.master
-        self.root.title("YouTube Downloader")
+        self.root.title(tr("tool.download.title"))
         self.root.geometry("1200x650")  # Wider window for horizontal layout
 
         # Initialize yt-dlp
@@ -77,17 +78,17 @@ class YouTubeDownloader(ToolBase):
         
         # Left Panel - Input and Selection
         # URL Input (multi-line for multiple URLs)
-        tk.Label(left_frame, text="Video URLs (one per line):", font=("Arial", 10, "bold")).pack(anchor="w", pady=(0,5))
+        tk.Label(left_frame, text=tr("tool.download.url_label"), font=("Arial", 10, "bold")).pack(anchor="w", pady=(0,5))
         self.url_text = tk.Text(left_frame, height=4, width=50, wrap=tk.WORD)
         self.url_text.pack(fill=tk.X, pady=(0,10))
-        
+
         # Get Video List Button
-        self.get_list_btn = tk.Button(left_frame, text="Get Video List", command=self.get_video_list, 
+        self.get_list_btn = tk.Button(left_frame, text=tr("tool.download.btn_get_list"), command=self.get_video_list,
                                     bg="#4CAF50", fg="white", font=("Arial", 10, "bold"))
         self.get_list_btn.pack(fill=tk.X, pady=(0,10))
-        
+
         # Video List Display with Checkboxes
-        tk.Label(left_frame, text="Available Videos:", font=("Arial", 10, "bold")).pack(anchor="w", pady=(0,5))
+        tk.Label(left_frame, text=tr("tool.download.available"), font=("Arial", 10, "bold")).pack(anchor="w", pady=(0,5))
         self.list_frame = tk.Frame(left_frame, relief=tk.SUNKEN, bd=1)
         self.list_frame.pack(fill=tk.BOTH, expand=True, pady=(0,10))
 
@@ -114,57 +115,57 @@ class YouTubeDownloader(ToolBase):
         # Select All / Deselect All Buttons
         select_frame = tk.Frame(left_frame)
         select_frame.pack(pady=(0,10))
-        tk.Button(select_frame, text="Select All", command=self.select_all, width=12).grid(row=0, column=0, padx=(0,5))
-        tk.Button(select_frame, text="Deselect All", command=self.deselect_all, width=12).grid(row=0, column=1)
-        
+        tk.Button(select_frame, text=tr("tool.download.btn_select_all"), command=self.select_all, width=12).grid(row=0, column=0, padx=(0,5))
+        tk.Button(select_frame, text=tr("tool.download.btn_deselect_all"), command=self.deselect_all, width=12).grid(row=0, column=1)
+
         # Quality and Options
         options_frame = tk.Frame(left_frame)
         options_frame.pack(fill=tk.X, pady=(0,10))
-        
+
         # Video Quality
-        tk.Label(options_frame, text="Video Quality:", font=("Arial", 9, "bold")).grid(row=0, column=0, sticky="w", pady=(0,5))
-        self.quality_combo = ttk.Combobox(options_frame, values=["best", "1080p", "720p", "480p", "360p"], 
+        tk.Label(options_frame, text=tr("tool.download.quality_label"), font=("Arial", 9, "bold")).grid(row=0, column=0, sticky="w", pady=(0,5))
+        self.quality_combo = ttk.Combobox(options_frame, values=["best", "1080p", "720p", "480p", "360p"],
                                          state="readonly", width=15)
         self.quality_combo.current(0)
         self.quality_combo.grid(row=1, column=0, sticky="w", pady=(0,10))
-        
+
         # MP3 Checkbox
         self.mp3_var = tk.BooleanVar()
-        tk.Checkbutton(options_frame, text="Extract MP3", variable=self.mp3_var, font=("Arial", 9)).grid(row=2, column=0, sticky="w")
-        
+        tk.Checkbutton(options_frame, text=tr("tool.download.extract_mp3"), variable=self.mp3_var, font=("Arial", 9)).grid(row=2, column=0, sticky="w")
+
         # Network Speed
-        tk.Label(options_frame, text="Network Speed:", font=("Arial", 9, "bold")).grid(row=3, column=0, sticky="w", pady=(10,5))
-        self.network_combo = ttk.Combobox(options_frame, values=["Fast (30MB chunks)", "Medium (15MB chunks)", "Slow (5MB chunks)"], 
+        tk.Label(options_frame, text=tr("tool.download.network_label"), font=("Arial", 9, "bold")).grid(row=3, column=0, sticky="w", pady=(10,5))
+        self.network_combo = ttk.Combobox(options_frame, values=["Fast (30MB chunks)", "Medium (15MB chunks)", "Slow (5MB chunks)"],
                                          state="readonly", width=20)
         self.network_combo.current(0)
         self.network_combo.grid(row=4, column=0, sticky="w", pady=(0,5))
-        tk.Label(options_frame, text="(选择网络速度以优化下载)", font=("Arial", 7), fg="gray").grid(row=5, column=0, sticky="w")
+        tk.Label(options_frame, text=tr("tool.download.network_hint"), font=("Arial", 7), fg="gray").grid(row=5, column=0, sticky="w")
 
         # IPv4 Option
-        tk.Checkbutton(options_frame, text="Force IPv4 (-4)", variable=self.force_ipv4_var, font=("Arial", 9)).grid(row=6, column=0, sticky="w", pady=(8,0))
-        
+        tk.Checkbutton(options_frame, text=tr("tool.download.force_ipv4"), variable=self.force_ipv4_var, font=("Arial", 9)).grid(row=6, column=0, sticky="w", pady=(8,0))
+
         # Right Panel - Output and Download
         # Output Directory
-        tk.Label(right_frame, text="Download Settings", font=("Arial", 12, "bold")).pack(anchor="w", pady=(0,10))
-        
+        tk.Label(right_frame, text=tr("tool.download.settings_header"), font=("Arial", 12, "bold")).pack(anchor="w", pady=(0,10))
+
         output_frame = tk.Frame(right_frame)
         output_frame.pack(fill=tk.X, pady=(0,20))
-        
-        tk.Label(output_frame, text="Save to:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", pady=(0,5))
+
+        tk.Label(output_frame, text=tr("tool.download.save_to"), font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", pady=(0,5))
         self.dir_entry = tk.Entry(output_frame, width=40, font=("Arial", 9))
         self.dir_entry.grid(row=1, column=0, sticky="ew", pady=(0,5))
-        tk.Button(output_frame, text="Browse", command=self.browse_directory, width=10).grid(row=1, column=1, padx=(5,0))
-        
+        tk.Button(output_frame, text=tr("tool.download.browse"), command=self.browse_directory, width=10).grid(row=1, column=1, padx=(5,0))
+
         output_frame.grid_columnconfigure(0, weight=1)
-        
+
         # Download Button
-        self.download_btn = tk.Button(right_frame, text="Start Download", command=self.start_download, 
-                                    state="disabled", bg="#2196F3", fg="white", font=("Arial", 12, "bold"), 
+        self.download_btn = tk.Button(right_frame, text=tr("tool.download.btn_start"), command=self.start_download,
+                                    state="disabled", bg="#2196F3", fg="white", font=("Arial", 12, "bold"),
                                     height=2)
         self.download_btn.pack(fill=tk.X, pady=(0,20))
-        
+
         # Progress/Status Display
-        tk.Label(right_frame, text="Download Status", font=("Arial", 10, "bold")).pack(anchor="w", pady=(0,5))
+        tk.Label(right_frame, text=tr("tool.download.status_header"), font=("Arial", 10, "bold")).pack(anchor="w", pady=(0,5))
         self.status_text = tk.Text(right_frame, height=15, width=50, wrap=tk.WORD, font=("Arial", 9))
         self.status_text.pack(fill=tk.BOTH, expand=True)
         self.status_text.config(state="disabled")
@@ -195,12 +196,12 @@ class YouTubeDownloader(ToolBase):
         urls = [url.strip() for url in urls if url.strip()]
         force_ipv4 = self.force_ipv4_var.get()
         if not urls:
-            self.log("⚠ Please enter at least one URL")
+            self.log(tr("tool.download.log.enter_url"))
             return
-            
+
         self.get_list_btn.config(state="disabled")
         self.set_busy()
-        self.log("Fetching video list...")
+        self.log(tr("tool.download.log.fetching"))
         self.video_list = []
         # Clear existing checkboxes on the main thread before the fetch thread runs
         for w in self.check_frame.winfo_children():
@@ -294,7 +295,7 @@ class YouTubeDownloader(ToolBase):
                 self.set_done()
             except Exception as e:
                 error_message = str(e)
-                self.set_error(f"获取视频列表失败: {error_message}")
+                self.set_error(tr("tool.download.error.fetch_list_failed", e=error_message))
                 self.root.after(0, lambda em=error_message: self.log(f"Error: {em}"))
                 self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
                 
@@ -327,21 +328,21 @@ class YouTubeDownloader(ToolBase):
         self.get_list_btn.config(state="normal")
         if self.video_list:
             self.download_btn.config(state="normal")
-        self.log(f"Found {len(self.video_list)} videos")
-        
+        self.log(tr("tool.download.log.found", count=len(self.video_list)))
+
     def start_download(self):
         selected_indices = [i for i, v in enumerate(self.checkbox_vars) if v.get()]
         if not selected_indices:
-            self.log("⚠ Please select at least one video to download")
+            self.log(tr("tool.download.log.select_video"))
             return
 
         output_dir = self.dir_entry.get().strip()
         if not output_dir:
-            self.log("⚠ Please select an output directory")
+            self.log(tr("tool.download.log.output_dir_empty"))
             return
 
         if not os.path.exists(output_dir):
-            self.log("⚠ Invalid output directory")
+            self.log(tr("tool.download.log.output_dir_invalid"))
             return
 
         self.selected_videos = [self.video_list[i] for i in selected_indices]
@@ -362,10 +363,10 @@ class YouTubeDownloader(ToolBase):
                 # Check FFmpeg
                 try:
                     result = subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True, timeout=10)
-                    self.root.after(0, lambda: self.log("FFmpeg check passed"))
+                    self.root.after(0, lambda: self.log(tr("tool.download.log.ffmpeg_ok")))
                 except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
                     error_msg = f"FFmpeg not found or not working: {str(e)}"
-                    self.set_error(f"FFmpeg 未安装或不可用: {error_msg}")
+                    self.set_error(tr("tool.download.error.ffmpeg_missing", e=error_msg))
                     self.root.after(0, lambda em=error_msg: self.log(em))
                     self.root.after(0, lambda: self.download_btn.config(state="normal"))
                     self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
@@ -487,7 +488,7 @@ class YouTubeDownloader(ToolBase):
                                 os.rename(video_file, new_path)
                                 video_file = new_path
                         except Exception as rename_err:
-                            self.root.after(0, lambda e=str(rename_err): self.log(f"重命名失败（使用原名）: {e}"))
+                            self.root.after(0, lambda e=str(rename_err): self.log(tr("tool.download.log.rename_failed", e=e)))
 
                         self.root.after(0, lambda vf=video_file, vt=video_title: self.log(f"Downloaded: {vt} -> {os.path.basename(vf)}"))
 
@@ -509,7 +510,7 @@ class YouTubeDownloader(ToolBase):
                                 ], check=True, capture_output=True, timeout=600)  # 10分钟超时，足够长视频
                                 self.root.after(0, lambda mf=mp3_file: self.log(f"MP3 saved: {mf}"))
                             except subprocess.TimeoutExpired:
-                                error_msg = f"MP3 extraction timeout for {video_title} (超过10分钟)"
+                                error_msg = f"MP3 extraction timeout for {video_title} (exceeded 10 min)"
                                 self.root.after(0, lambda em=error_msg: self.log(em))
                             except subprocess.CalledProcessError as e:
                                 error_msg = f"MP3 extraction failed for {video_title}: {e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)}"
@@ -526,16 +527,16 @@ class YouTubeDownloader(ToolBase):
                     summary_msg = f"Completed with issues: {downloaded_count}/{total_count} succeeded, {len(failed_videos)} failed."
                     self.root.after(0, lambda sm=summary_msg: self.log(sm))
                     # Partial failure → warning (orange tab), not error.
-                    self.set_warning(f"下载部分失败: {summary_msg}")
+                    self.set_warning(tr("tool.download.warning.partial", summary=summary_msg))
                 else:
                     summary_msg = f"All downloads completed successfully ({downloaded_count}/{total_count})."
                     self.root.after(0, lambda sm=summary_msg: self.log(sm))
-                    logger.info(f"下载完成: {summary_msg}")
+                    logger.info(tr("tool.download.log.all_done", summary=summary_msg))
                     self.set_done()
 
             except Exception as e:
                 error_msg = f"Download process failed: {str(e)}"
-                self.set_error(f"下载失败: {error_msg}")
+                self.set_error(tr("tool.download.error.download_failed", e=error_msg))
                 self.root.after(0, lambda em=error_msg: self.log(em))
 
             finally:
@@ -543,7 +544,7 @@ class YouTubeDownloader(ToolBase):
                 self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
 
         # Start the download thread
-        self.log("Starting download thread...")
+        self.log(tr("tool.download.log.start_thread"))
         self.set_busy()
         threading.Thread(target=download, daemon=True).start()
         
