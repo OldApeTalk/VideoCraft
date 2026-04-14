@@ -60,9 +60,11 @@ TOOL_MAP = {
 # ── Tab 状态颜色 ──────────────────────────────────────────────────────────────
 
 STATUS_COLORS = {
-    "idle":    "#9e9e9e",   # 灰：待命
-    "running": "#ffc107",   # 黄：运行中
-    "done":    "#4caf50",   # 绿：完成
+    "idle":    "#9e9e9e",   # gray: no task / freshly opened
+    "running": "#2196F3",   # blue: running (distinct from warning orange)
+    "done":    "#4caf50",   # green: success
+    "warning": "#f0a500",   # orange: non-fatal, worth attention
+    "error":   "#f44747",   # red: runtime failure
 }
 
 
@@ -166,9 +168,13 @@ class VideoCraftHub:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("VideoCraft")
-        self.root.geometry("900x600")
         self.root.minsize(600, 400)
-        self.root.state("zoomed")   # 启动最大化
+
+        # Load persisted layout (geometry / sash positions / zoom state).
+        import hub_layout
+        self._layout_store = hub_layout.load_layout()
+        self.root.geometry(self._layout_store.get("geometry", "1280x800"))
+
         self._set_app_icon()
 
         self.project: Project | None = None
@@ -183,11 +189,69 @@ class VideoCraftHub:
         self._tab_bar: TabBar | None = None
         self._content_area: tk.Frame | None = None   # Tab 内容切换区
         self._welcome_frame: tk.Frame | None = None
+        self._vpane: ttk.PanedWindow | None = None
+        self._log_frame: tk.Frame | None = None
 
         self._build_menu()
         self._build_layout()
         self._show_welcome()
         self._schedule_auto_refresh()
+
+        # Apply zoom + sash positions after widgets have been realized.
+        self.root.after(50, self._apply_saved_layout)
+
+        # Persist layout on close.
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _apply_saved_layout(self):
+        """Restore sash positions and zoom state after widgets are realized."""
+        try:
+            self.root.update_idletasks()
+            sidebar_w = int(self._layout_store.get("sidebar_width", 320))
+            self._pane.sashpos(0, sidebar_w)
+
+            win_h = self.root.winfo_height()
+            log_h = int(self._layout_store.get("log_height", 90))
+            # Clamp log panel to at most half the window height so the tool
+            # area always has room even if the saved value was extreme.
+            log_h = max(60, min(log_h, win_h // 2))
+            target = max(100, win_h - log_h)
+            assert self._vpane is not None
+            self._vpane.sashpos(0, target)
+
+            if self._layout_store.get("zoomed", True):
+                self.root.state("zoomed")
+        except Exception as e:
+            from hub_logger import logger
+            logger.error(f"应用保存的布局失败: {e}")
+
+    def _on_close(self):
+        """Persist layout then destroy the window."""
+        import hub_layout
+        try:
+            zoomed = self.root.state() == "zoomed"
+            if zoomed:
+                # Take geometry from normal state so the next launch can restore it
+                # accurately before re-zooming.
+                self.root.state("normal")
+                self.root.update_idletasks()
+            assert self._vpane is not None
+            win_h = self.root.winfo_height()
+            raw_log_h = win_h - self._vpane.sashpos(0)
+            # Clamp log panel height to [60, 50% of window] so the tool area
+            # is never starved of vertical space on next launch.
+            log_h = max(60, min(raw_log_h, win_h // 2))
+            payload = {
+                "geometry":      self.root.geometry(),
+                "zoomed":        zoomed,
+                "sidebar_width": self._pane.sashpos(0),
+                "log_height":    log_h,
+            }
+            hub_layout.save_layout(payload)
+        except Exception as e:
+            from hub_logger import logger
+            logger.error(f"保存布局失败: {e}")
+        self.root.destroy()
 
     def _set_app_icon(self):
         try:
@@ -325,8 +389,16 @@ class VideoCraftHub:
     # ── 布局 ──────────────────────────────────────────────────────────────────
 
     def _build_layout(self):
-        # PanedWindow：左 Sidebar + 右内容区
-        self._pane = ttk.PanedWindow(self.root, orient="horizontal")
+        # Vertical PanedWindow: top = sidebar+content horizontal pane, bottom = log panel.
+        # This lets users drag the log panel taller / shorter and persist it.
+        self._vpane = ttk.PanedWindow(self.root, orient="vertical")
+        self._vpane.pack(fill="both", expand=True)
+
+        top_container = tk.Frame(self._vpane, bg="white")
+        self._vpane.add(top_container, weight=1)
+
+        # Horizontal PanedWindow inside the top container: left sidebar + right content.
+        self._pane = ttk.PanedWindow(top_container, orient="horizontal")
         self._pane.pack(fill="both", expand=True)
 
         # ── 左：Sidebar ──
@@ -367,7 +439,9 @@ class VideoCraftHub:
         # 工具内容切换区
         self._content_area = tk.Frame(self._content, bg="white")
 
-        # ── 底部日志面板 ──
+        # Bottom log panel: lives as the second pane of vpane so it's draggable.
+        self._log_frame = tk.Frame(self._vpane, bd=1, relief="sunken", bg="#1e1e1e")
+        self._vpane.add(self._log_frame, weight=0)
         self._build_logpanel()
 
     # ── 欢迎页 ────────────────────────────────────────────────────────────────
@@ -616,15 +690,12 @@ class VideoCraftHub:
     # ── 日志面板 ─────────────────────────────────────────────────────────────
 
     def _build_logpanel(self):
-        """替代原单行状态栏，显示多行彩色日志。"""
+        """Multi-line colored log panel, lives inside self._log_frame
+        (second child of the vertical PanedWindow so the user can drag it)."""
         from hub_logger import logger
 
-        frame = tk.Frame(self.root, bd=1, relief="sunken", bg="#1e1e1e", height=90)
-        frame.pack(fill="x", side="bottom")
-        frame.pack_propagate(False)
-
-        # 标题行
-        title_bar = tk.Frame(frame, bg="#2d2d2d")
+        # Title bar
+        title_bar = tk.Frame(self._log_frame, bg="#2d2d2d")
         title_bar.pack(fill="x")
         tk.Label(title_bar, text="日志", bg="#2d2d2d", fg="#aaa",
                  font=("", 9), padx=6).pack(side="left")
@@ -632,14 +703,14 @@ class VideoCraftHub:
                   relief="flat", font=("", 8), cursor="hand2",
                   command=self._clear_log).pack(side="right", padx=4, pady=1)
 
-        # 日志文本区
+        # Log text area
         self._log_text = tk.Text(
-            frame, bg="#1e1e1e", fg="#d4d4d4",
+            self._log_frame, bg="#1e1e1e", fg="#d4d4d4",
             font=("Consolas", 9), state="disabled",
             wrap="word", height=4, relief="flat",
             selectbackground="#264f78",
         )
-        vsb = tk.Scrollbar(frame, command=self._log_text.yview, bg="#2d2d2d")
+        vsb = tk.Scrollbar(self._log_frame, command=self._log_text.yview, bg="#2d2d2d")
         self._log_text.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y")
         self._log_text.pack(fill="both", expand=True, padx=2, pady=(0, 2))
