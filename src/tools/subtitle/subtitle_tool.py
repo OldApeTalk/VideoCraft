@@ -74,8 +74,8 @@ def get_video_resolution(video_path):
         if result.returncode == 0:
             width, height = map(int, result.stdout.strip().split(','))
             return width, height
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"ffprobe 获取分辨率失败 ({os.path.basename(video_path)}): {e}")
     return None, None
 
 
@@ -344,23 +344,26 @@ class SubtitleToolApp(ToolBase):
         tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL,
                  variable=self.watermark_date_alpha_var, length=80).grid(row=2, column=8, padx=3)
 
-        # 进度
+        # Progress row: three compact time labels + progress bar + merge button,
+        # all on a single row to save vertical space.
         frame_progress = tk.Frame(root)
-        frame_progress.grid(row=7, column=0, columnspan=3, pady=10)
-        self.progress_bar = ttk.Progressbar(frame_progress, orient=tk.HORIZONTAL,
-                                            length=400, mode='determinate')
-        self.progress_bar.pack(pady=5)
-        self.label_duration  = tk.Label(frame_progress, text="视频时长: 未知")
-        self.label_duration.pack()
-        self.label_elapsed   = tk.Label(frame_progress, text="已用时间: 00:00:00")
-        self.label_elapsed.pack()
-        self.label_remaining = tk.Label(frame_progress, text="剩余时间: 未知")
-        self.label_remaining.pack()
+        frame_progress.grid(row=7, column=0, columnspan=3, padx=15, pady=10, sticky="we")
+        frame_progress.columnconfigure(3, weight=1)   # progress_bar column stretches
 
-        # 开始按钮
-        self.btn_merge = tk.Button(root, text="开始烧录双语字幕",
-                                   width=25, command=self._merge_videos)
-        self.btn_merge.grid(row=8, column=1, pady=25)
+        self.label_duration  = tk.Label(frame_progress, text="时长 --:--:--", width=14, anchor="w")
+        self.label_duration.grid(row=0, column=0, padx=(0, 4))
+        self.label_elapsed   = tk.Label(frame_progress, text="已用 00:00:00", width=14, anchor="w")
+        self.label_elapsed.grid(row=0, column=1, padx=(0, 4))
+        self.label_remaining = tk.Label(frame_progress, text="剩余 --:--:--", width=14, anchor="w")
+        self.label_remaining.grid(row=0, column=2, padx=(0, 8))
+
+        self.progress_bar = ttk.Progressbar(frame_progress, orient=tk.HORIZONTAL,
+                                            mode='determinate')
+        self.progress_bar.grid(row=0, column=3, sticky="we", padx=(0, 8))
+
+        self.btn_merge = tk.Button(frame_progress, text="开始烧录双语字幕",
+                                   width=18, command=self._merge_videos)
+        self.btn_merge.grid(row=0, column=4)
 
     # ── 图片水印辅助 ────────────────────────────────────────────────────────
 
@@ -429,7 +432,7 @@ class SubtitleToolApp(ToolBase):
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             messagebox.showerror("错误", "未找到ffprobe。请确保已安装FFmpeg并将其添加到系统PATH中。")
             self.video_duration = 0.0
-            self.label_duration.config(text="视频时长: 未知 (未安装FFmpeg)")
+            self.label_duration.config(text="时长 (无FFmpeg)")
             return
 
         try:
@@ -447,14 +450,14 @@ class SubtitleToolApp(ToolBase):
             else:
                 duration_str = result.stdout.strip()
             self.video_duration = float(duration_str)
-            self.label_duration.config(text=f"视频时长: {time.strftime('%H:%M:%S', time.gmtime(self.video_duration))}")
+            self.label_duration.config(text=f"时长 {time.strftime('%H:%M:%S', time.gmtime(self.video_duration))}")
         except subprocess.TimeoutExpired:
             self.video_duration = 0.0
-            self.label_duration.config(text="视频时长: 未知 (超时)")
+            self.label_duration.config(text="时长 (超时)")
             messagebox.showwarning("警告", "获取视频时长超时。")
         except Exception as e:
             self.video_duration = 0.0
-            self.label_duration.config(text="视频时长: 未知")
+            self.label_duration.config(text="时长 --:--:--")
             messagebox.showwarning("警告", f"获取视频时长失败: {e}\n您可以继续使用，但进度条可能不准确。")
 
     def _select_subtitle1(self):
@@ -661,11 +664,11 @@ class SubtitleToolApp(ToolBase):
 
     def _update_progress(self, progress, elapsed, remaining):
         self.progress_bar['value'] = progress
-        self.label_elapsed.config(text=f"已用时间: {time.strftime('%H:%M:%S', time.gmtime(elapsed))}")
+        self.label_elapsed.config(text=f"已用 {time.strftime('%H:%M:%S', time.gmtime(elapsed))}")
         if remaining > 0:
-            self.label_remaining.config(text=f"剩余时间: {time.strftime('%H:%M:%S', time.gmtime(remaining))}")
+            self.label_remaining.config(text=f"剩余 {time.strftime('%H:%M:%S', time.gmtime(remaining))}")
         else:
-            self.label_remaining.config(text="剩余时间: 计算中...")
+            self.label_remaining.config(text="剩余 计算中")
 
     # ── 主流程 ──────────────────────────────────────────────────────────────
 
@@ -887,9 +890,9 @@ class SubtitleToolApp(ToolBase):
         self.processing = True
         self.btn_merge.config(state=tk.DISABLED)
         self.progress_bar['value'] = 0
-        self.label_elapsed.config(text="已用时间: 00:00:00")
-        self.label_remaining.config(text="剩余时间: 未知")
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.label_elapsed.config(text="已用 00:00:00")
+        self.label_remaining.config(text="剩余 --:--:--")
+        self.set_busy()
 
         threading.Thread(
             target=self._run_ffmpeg,
@@ -927,19 +930,22 @@ class SubtitleToolApp(ToolBase):
 
             process.wait()
             if process.returncode == 0:
-                # 清理临时文件
+                # Clean up temp split SRTs
                 for tmp, orig in [(temp_sub1, orig_sub1), (temp_sub2, orig_sub2)]:
                     if tmp != orig and os.path.exists(tmp):
-                        os.remove(tmp)
+                        try:
+                            os.remove(tmp)
+                        except Exception as cleanup_e:
+                            logger.error(f"清理临时字幕失败 {tmp}: {cleanup_e}")
                 logger.info(f"字幕烧录完成 → {os.path.basename(output_path)}")
+                self.set_done()
             else:
-                logger.error(f"字幕烧录失败: FFmpeg 执行失败（返回码 {process.returncode}）")
+                self.set_error(f"字幕烧录失败: FFmpeg 执行失败（返回码 {process.returncode}）")
         except Exception as e:
-            logger.error(f"字幕烧录失败: {e}")
+            self.set_error(f"字幕烧录失败: {e}")
         finally:
             self.processing = False
             self.master.after(0, lambda: self.btn_merge.config(state=tk.NORMAL))
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
 
 if __name__ == "__main__":

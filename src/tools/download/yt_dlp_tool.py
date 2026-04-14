@@ -11,6 +11,7 @@ from hub_logger import logger
 class YouTubeDownloader(ToolBase):
     def __init__(self, root, initial_file=None):
         self.root = root
+        self.master = root   # ToolBase.set_busy/done/error expect self.master
         self.root.title("YouTube Downloader")
         self.root.geometry("1200x650")  # Wider window for horizontal layout
 
@@ -198,13 +199,14 @@ class YouTubeDownloader(ToolBase):
             return
             
         self.get_list_btn.config(state="disabled")
+        self.set_busy()
         self.log("Fetching video list...")
         self.video_list = []
         # Clear existing checkboxes on the main thread before the fetch thread runs
         for w in self.check_frame.winfo_children():
             w.destroy()
         self.checkbox_vars = []
-        
+
         def fetch_list():
             try:
                 # First try with extract_flat=False for full metadata
@@ -289,9 +291,10 @@ class YouTubeDownloader(ToolBase):
                                     })
                 
                 self.root.after(0, self.update_video_listbox)
+                self.set_done()
             except Exception as e:
                 error_message = str(e)
-                self.root.after(0, lambda em=error_message: logger.error(f"获取视频列表失败: {em}"))
+                self.set_error(f"获取视频列表失败: {error_message}")
                 self.root.after(0, lambda em=error_message: self.log(f"Error: {em}"))
                 self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
                 
@@ -362,7 +365,7 @@ class YouTubeDownloader(ToolBase):
                     self.root.after(0, lambda: self.log("FFmpeg check passed"))
                 except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
                     error_msg = f"FFmpeg not found or not working: {str(e)}"
-                    self.root.after(0, lambda em=error_msg: logger.error("FFmpeg not found. Install FFmpeg for video processing."))
+                    self.set_error(f"FFmpeg 未安装或不可用: {error_msg}")
                     self.root.after(0, lambda em=error_msg: self.log(em))
                     self.root.after(0, lambda: self.download_btn.config(state="normal"))
                     self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
@@ -522,25 +525,26 @@ class YouTubeDownloader(ToolBase):
                 if failed_videos:
                     summary_msg = f"Completed with issues: {downloaded_count}/{total_count} succeeded, {len(failed_videos)} failed."
                     self.root.after(0, lambda sm=summary_msg: self.log(sm))
-                    self.root.after(0, lambda sm=summary_msg: logger.warning(f"下载部分失败: {sm}"))
+                    # Partial failure → warning (orange tab), not error.
+                    self.set_warning(f"下载部分失败: {summary_msg}")
                 else:
                     summary_msg = f"All downloads completed successfully ({downloaded_count}/{total_count})."
                     self.root.after(0, lambda sm=summary_msg: self.log(sm))
-                    self.root.after(0, lambda sm=summary_msg: logger.info(f"下载完成: {sm}"))
+                    logger.info(f"下载完成: {summary_msg}")
+                    self.set_done()
 
             except Exception as e:
                 error_msg = f"Download process failed: {str(e)}"
-                self.root.after(0, lambda em=error_msg: logger.error(f"下载失败: {em}"))
+                self.set_error(f"下载失败: {error_msg}")
                 self.root.after(0, lambda em=error_msg: self.log(em))
-                
+
             finally:
                 self.root.after(0, lambda: self.download_btn.config(state="normal"))
                 self.root.after(0, lambda: self.get_list_btn.config(state="normal"))
-                self.root.after(0, lambda: getattr(self.root, 'set_status', lambda _: None)("done"))
 
         # Start the download thread
         self.log("Starting download thread...")
-        getattr(self.root, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=download, daemon=True).start()
         
     def create_progress_hook(self, video):

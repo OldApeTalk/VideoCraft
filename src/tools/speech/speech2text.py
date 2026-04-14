@@ -373,6 +373,7 @@ class Speech2TextApp(ToolBase):
         speaker   = self.speaker_var.get()
 
         self.btn_transcribe.config(state="disabled", text="转录中…")
+        self.set_busy()
         self._log("开始调用 API（verbose_json 模式）...\n")
 
         def _do_transcribe():
@@ -436,7 +437,7 @@ class Speech2TextApp(ToolBase):
                     if is_auto or mismatch:
                         if mismatch:
                             log(f"⚠ 选择语言({iso_selected}) 与检测结果({iso_detected})不符，按实际语言命名。\n")
-                            logger.warning(f"语言不一致：选择 {iso_selected}，实际检测为 {iso_detected}，文件已按实际语言命名")
+                            self.set_warning(f"语言不一致：选择 {iso_selected}，实际检测为 {iso_detected}，文件已按实际语言命名")
                         base_no_lang = _re.sub(r'_[a-z]{2,5}(\.srt)$', r'\1', current_srt_path)
                         current_srt_path = base_no_lang[:-4] + f"_{iso_detected}.srt"
                         self.master.after(0, lambda p=current_srt_path: (
@@ -463,10 +464,11 @@ class Speech2TextApp(ToolBase):
                 if word_count:
                     log(f"逐字时间戳数：{word_count}（已保存至 .json）\n")
                 logger.info(f"语音转字幕完成 → {os.path.basename(current_srt_path)}")
+                self.set_done()
 
             except Exception as e:
                 log(f"错误：{str(e)}\n")
-                logger.error(f"语音转字幕失败: {e}")
+                self.set_error(f"语音转字幕失败: {e}")
             finally:
                 finish()
 

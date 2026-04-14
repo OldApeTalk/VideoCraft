@@ -22,9 +22,7 @@ import re
 from hub_logger import logger
 
 def extract_audio_to_mp3(input_file, output_mp3, bitrate, progress_callback):
-    """
-    从视频或音频文件中提取音频并转换为MP3
-    """
+    """Extract/convert audio to MP3. Raises RuntimeError if ffmpeg fails."""
     cmd = ['ffmpeg', '-i', input_file, '-b:a', bitrate, '-acodec', 'libmp3lame', output_mp3, '-y']
     process = subprocess.Popen(cmd, stderr=subprocess.PIPE, universal_newlines=True, encoding='utf-8', errors='ignore')
     duration = None
@@ -42,11 +40,10 @@ def extract_audio_to_mp3(input_file, output_mp3, bitrate, progress_callback):
                 progress = min((current_time / duration) * 100, 100)
                 progress_callback(progress)
     process.wait()
-    if process.returncode == 0:
-        progress_callback(100)
-        logger.info(f"提取 MP3 完成 → {os.path.basename(output_mp3)}")
-    else:
-        logger.error(f"提取 MP3 失败：{os.path.basename(input_file)}")
+    if process.returncode != 0:
+        raise RuntimeError(f"ffmpeg exit {process.returncode} while extracting audio from {os.path.basename(input_file)}")
+    progress_callback(100)
+    logger.info(f"提取 MP3 完成 → {os.path.basename(output_mp3)}")
 
 def adjust_volume(input_file, output_file, db_change, progress_callback):
     """
@@ -82,11 +79,10 @@ def adjust_volume(input_file, output_file, db_change, progress_callback):
                 progress = min((current_time / duration) * 100, 100)
                 progress_callback(progress)
     process.wait()
-    if process.returncode == 0:
-        progress_callback(100)
-        logger.info(f"音量调整完成 → {os.path.basename(output_file)}")
-    else:
-        logger.error(f"音量调整失败：{os.path.basename(input_file)}")
+    if process.returncode != 0:
+        raise RuntimeError(f"ffmpeg exit {process.returncode} while adjusting volume of {os.path.basename(input_file)}")
+    progress_callback(100)
+    logger.info(f"音量调整完成 → {os.path.basename(output_file)}")
 
 def convert_mp3_bitrate(input_mp3, output_mp3, bitrate, progress_callback):
     """
@@ -109,11 +105,10 @@ def convert_mp3_bitrate(input_mp3, output_mp3, bitrate, progress_callback):
                 progress = min((current_time / duration) * 100, 100)
                 progress_callback(progress)
     process.wait()
-    if process.returncode == 0:
-        progress_callback(100)
-        logger.info(f"码率转换完成 → {os.path.basename(output_mp3)}")
-    else:
-        logger.error(f"码率转换失败：{os.path.basename(input_mp3)}")
+    if process.returncode != 0:
+        raise RuntimeError(f"ffmpeg exit {process.returncode} while converting bitrate of {os.path.basename(input_mp3)}")
+    progress_callback(100)
+    logger.info(f"码率转换完成 → {os.path.basename(output_mp3)}")
 
 def get_video_duration(input_video):
     """
@@ -314,12 +309,11 @@ def extract_video_clip(input_video, output_video, start_time, end_time, progress
                 progress_callback(progress)
     
     process.wait()
-    if process.returncode == 0:
-        progress_callback(100)
-        mode_text = "精确" if accurate_mode else "快速"
-        logger.info(f"片段提取完成（{mode_text}）→ {os.path.basename(output_video)}")
-    else:
-        logger.error(f"片段提取失败：{os.path.basename(input_video)}")
+    if process.returncode != 0:
+        raise RuntimeError(f"ffmpeg exit {process.returncode} while extracting clip from {os.path.basename(input_video)}")
+    progress_callback(100)
+    mode_text = "精确" if accurate_mode else "快速"
+    logger.info(f"片段提取完成（{mode_text}）→ {os.path.basename(output_video)}")
 
 
 def extract_subtitle_clip(input_srt, output_srt, start_time_str, end_time_str):
@@ -511,12 +505,18 @@ class ExtractAudioApp(ToolBase):
             self.master.update_idletasks()
 
         def _work():
-            extract_audio_to_mp3(src, dst, self.bitrate_var.get(), _progress_cb)
-            self._btn.config(state="normal")
-            self.status_var.set("提取完成！")
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+            try:
+                extract_audio_to_mp3(src, dst, self.bitrate_var.get(), _progress_cb)
+            except Exception as e:
+                self.master.after(0, lambda: self._btn.config(state="normal"))
+                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 提取失败: {em}"))
+                self.set_error(f"提取 MP3 失败: {e}")
+                return
+            self.master.after(0, lambda: self._btn.config(state="normal"))
+            self.master.after(0, lambda: self.status_var.set("提取完成！"))
+            self.set_done()
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -590,12 +590,18 @@ class ConvertBitrateApp(ToolBase):
             self.master.update_idletasks()
 
         def _work():
-            convert_mp3_bitrate(src, dst, self.bitrate_var.get(), _progress_cb)
-            self._btn.config(state="normal")
-            self.status_var.set("转换完成！")
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+            try:
+                convert_mp3_bitrate(src, dst, self.bitrate_var.get(), _progress_cb)
+            except Exception as e:
+                self.master.after(0, lambda: self._btn.config(state="normal"))
+                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 转换失败: {em}"))
+                self.set_error(f"码率转换失败: {e}")
+                return
+            self.master.after(0, lambda: self._btn.config(state="normal"))
+            self.master.after(0, lambda: self.status_var.set("转换完成！"))
+            self.set_done()
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -678,12 +684,18 @@ class AdjustVolumeApp(ToolBase):
             self.master.update_idletasks()
 
         def _work():
-            adjust_volume(src, dst, db, _progress_cb)
-            self._btn.config(state="normal")
-            self.status_var.set("音量调整完成！")
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+            try:
+                adjust_volume(src, dst, db, _progress_cb)
+            except Exception as e:
+                self.master.after(0, lambda: self._btn.config(state="normal"))
+                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 音量调整失败: {em}"))
+                self.set_error(f"音量调整失败: {e}")
+                return
+            self.master.after(0, lambda: self._btn.config(state="normal"))
+            self.master.after(0, lambda: self.status_var.set("音量调整完成！"))
+            self.set_done()
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -809,17 +821,30 @@ class ExtractClipApp(ToolBase):
             self.master.update_idletasks()
 
         def _work():
-            extract_video_clip(src, dst, start, end, _progress_cb, accurate)
+            try:
+                extract_video_clip(src, dst, start, end, _progress_cb, accurate)
+            except Exception as e:
+                self.master.after(0, lambda: self._btn.config(state="normal"))
+                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 片段提取失败: {em}"))
+                self.set_error(f"片段提取失败: {e}")
+                return
             srt_msg = ""
             if input_srt:
                 out_srt = os.path.splitext(dst)[0] + '.srt'
-                ok, msg, count = extract_subtitle_clip(input_srt, out_srt, start, end)
-                srt_msg = f"\n字幕：{msg}" + (f"，已保存到 {os.path.basename(out_srt)}" if ok and count > 0 else "")
-            self._btn.config(state="normal")
-            self.status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}")
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                try:
+                    ok, msg, count = extract_subtitle_clip(input_srt, out_srt, start, end)
+                    srt_msg = f"\n字幕：{msg}" + (f"，已保存到 {os.path.basename(out_srt)}" if ok and count > 0 else "")
+                except Exception as e:
+                    # Subtitle extraction is secondary — warn but don't fail the whole op.
+                    srt_msg = f"\n字幕提取失败: {e}"
+                    self.set_warning(f"字幕片段提取失败: {e}")
+            self.master.after(0, lambda: self._btn.config(state="normal"))
+            self.master.after(0, lambda: self.status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}"))
+            # Only set_done if we didn't already downgrade to warning.
+            if not input_srt or "字幕提取失败" not in srt_msg:
+                self.set_done()
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -928,17 +953,23 @@ class AutoSplitApp(ToolBase):
             self.master.update_idletasks()
 
         def _work():
-            success, message, output_files = auto_split_video(src, out_dir, n, _progress_cb, use_kf)
-            self._btn.config(state="normal")
+            try:
+                success, message, output_files = auto_split_video(src, out_dir, n, _progress_cb, use_kf)
+            except Exception as e:
+                self.master.after(0, lambda: self._btn.config(state="normal"))
+                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 分割失败：{em}"))
+                self.set_error(f"视频分割失败: {e}")
+                return
+            self.master.after(0, lambda: self._btn.config(state="normal"))
             if success:
-                self.status_var.set(f"✓ 分割完成！已生成 {len(output_files)} 个文件")
+                self.master.after(0, lambda n=len(output_files): self.status_var.set(f"✓ 分割完成！已生成 {n} 个文件"))
                 logger.info(f"视频分割完成 → {len(output_files)} 个文件（{os.path.basename(src)}）")
+                self.set_done()
             else:
-                self.status_var.set(f"✗ 分割失败：{message}")
-                logger.error(f"视频分割失败: {message}")
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda m=message: self.status_var.set(f"✗ 分割失败：{m}"))
+                self.set_error(f"视频分割失败: {message}")
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -946,6 +977,7 @@ class AutoSplitApp(ToolBase):
 class VideoToolsGUI(ToolBase):
     def __init__(self, root):
         self.root = root
+        self.master = root   # ToolBase.set_busy/done/error look up self.master
         self.root.title("VideoTools - 视频音频工具")
         self.root.geometry("700x450")
         self.root.resizable(False, False)
@@ -1329,10 +1361,18 @@ class VideoToolsGUI(ToolBase):
             self.root.update_idletasks()
 
         def run():
-            extract_audio_to_mp3(input_file, output_file, bitrate, update_progress)
-            self.extract_btn.config(state="normal")
-            self.extract_status_var.set("提取完成！")
+            try:
+                extract_audio_to_mp3(input_file, output_file, bitrate, update_progress)
+            except Exception as e:
+                self.root.after(0, lambda: self.extract_btn.config(state="normal"))
+                self.root.after(0, lambda em=str(e): self.extract_status_var.set(f"✗ 提取失败: {em}"))
+                self.set_error(f"提取 MP3 失败: {e}")
+                return
+            self.root.after(0, lambda: self.extract_btn.config(state="normal"))
+            self.root.after(0, lambda: self.extract_status_var.set("提取完成！"))
+            self.set_done()
 
+        self.set_busy()
         threading.Thread(target=run, daemon=True).start()
 
     def execute_convert_bitrate(self):
@@ -1354,10 +1394,18 @@ class VideoToolsGUI(ToolBase):
             self.root.update_idletasks()
 
         def run():
-            convert_mp3_bitrate(input_file, output_file, bitrate, update_progress)
-            self.convert_btn.config(state="normal")
-            self.convert_status_var.set("转换完成！")
+            try:
+                convert_mp3_bitrate(input_file, output_file, bitrate, update_progress)
+            except Exception as e:
+                self.root.after(0, lambda: self.convert_btn.config(state="normal"))
+                self.root.after(0, lambda em=str(e): self.convert_status_var.set(f"✗ 转换失败: {em}"))
+                self.set_error(f"码率转换失败: {e}")
+                return
+            self.root.after(0, lambda: self.convert_btn.config(state="normal"))
+            self.root.after(0, lambda: self.convert_status_var.set("转换完成！"))
+            self.set_done()
 
+        self.set_busy()
         threading.Thread(target=run, daemon=True).start()
 
     def execute_adjust_volume(self):
@@ -1379,10 +1427,18 @@ class VideoToolsGUI(ToolBase):
             self.root.update_idletasks()
 
         def run():
-            adjust_volume(input_file, output_file, db_change, update_progress)
-            self.volume_btn.config(state="normal")
-            self.volume_status_var.set("音量调整完成！")
+            try:
+                adjust_volume(input_file, output_file, db_change, update_progress)
+            except Exception as e:
+                self.root.after(0, lambda: self.volume_btn.config(state="normal"))
+                self.root.after(0, lambda em=str(e): self.volume_status_var.set(f"✗ 音量调整失败: {em}"))
+                self.set_error(f"音量调整失败: {e}")
+                return
+            self.root.after(0, lambda: self.volume_btn.config(state="normal"))
+            self.root.after(0, lambda: self.volume_status_var.set("音量调整完成！"))
+            self.set_done()
 
+        self.set_busy()
         threading.Thread(target=run, daemon=True).start()
 
     def execute_extract_clip(self):
@@ -1419,24 +1475,40 @@ class VideoToolsGUI(ToolBase):
             self.root.update_idletasks()
 
         def run():
-            extract_video_clip(input_file, output_file, start_time, end_time, update_progress, accurate_mode)
-            
-            # 如果提供了字幕文件，同时提取对应字幕
-            srt_msg = ""
-            if input_srt:
-                # 自动生成输出字幕文件名（与输出视频同名，扩展名改为.srt）
-                output_srt = os.path.splitext(output_file)[0] + '.srt'
-                success, msg, count = extract_subtitle_clip(input_srt, output_srt, start_time, end_time)
-                if success and count > 0:
-                    srt_msg = f"\n字幕：{msg}，已保存到 {os.path.basename(output_srt)}"
-                elif success:
-                    srt_msg = f"\n字幕：{msg}"
-                else:
-                    srt_msg = f"\n字幕提取失败：{msg}"
-            
-            self.clip_btn.config(state="normal")
-            self.clip_status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}")
+            try:
+                extract_video_clip(input_file, output_file, start_time, end_time, update_progress, accurate_mode)
+            except Exception as e:
+                self.root.after(0, lambda: self.clip_btn.config(state="normal"))
+                self.root.after(0, lambda em=str(e): self.clip_status_var.set(f"✗ 片段提取失败: {em}"))
+                self.set_error(f"片段提取失败: {e}")
+                return
 
+            # 如果提供了字幕文件，同时提取对应字幕（次要操作，失败降级为 warning）
+            srt_msg = ""
+            srt_failed = False
+            if input_srt:
+                output_srt = os.path.splitext(output_file)[0] + '.srt'
+                try:
+                    success, msg, count = extract_subtitle_clip(input_srt, output_srt, start_time, end_time)
+                    if success and count > 0:
+                        srt_msg = f"\n字幕：{msg}，已保存到 {os.path.basename(output_srt)}"
+                    elif success:
+                        srt_msg = f"\n字幕：{msg}"
+                    else:
+                        srt_msg = f"\n字幕提取失败：{msg}"
+                        srt_failed = True
+                except Exception as e:
+                    srt_msg = f"\n字幕提取异常：{e}"
+                    srt_failed = True
+
+            self.root.after(0, lambda: self.clip_btn.config(state="normal"))
+            self.root.after(0, lambda: self.clip_status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}"))
+            if srt_failed:
+                self.set_warning(f"视频片段已提取但字幕提取失败: {srt_msg.strip()}")
+            else:
+                self.set_done()
+
+        self.set_busy()
         threading.Thread(target=run, daemon=True).start()
 
     def execute_auto_split(self):
@@ -1472,18 +1544,26 @@ class VideoToolsGUI(ToolBase):
             self.root.update_idletasks()
 
         def run():
-            success, message, output_files = auto_split_video(
-                input_file, output_dir, num_segments, update_progress, use_keyframes
-            )
-            self.split_btn.config(state="normal")
-            
-            if success:
-                self.split_status_var.set(f"✓ 分割完成！已生成 {len(output_files)} 个文件")
-                logger.info(f"视频分割完成 → {len(output_files)} 个文件（{os.path.basename(input_file)}）")
-            else:
-                self.split_status_var.set(f"✗ 分割失败：{message}")
-                logger.error(f"视频分割失败: {message}")
+            try:
+                success, message, output_files = auto_split_video(
+                    input_file, output_dir, num_segments, update_progress, use_keyframes
+                )
+            except Exception as e:
+                self.root.after(0, lambda: self.split_btn.config(state="normal"))
+                self.root.after(0, lambda em=str(e): self.split_status_var.set(f"✗ 分割失败：{em}"))
+                self.set_error(f"视频分割失败: {e}")
+                return
 
+            self.root.after(0, lambda: self.split_btn.config(state="normal"))
+            if success:
+                self.root.after(0, lambda n=len(output_files): self.split_status_var.set(f"✓ 分割完成！已生成 {n} 个文件"))
+                logger.info(f"视频分割完成 → {len(output_files)} 个文件（{os.path.basename(input_file)}）")
+                self.set_done()
+            else:
+                self.root.after(0, lambda m=message: self.split_status_var.set(f"✗ 分割失败：{m}"))
+                self.set_error(f"视频分割失败: {message}")
+
+        self.set_busy()
         threading.Thread(target=run, daemon=True).start()
 
 

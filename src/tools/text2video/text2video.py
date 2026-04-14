@@ -200,7 +200,7 @@ class TTSApp(ToolBase):
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
         self.status_var.set("正在准备...")
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         t = threading.Thread(
             target=self._run_single if self.mode_var.get() == "single" else self._run_multi,
             daemon=True)
@@ -211,9 +211,10 @@ class TTSApp(ToolBase):
         self.status_var.set("正在停止...")
 
     def _finish_generation(self):
-        self.generate_btn.config(state="normal")
-        self.stop_btn.config(state="disabled")
-        self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+        """Re-enable the action buttons. Tab status is set by the _run_* caller
+        (set_done on success, set_error on failure, set_warning on stop)."""
+        self.master.after(0, lambda: self.generate_btn.config(state="normal"))
+        self.master.after(0, lambda: self.stop_btn.config(state="disabled"))
 
     def _run_single(self):
         try:
@@ -244,9 +245,10 @@ class TTSApp(ToolBase):
             self._last_output = output
             self.progress_var.set(100)
             self.status_var.set(f"完成！已保存：{output}")
+            self.set_done()
         except Exception as e:
             self.status_var.set(f"失败：{e}")
-            self._show_error(str(e))
+            self.set_error(f"TTS 单角色生成失败: {e}")
         finally:
             self._finish_generation()
 
@@ -295,9 +297,10 @@ class TTSApp(ToolBase):
             self._last_output = output
             self.progress_var.set(100)
             self.status_var.set(f"完成！{total} 段已合并：{output}")
+            self.set_done()
         except Exception as e:
             self.status_var.set(f"失败：{e}")
-            self._show_error(str(e))
+            self.set_error(f"TTS 多角色生成失败: {e}")
         finally:
             self._finish_generation()
 
@@ -461,18 +464,25 @@ class SRTFromTextApp(ToolBase):
             self.status_var.set("请指定输出 SRT 路径")
             return
 
-        duration = self._get_duration(audio)
-        if duration <= 0:
-            self.status_var.set("无法获取音频时长，请检查 ffprobe 是否可用")
-            return
+        self.set_busy()
+        try:
+            duration = self._get_duration(audio)
+            if duration <= 0:
+                self.set_error("无法获取音频时长，请检查 ffprobe 是否可用")
+                self.status_var.set("无法获取音频时长，请检查 ffprobe 是否可用")
+                return
 
-        segments = self._split_to_segments(raw, self.max_chars_var.get())
-        srt_content = self._build_srt(segments, duration, self.gap_var.get())
+            segments = self._split_to_segments(raw, self.max_chars_var.get())
+            srt_content = self._build_srt(segments, duration, self.gap_var.get())
 
-        with open(output, 'w', encoding='utf-8') as f:
-            f.write(srt_content)
+            with open(output, 'w', encoding='utf-8') as f:
+                f.write(srt_content)
 
-        self.status_var.set(f"完成！共 {len(segments)} 条字幕 → {output}")
+            self.status_var.set(f"完成！共 {len(segments)} 条字幕 → {output}")
+            self.set_done()
+        except Exception as e:
+            self.set_error(f"SRT 生成失败: {e}")
+            self.status_var.set(f"✗ 失败：{e}")
 
     def _split_to_segments(self, raw, max_chars):
         """将文本分割为字幕段落（支持角色格式和纯文本）"""
@@ -892,7 +902,7 @@ class AudioVideoApp(ToolBase):
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
         self.status_var.set("正在准备...")
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=self._generate, args=(output,), daemon=True).start()
 
     def _stop(self):
@@ -1005,10 +1015,12 @@ class AudioVideoApp(ToolBase):
 
             self.progress_var.set(100)
             self.status_var.set(f"完成！共 {total} 个章节 → {output}")
+            self.set_done()
             __import__('tkinter').messagebox.showinfo("成功", f"视频已保存到：\n{output}")
 
         except Exception as e:
             self.status_var.set("生成失败")
+            self.set_error(f"视频生成失败: {e}")
             __import__('tkinter').messagebox.showerror("错误", f"视频生成失败：\n{e}")
         finally:
             self.master.after(0, lambda: self.generate_btn.config(state="normal"))
@@ -1016,9 +1028,9 @@ class AudioVideoApp(ToolBase):
             self._ffmpeg_proc = None
             for f in tmp_segments:
                 try: os.unlink(f)
-                except Exception: pass
+                except Exception as cleanup_e:
+                    logger.error(f"清理临时文件失败 {f}: {cleanup_e}")
             # 分割后的 SRT 作为中间文件保留，不删除
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
     def _build_chapter_cmd(self, audio, image, bg_video, srt, width, height,
                             fps, codec, bg_hex, duration, subtitle_style,
@@ -1461,7 +1473,7 @@ class DailyNewsApp(ToolBase):
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
         self.status_var.set("正在准备...")
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=self._generate,
                          args=(audio, image, output, script), daemon=True).start()
 
@@ -1691,21 +1703,22 @@ class DailyNewsApp(ToolBase):
 
             self.progress_var.set(100)
             self.status_var.set(f"完成！{output}")
+            self.set_done()
             __import__('tkinter').messagebox.showinfo("完成", f"视频已保存：\n{output}")
 
         except Exception as e:
             self.status_var.set("生成失败")
+            self.set_error(f"每日要闻合成失败: {e}")
             __import__('tkinter').messagebox.showerror("错误", f"合成失败：\n{e}")
         finally:
-            self.generate_btn.config(state="normal")
-            self.stop_btn.config(state="disabled")
+            self.master.after(0, lambda: self.generate_btn.config(state="normal"))
+            self.master.after(0, lambda: self.stop_btn.config(state="disabled"))
             self._ffmpeg_proc = None
             if tmp_png and os.path.exists(tmp_png):
                 try:
                     os.unlink(tmp_png)
-                except Exception:
-                    pass
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                except Exception as cleanup_e:
+                    logger.error(f"清理临时 PNG 失败 {tmp_png}: {cleanup_e}")
 
 
 # ── 兼容旧入口（Hub 直接引用 Text2VideoApp 时不报错）──────────────────────────

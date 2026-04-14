@@ -358,7 +358,7 @@ Return the translated subtitles in the same special 【number】 format with {{b
             try:
                 subs = list(srt.parse(read_srt(srt_path)))
             except Exception as e:
-                logger.error(f"解析SRT文件失败: {e}")
+                self.set_error(f"解析SRT文件失败: {e}")
                 set_status(f"⚠ 解析SRT失败: {e}")
                 return
 
@@ -486,9 +486,10 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 f.write(srt.compose(subs))
             set_status(f"翻译完成，已保存: {output_file}")
             logger.info(f"翻译完成 → {os.path.basename(output_file)}")
+            self.set_done()
 
         except Exception as e:
-            logger.error(f"翻译失败: {e}")
+            self.set_error(f"翻译失败: {e}")
             set_status(f"✗ 翻译失败: {e}")
         finally:
             finish()
@@ -514,6 +515,7 @@ Return the translated subtitles in the same special 【number】 format with {{b
 
         self.trans_btn.config(state="disabled", text="翻译中…")
         self.status_var.set("正在读取字幕...")
+        self.set_busy()
 
         threading.Thread(
             target=self.translate_with_standard_api,

@@ -548,7 +548,7 @@ class WordSubtitleApp(ToolBase):
         self.btn_start.config(state=tk.DISABLED)
         self.progress_bar["value"] = 0
         self._progress_label.config(text="")
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(
             target=self._run_ffmpeg,
             args=(cmd, output, ass_path),
@@ -601,17 +601,17 @@ class WordSubtitleApp(ToolBase):
                 self.master.after(0, self._log,
                                   f"完成！已保存: {os.path.basename(output_path)}\n")
                 logger.info(f"逐字字幕烧录完成 → {os.path.basename(output_path)}")
+                self.set_done()
             else:
                 self.master.after(0, self._log, "错误：ffmpeg 执行失败。\n")
-                logger.error("逐字字幕烧录失败")
+                self.set_error(f"逐字字幕烧录失败: ffmpeg exit {rc}")
         except Exception as e:
             self.master.after(0, self._log, f"错误: {e}\n")
-            logger.error(f"逐字字幕烧录异常: {e}")
+            self.set_error(f"逐字字幕烧录异常: {e}")
         finally:
             self.processing = False
             self.master.after(0, lambda: self.btn_start.config(state=tk.NORMAL))
             self.master.after(0, lambda: self.progress_bar.config(value=100))
-            self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
 
     def _update_progress(self, pct: float, elapsed: float, remain: float):
         self.progress_bar["value"] = pct

@@ -264,8 +264,7 @@ class SplitVideoApp(ToolBase):
                 self.set_done()
             except Exception as e:
                 self.master.after(0, lambda: self.status_var.set(f"✗ 切割失败: {e}"))
-                logger.error(f"Split video failed: {e}")
-                self.set_idle()
+                self.set_error(f"视频切割失败: {e}")
             finally:
                 self.master.after(0, lambda: self._btn_start.config(state="normal"))
 

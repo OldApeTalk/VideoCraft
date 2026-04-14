@@ -440,13 +440,14 @@ class SrtExtractSubtitlesApp(ToolBase):
                 self.status_var.set(f"✓ 完成: {os.path.basename(output_path)}")
                 self.master.after(0, lambda: (self._text.delete("1.0", tk.END),
                                               self._text.insert("1.0", text)))
+                self.set_done()
             except Exception as e:
                 self.status_var.set(f"失败: {e}")
+                self.set_error(f"提取全部字幕失败: {e}")
             finally:
-                self._btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self._btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
     def _copy(self):
@@ -570,14 +571,14 @@ xx:xx 标题
                     f.write(result)
                 self.status_var.set("生成完成")
                 logger.info(f"分段描述已生成 → {os.path.basename(output_path)}")
+                self.set_done()
             except Exception as e:
-                logger.error(f"生成分段描述失败: {e}")
+                self.set_error(f"生成分段描述失败: {e}")
                 self.status_var.set("生成失败")
             finally:
-                self._btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self._btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -664,14 +665,14 @@ class SrtExtractParagraphsApp(ToolBase):
                     f.write(result)
                 self.status_var.set("提取完成")
                 logger.info(f"段落内容已提取 → {os.path.basename(output_path)}")
+                self.set_done()
             except Exception as e:
-                logger.error(f"提取段落失败: {e}")
+                self.set_error(f"提取段落失败: {e}")
                 self.status_var.set("提取失败")
             finally:
-                self._btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self._btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -778,14 +779,14 @@ class SrtRefineSegmentsApp(ToolBase):
                     f.write(result)
                 self.status_var.set("精炼完成")
                 logger.info(f"精炼分段内容已保存 → {os.path.basename(output_path)}")
+                self.set_done()
             except Exception as e:
-                logger.error(f"精炼分段失败: {e}")
+                self.set_error(f"精炼分段失败: {e}")
                 self.status_var.set("精炼失败")
             finally:
-                self._btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self._btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -881,14 +882,14 @@ class SrtGenerateTitlesApp(ToolBase):
                     f.write(result)
                 self.status_var.set("生成完成")
                 logger.info(f"视频标题已生成 → {os.path.basename(output_path)}")
+                self.set_done()
             except Exception as e:
-                logger.error(f"生成标题失败: {e}")
+                self.set_error(f"生成标题失败: {e}")
                 self.status_var.set("生成失败")
             finally:
-                self._btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self._btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
 
 
@@ -1239,17 +1240,17 @@ xx:xx 标题
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.status_var.set("生成完成")
                     logger.info(f"分段描述已生成 → {os.path.basename(output_path)}")
+                    self.set_done()
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                logger.error(f"生成分段描述失败: {e}")
+                self.set_error(f"生成分段描述失败: {e}")
                 self.status_var.set("生成失败")
             finally:
-                self.generate_btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self.generate_btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=run_generation, daemon=True).start()
 
     def select_paragraphs_srt(self):
@@ -1312,25 +1313,23 @@ xx:xx 标题
             try:
                 paragraphs = extract_paragraphs_from_segments(srt_path, segments_path)
 
-                # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(paragraphs)
 
-                # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.paragraphs_status_var.set("提取完成")
                     logger.info(f"段落内容已提取 → {os.path.basename(output_path)}")
+                    self.set_done()
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                logger.error(f"提取段落失败: {e}")
+                self.set_error(f"提取段落失败: {e}")
                 self.paragraphs_status_var.set("提取失败")
             finally:
-                self.extract_btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self.extract_btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=run_extraction, daemon=True).start()
 
     def select_titles_subs(self):
@@ -1403,17 +1402,17 @@ xx:xx 标题
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.refine_status_var.set("精炼完成")
                     logger.info(f"精炼分段内容已保存 → {os.path.basename(output_path)}")
+                    self.set_done()
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                logger.error(f"精炼分段失败: {e}")
+                self.set_error(f"精炼分段失败: {e}")
                 self.refine_status_var.set("精炼失败")
             finally:
-                self.refine_btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self.refine_btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=run_refinement, daemon=True).start()
 
     def select_titles_output(self):
@@ -1462,25 +1461,23 @@ xx:xx 标题
             try:
                 titles = generate_video_titles(subs_path, prompt)
 
-                # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(titles)
 
-                # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     self.titles_status_var.set("生成完成")
                     logger.info(f"视频标题已生成 → {os.path.basename(output_path)}")
+                    self.set_done()
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
-                logger.error(f"生成标题失败: {e}")
+                self.set_error(f"生成标题失败: {e}")
                 self.titles_status_var.set("生成失败")
             finally:
-                self.titles_btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self.titles_btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=run_title_generation, daemon=True).start()
 
     def select_subtitles_srt(self):
@@ -1533,26 +1530,24 @@ xx:xx 标题
             try:
                 subtitles_text = extract_all_subtitles(srt_path)
 
-                # 保存到用户指定的文件
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(subtitles_text)
 
-                # 验证文件是否成功创建
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                     output_filename = os.path.basename(output_path)
                     self.subtitles_status_var.set(f"✓ 提取完成，已保存到: {output_filename}")
-                    # 在右侧文本框中显示提取的内容
                     self.master.after(0, self.display_subtitles_content, subtitles_text)
+                    self.set_done()
                 else:
                     raise Exception("文件创建失败或文件为空")
 
             except Exception as e:
                 self.subtitles_status_var.set(f"提取失败: {e}")
+                self.set_error(f"提取全部字幕失败: {e}")
             finally:
-                self.subtitles_btn.config(state="normal")
-                self.master.after(0, lambda: getattr(self.master, 'set_status', lambda _: None)("done"))
+                self.master.after(0, lambda: self.subtitles_btn.config(state="normal"))
 
-        getattr(self.master, 'set_status', lambda _: None)("running")
+        self.set_busy()
         threading.Thread(target=run_subtitle_extraction, daemon=True).start()
 
     def display_subtitles_content(self, content):

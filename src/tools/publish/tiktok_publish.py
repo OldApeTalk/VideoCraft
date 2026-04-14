@@ -473,7 +473,7 @@ class TikTokPublishApp(ToolBase):
             if init_data.get("error", {}).get("code") != "ok":
                 msg = init_data.get("error", {}).get("message", "未知错误")
                 self._log_ui(f"初始化失败: {msg}")
-                self.set_idle()
+                self.set_error(f"TikTok 上传初始化失败: {msg}")
                 return
 
             publish_id = init_data["data"]["publish_id"]
@@ -524,20 +524,19 @@ class TikTokPublishApp(ToolBase):
                 elif status in ("FAILED", "PUBLISH_FAILED"):
                     fail_code = st_data.get("data", {}).get("fail_reason", "")
                     self._log_ui(f"发布失败: {fail_code}")
-                    self.set_idle()
+                    self.set_error(f"TikTok 发布失败: {fail_code}")
                     return
 
+            # Polling timed out without definitive success/failure — warn, not error.
             self._log_ui("发布状态查询超时，请到 TikTok 后台确认。")
-            self.set_idle()
+            self.set_warning("TikTok 发布状态查询超时，请到后台确认结果")
 
         except requests.HTTPError as e:
             self._log_ui(f"HTTP 错误: {e.response.status_code} - {e.response.text[:200]}")
-            self.log_error(f"TikTok upload HTTP error: {e}")
-            self.set_idle()
+            self.set_error(f"TikTok 上传 HTTP 错误: {e}")
         except Exception as e:
             self._log_ui(f"上传出错: {e}")
-            self.log_error(f"TikTok upload error: {e}")
-            self.set_idle()
+            self.set_error(f"TikTok 上传失败: {e}")
 
     # ── 定时发布 ───────────────────────────────────────────────────────────
     def _schedule_publish(self):

@@ -22,6 +22,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import requests
 
+from hub_logger import logger
 from tools.base import ToolBase
 
 # ── API 端点 ──────────────────────────────────────────────────────────────────
@@ -159,8 +160,8 @@ class YouTubePublishApp(ToolBase):
             try:
                 with open(_TOKEN_FILE, "r", encoding="utf-8") as f:
                     self._creds = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"加载 YouTube 凭据失败 ({_TOKEN_FILE}): {e}")
         # 优先使用上次选择的密钥文件路径
         self._client = _load_client_secret(self._creds.get("client_secret_path", ""))
 
@@ -677,12 +678,10 @@ class YouTubePublishApp(ToolBase):
 
         except requests.HTTPError as e:
             self._log_ui(f"HTTP 错误: {e.response.status_code} - {e.response.text[:300]}")
-            self.log_error(f"YouTube upload HTTP error: {e}")
-            self.set_idle()
+            self.set_error(f"YouTube 上传 HTTP 错误: {e}")
         except Exception as e:
             self._log_ui(f"上传出错: {e}")
-            self.log_error(f"YouTube upload error: {e}")
-            self.set_idle()
+            self.set_error(f"YouTube 上传失败: {e}")
 
     def _add_to_playlist(self, video_id: str, playlist_id: str):
         try:
