@@ -8,23 +8,26 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  File │ 下载 │ 语音转字幕 │ 翻译 │ 视频 │ 字幕 │ 文字转视频 │ AI │
+│ File │ Download │ Speech │ Translate │ Video │ Subtitle │ ...   │
 ├──────────────┬──────────────────────────────────────────────────┤
-│ [🔄] 资源管理器 │ ● 音频提取 × │ ▶ TTS × │ ✓ 字幕烧录 ×          │
+│ [⟳] Explorer │ ● Extract Audio × │ ● TTS × │ ● Burn Subs ×      │
 │──────────────│──────────────────────────────────────────────────┤
-│ 📁 project  │                                                   │
-│  🎬 video   │         当前激活工具的 UI                          │
-│  📄 raw.srt │         (嵌入在右侧内容区，不弹出独立窗口)          │
-│  📄 zh.srt  │                                                   │
-│  🎵 audio   │                                                   │
+│ 📁 project   │                                                  │
+│  🎬 video    │         Active tool's UI                         │
+│  📄 raw.srt  │         (embedded in content area, not a popup)  │
+│  📄 zh.srt   │                                                  │
+│  🎵 audio    │                                                  │
 ├──────────────┴──────────────────────────────────────────────────┤
-│ 日志面板（深色，4行，彩色级别标记）                               │
+│  ═══ (drag handle) ═══                                          │
+│ Log panel (dark, resizable via vertical sash, 5-color levels)   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- 左侧 Sidebar：宽 320px，`pack_propagate(False)`，可拖动分隔线调整
-- 右侧内容区：Tab 栏 + 工具内容区（首次打开工具前显示欢迎页）
-- 底部日志面板：高 90px，深色主题，`hub_logger` 统一接入
+整个主区是一个**纵向 `ttk.PanedWindow`**：上半是 `(sidebar | content)` 横向 pane，下半是底部日志面板。两个 sash 都可拖动；宽度/高度/最大化状态跨会话持久化到 `~/.videocraft/layout.json`（见 [11-hub-layout-persistence.md](11-hub-layout-persistence.md)）。
+
+- 左侧 Sidebar：默认宽 320px，由水平 sash 控制
+- 右侧内容区：Tab 栏 + 工具内容区（无 Tab 时显示欢迎页）
+- 底部日志面板：默认高 90px，由纵向 sash 控制；最大高度限制为窗口高度的一半（避免把工具区挤没）。深色主题，[hub_logger.py](../../src/hub_logger.py) 统一接入
 
 ---
 
@@ -34,13 +37,17 @@
 
 工具窗口以 Tab 的形式嵌入右侧内容区，而非弹出 Toplevel 窗口。每个 Tab 对应一个工具实例，支持多个工具同时保持打开状态。
 
-### Tab 状态颜色
+### Tab 状态颜色（5 色）
 
 | 状态 | 颜色 | 含义 |
 |------|------|------|
 | `idle`    | 灰 `#9e9e9e` | Tab 已打开，尚未执行任务 |
-| `running` | 黄 `#ffc107` | 工具后台线程正在运行 |
-| `done`    | 绿 `#4caf50` | 最近一次任务已完成 |
+| `running` | 蓝 `#2196F3` | 工具后台线程正在运行 |
+| `done`    | 绿 `#4caf50` | 最近一次任务已成功完成 |
+| `warning` | 橙 `#f0a500` | 非致命警告（部分失败、降级、配额告警等） |
+| `error`   | 红 `#f44747` | 运行时异常，日志面板里有真实报错 |
+
+新一轮运行开始时，工具调 `self.set_busy()` → 状态回到 `running`（蓝），自动覆盖上一次的红/橙/绿，无需手动清除。
 
 ### 关键类：`ToolFrame(ttk.Frame)`
 
@@ -54,12 +61,23 @@ class ToolFrame(ttk.Frame):
     def set_status(self, status: str): ...          # 通知 Hub 更新圆点颜色
 ```
 
-工具通过 `self.master.set_status("running")` / `"done"` 主动上报状态，使用 `getattr` guard 保持向下兼容（单独启动时为 no-op）：
+工具通过 [ToolBase](../../src/tools/base.py) 的统一方法上报状态——**线程安全**，内部用 `master.after(0, ...)` marshal 回主线程：
 
 ```python
-getattr(self.master, 'set_status', lambda _: None)("running")
-threading.Thread(target=_work, daemon=True).start()
+class MyTool(ToolBase):
+    def _start(self):
+        self.set_busy()                               # 蓝
+        threading.Thread(target=self._work, daemon=True).start()
+
+    def _work(self):
+        try:
+            do_heavy_task()
+            self.set_done()                           # 绿
+        except Exception as e:
+            self.set_error(f"主路径失败: {e}")        # 红 + 底部日志红字
 ```
+
+`set_error(msg)` / `set_warning(msg)` 同时写底部日志（`logger.error` / `logger.warning`）并翻 Tab 点颜色，工具只调一次就够。旧的 `getattr(self.master, 'set_status', ...)` 模式已全部迁移。
 
 ### 关键类：`TabBar(tk.Frame)`
 
@@ -96,37 +114,39 @@ open_tool(key)
 
 ## Menu 结构
 
+所有菜单 label 走 `tr('menu.xxx')`，根据用户语言自动切换中英文。下面以中文展示：
+
 ```
-File
-├── Open Folder...        对话框选择任意文件夹，自动生成 videocraft.json
-├── Recent Projects ▶     子菜单，最多 10 条历史
-└── Exit
+文件 (File)
+├── 打开文件夹...            对话框选择任意文件夹，自动生成 videocraft.json
+├── 最近工程 ▶               子菜单，最多 10 条历史（postcommand 驱动刷新）
+├── ─────────
+├── 首选项...                以 Tab 形式打开 PreferencesApp（语言切换等）
+├── ─────────
+└── 退出
 
-下载
-└── yt-dlp 下载器
-
-语音转字幕
-└── LemonFox API
-
-翻译
-└── Gemini 翻译
+下载          → yt-dlp 下载器
+语音转字幕    → LemonFox API
+翻译          → Gemini 翻译
 
 视频
 ├── 字幕烧录 / 逐字字幕 / 视频分段
-├── 提取 MP3 / 调整音量 / 视频片段提取 / 自动分割 / 码率转换
+└── 提取 MP3 / 调整音量 / 视频片段提取 / 自动分割 / 码率转换
 
 字幕
-├── 提取字幕文字 / 生成分段描述 / 提取段落内容 / 精炼分段 / 生成标题
+└── 提取字幕文字 / 生成分段描述 / 提取段落内容 / 精炼分段 / 生成标题
 
 文字转视频
 ├── ① 文字合成语音 / ② 生成字幕 SRT / ③ 合成视频
 └── 每日要闻合成
 
-AI
-└── Router 管理
+AI            → Router 管理
 
-Help
-└── 关于 VideoCraft
+发布
+├── TikTok 发布
+└── YouTube 发布
+
+帮助          → 关于 VideoCraft
 ```
 
 ---
@@ -138,7 +158,7 @@ Help
 - `class: None` → subprocess 启动（当前无此类工具）
 - `class: "ClassName"` → 嵌入 Tab（`_open_in_tab`）
 
-当前注册 21 个工具，分布在 `VideoTools.py`、`SrtTools.py`、`text2Video.py`、`SubtitleTool.py`、`WordSubtitleTool.py`、`Speech2Text-lemonfoxAPI-Online.py`、`Translate-srt-gemini.py`、`SplitVideo0.2.py`、`yt-dlp-with simuheader ipv4.py`。
+当前 25 个工具注册，分布在 `src/tools/{download,speech,translate,subtitle,video,text2video,publish,preferences}/` 各子包下。首选项面板 (`preferences`) 也是一个普通 Tab 工具，和业务工具统一处理——没有专属对话框机制。
 
 ---
 

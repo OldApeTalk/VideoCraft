@@ -29,6 +29,21 @@ TOOL_MAP = {
 
 ---
 
+## 当前实现状态
+
+[tools/text2video/text2video.py](../../src/tools/text2video/text2video.py) 目前包含 4 个工具类，都是 "节目形态模块"的具体实现或基础工具：
+
+| 类 | 职责 |
+|----|------|
+| `TTSApp`           | 单角色 / 多角色对话文本转语音（Fish Audio SDK），多角色解析 + 逐段合成 + ffmpeg concat |
+| `SRTFromTextApp`   | 根据音频时长 + 文本内容按字符比例分配时轴，生成 SRT（非真实逐句 ASR 时间戳） |
+| `AudioVideoApp`    | 多章节音频 + 背景图/视频 + 字幕 → 合成为最终视频（集成 core/subtitle_ops 的样式构建和分割） |
+| `DailyNewsApp`     | 每日要闻滚屏合成——稿子滚动 + 背景图 + 水印，竖屏优先，是本文档的参考实现 |
+
+`TTSApp` + `AudioVideoApp` 的组合提供了"文本 → 音频 → 视频（含字幕烧录）"完整链路；`DailyNewsApp` 则是针对"每日要闻"这种特定节目形态的定制实现，不追求通用性。
+
+---
+
 ## 模块设计模式
 
 以 `DailyNewsApp`（每日要闻合成）为参考实现：
