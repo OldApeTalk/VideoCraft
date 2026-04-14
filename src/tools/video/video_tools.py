@@ -13,6 +13,7 @@
 # 5. Auto split video
 
 from tools.base import ToolBase
+from i18n import tr
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -43,7 +44,7 @@ def extract_audio_to_mp3(input_file, output_mp3, bitrate, progress_callback):
     if process.returncode != 0:
         raise RuntimeError(f"ffmpeg exit {process.returncode} while extracting audio from {os.path.basename(input_file)}")
     progress_callback(100)
-    logger.info(f"提取 MP3 完成 → {os.path.basename(output_mp3)}")
+    logger.info(tr("tool.video.extract_audio.log_done", filename=os.path.basename(output_mp3)))
 
 def adjust_volume(input_file, output_file, db_change, progress_callback):
     """
@@ -82,7 +83,7 @@ def adjust_volume(input_file, output_file, db_change, progress_callback):
     if process.returncode != 0:
         raise RuntimeError(f"ffmpeg exit {process.returncode} while adjusting volume of {os.path.basename(input_file)}")
     progress_callback(100)
-    logger.info(f"音量调整完成 → {os.path.basename(output_file)}")
+    logger.info(tr("tool.video.adjust_volume.log_done", filename=os.path.basename(output_file)))
 
 def convert_mp3_bitrate(input_mp3, output_mp3, bitrate, progress_callback):
     """
@@ -108,7 +109,7 @@ def convert_mp3_bitrate(input_mp3, output_mp3, bitrate, progress_callback):
     if process.returncode != 0:
         raise RuntimeError(f"ffmpeg exit {process.returncode} while converting bitrate of {os.path.basename(input_mp3)}")
     progress_callback(100)
-    logger.info(f"码率转换完成 → {os.path.basename(output_mp3)}")
+    logger.info(tr("tool.video.convert_bitrate.log_done", filename=os.path.basename(output_mp3)))
 
 def get_video_duration(input_video):
     """
@@ -170,7 +171,7 @@ def auto_split_video(input_video, output_dir, num_segments, progress_callback, u
         # 获取视频时长
         duration = get_video_duration(input_video)
         if duration <= 0:
-            return (False, "无法获取视频时长", [])
+            return (False, tr("tool.video.auto_split.util_no_duration"), [])
         
         # 计算每段的理论时长
         segment_duration = duration / num_segments
@@ -236,13 +237,13 @@ def auto_split_video(input_video, output_dir, num_segments, progress_callback, u
             
             process.wait()
             if process.returncode != 0:
-                return (False, f"分割第 {i+1} 段时出错", output_files[:i])
-        
+                return (False, tr("tool.video.auto_split.util_segment_error", i=i+1), output_files[:i])
+
         progress_callback(100)
-        return (True, "分割完成！", output_files)
-    
+        return (True, tr("tool.video.auto_split.util_done"), output_files)
+
     except Exception as e:
-        return (False, f"分割出错: {str(e)}", [])
+        return (False, tr("tool.video.auto_split.util_error", e=str(e)), [])
 
 def extract_video_clip(input_video, output_video, start_time, end_time, progress_callback, accurate_mode=True):
     """
@@ -312,8 +313,10 @@ def extract_video_clip(input_video, output_video, start_time, end_time, progress
     if process.returncode != 0:
         raise RuntimeError(f"ffmpeg exit {process.returncode} while extracting clip from {os.path.basename(input_video)}")
     progress_callback(100)
-    mode_text = "精确" if accurate_mode else "快速"
-    logger.info(f"片段提取完成（{mode_text}）→ {os.path.basename(output_video)}")
+    mode_text = (tr("tool.video.extract_clip.mode_accurate_short") if accurate_mode
+                 else tr("tool.video.extract_clip.mode_fast_short"))
+    logger.info(tr("tool.video.extract_clip.log_done",
+                   mode=mode_text, filename=os.path.basename(output_video)))
 
 
 def extract_subtitle_clip(input_srt, output_srt, start_time_str, end_time_str):
@@ -437,11 +440,11 @@ def extract_subtitle_clip(input_srt, output_srt, start_time_str, end_time_str):
 # ===================== 独立操作窗口（每个 Tab 拆为单窗口）=====================
 
 class ExtractAudioApp(ToolBase):
-    """Tab 1：提取 MP3 — 独立窗口版。"""
+    """Tab 1: Extract MP3 — standalone window."""
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("提取 MP3")
+        master.title(tr("tool.video.extract_audio.title"))
         master.geometry("620x280")
         self.input_var = tk.StringVar()
         self.output_var = tk.StringVar()
@@ -454,23 +457,24 @@ class ExtractAudioApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="输入视频文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.input_video")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_input).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="输出MP3文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.output_mp3")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_output).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="选择码率:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.select_bitrate")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
         br_frame = tk.Frame(f)
         br_frame.grid(row=2, column=1, sticky="w")
         ttk.Combobox(br_frame, textvariable=self.bitrate_var,
                      values=["64k", "128k", "192k", "256k", "320k"],
                      state="readonly", width=15).pack(side=tk.LEFT)
-        tk.Label(br_frame, text="(推荐: 128k 或 192k)", font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
+        tk.Label(br_frame, text=tr("tool.video.common.bitrate_recommend"),
+                 font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
 
-        self._btn = tk.Button(f, text="开始提取", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.video.extract_audio.btn_start"), command=self._run, width=20)
         self._btn.grid(row=3, column=1, pady=25)
 
         self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
@@ -480,25 +484,25 @@ class ExtractAudioApp(ToolBase):
 
     def _select_input(self):
         path = filedialog.askopenfilename(
-            filetypes=[("视频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
+            filetypes=[(tr("tool.video.common.filter.video"), "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
         if path:
             self.input_var.set(path)
             self.output_var.set(os.path.splitext(path)[0] + ".mp3")
 
     def _select_output(self):
         path = filedialog.asksaveasfilename(defaultextension=".mp3",
-                                            filetypes=[("MP3文件", "*.mp3")])
+                                            filetypes=[(tr("tool.video.common.filter.mp3"), "*.mp3")])
         if path:
             self.output_var.set(path)
 
     def _run(self):
         src, dst = self.input_var.get(), self.output_var.get()
         if not src or not dst:
-            self.status_var.set("⚠ 请选择输入和输出文件")
+            self.status_var.set(tr("tool.video.common.error.select_inout"))
             return
         self._btn.config(state="disabled")
         self._progress["value"] = 0
-        self.status_var.set("正在提取音频...")
+        self.status_var.set(tr("tool.video.extract_audio.status_running"))
 
         def _progress_cb(v):
             self._progress["value"] = v
@@ -509,11 +513,12 @@ class ExtractAudioApp(ToolBase):
                 extract_audio_to_mp3(src, dst, self.bitrate_var.get(), _progress_cb)
             except Exception as e:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
-                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 提取失败: {em}"))
-                self.set_error(f"提取 MP3 失败: {e}")
+                self.master.after(0, lambda em=str(e): self.status_var.set(
+                    tr("tool.video.extract_audio.status_fail", e=em)))
+                self.set_error(tr("tool.video.extract_audio.error_failed", e=e))
                 return
             self.master.after(0, lambda: self._btn.config(state="normal"))
-            self.master.after(0, lambda: self.status_var.set("提取完成！"))
+            self.master.after(0, lambda: self.status_var.set(tr("tool.video.extract_audio.status_done")))
             self.set_done()
 
         self.set_busy()
@@ -521,11 +526,11 @@ class ExtractAudioApp(ToolBase):
 
 
 class ConvertBitrateApp(ToolBase):
-    """Tab 2：码率转换 — 独立窗口版。"""
+    """Tab 2: Convert MP3 bitrate — standalone window."""
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("码率转换")
+        master.title(tr("tool.video.convert_bitrate.title"))
         master.geometry("620x280")
         self.input_var = tk.StringVar()
         self.output_var = tk.StringVar()
@@ -539,23 +544,24 @@ class ConvertBitrateApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="输入MP3文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.input_mp3")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_input).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="输出MP3文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.output_mp3")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_output).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="目标码率:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.target_bitrate")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
         br_frame = tk.Frame(f)
         br_frame.grid(row=2, column=1, sticky="w")
         ttk.Combobox(br_frame, textvariable=self.bitrate_var,
                      values=["64k", "128k", "192k", "256k", "320k"],
                      state="readonly", width=15).pack(side=tk.LEFT)
-        tk.Label(br_frame, text="(选择要转换到的码率)", font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
+        tk.Label(br_frame, text=tr("tool.video.common.bitrate_convert_hint"),
+                 font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
 
-        self._btn = tk.Button(f, text="开始转换", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.video.convert_bitrate.btn_start"), command=self._run, width=20)
         self._btn.grid(row=3, column=1, pady=25)
 
         self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
@@ -564,7 +570,7 @@ class ConvertBitrateApp(ToolBase):
         tk.Label(f, textvariable=self.status_var, fg="blue").grid(row=5, column=0, columnspan=3)
 
     def _select_input(self):
-        path = filedialog.askopenfilename(filetypes=[("MP3文件", "*.mp3")])
+        path = filedialog.askopenfilename(filetypes=[(tr("tool.video.common.filter.mp3"), "*.mp3")])
         if path:
             self.input_var.set(path)
             base, ext = os.path.splitext(path)
@@ -572,18 +578,18 @@ class ConvertBitrateApp(ToolBase):
 
     def _select_output(self):
         path = filedialog.asksaveasfilename(defaultextension=".mp3",
-                                            filetypes=[("MP3文件", "*.mp3")])
+                                            filetypes=[(tr("tool.video.common.filter.mp3"), "*.mp3")])
         if path:
             self.output_var.set(path)
 
     def _run(self):
         src, dst = self.input_var.get(), self.output_var.get()
         if not src or not dst:
-            self.status_var.set("⚠ 请选择输入和输出文件")
+            self.status_var.set(tr("tool.video.common.error.select_inout"))
             return
         self._btn.config(state="disabled")
         self._progress["value"] = 0
-        self.status_var.set("正在转换码率...")
+        self.status_var.set(tr("tool.video.convert_bitrate.status_running"))
 
         def _progress_cb(v):
             self._progress["value"] = v
@@ -594,11 +600,12 @@ class ConvertBitrateApp(ToolBase):
                 convert_mp3_bitrate(src, dst, self.bitrate_var.get(), _progress_cb)
             except Exception as e:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
-                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 转换失败: {em}"))
-                self.set_error(f"码率转换失败: {e}")
+                self.master.after(0, lambda em=str(e): self.status_var.set(
+                    tr("tool.video.convert_bitrate.status_fail", e=em)))
+                self.set_error(tr("tool.video.convert_bitrate.error_failed", e=e))
                 return
             self.master.after(0, lambda: self._btn.config(state="normal"))
-            self.master.after(0, lambda: self.status_var.set("转换完成！"))
+            self.master.after(0, lambda: self.status_var.set(tr("tool.video.convert_bitrate.status_done")))
             self.set_done()
 
         self.set_busy()
@@ -606,11 +613,11 @@ class ConvertBitrateApp(ToolBase):
 
 
 class AdjustVolumeApp(ToolBase):
-    """Tab 3：调整音量 — 独立窗口版。"""
+    """Tab 3: Adjust volume — standalone window."""
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("调整音量")
+        master.title(tr("tool.video.adjust_volume.title"))
         master.geometry("620x320")
         self.input_var = tk.StringVar()
         self.output_var = tk.StringVar()
@@ -624,15 +631,15 @@ class AdjustVolumeApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="输入文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.input_file")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_input).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="输出文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.output_file")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_output).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="音量调整:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(f, text=tr("tool.video.adjust_volume.volume_label")).grid(row=2, column=0, padx=10, pady=5, sticky="ne")
         vol_frame = tk.Frame(f)
         vol_frame.grid(row=2, column=1, sticky="w", pady=10)
         self._vol_label = tk.Label(vol_frame, text="0.0 dB", font=("Arial", 10, "bold"))
@@ -640,10 +647,10 @@ class AdjustVolumeApp(ToolBase):
         tk.Scale(vol_frame, from_=-20, to=20, orient=tk.HORIZONTAL, resolution=0.5,
                  variable=self.volume_var, length=400,
                  command=lambda v: self._vol_label.config(text=f"{float(v):.1f} dB")).pack()
-        tk.Label(vol_frame, text="(-20dB ~ +20dB，正值增大音量，负值减小音量)",
+        tk.Label(vol_frame, text=tr("tool.video.adjust_volume.volume_hint"),
                  font=("Arial", 8), fg="gray").pack()
 
-        self._btn = tk.Button(f, text="开始调整", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.video.adjust_volume.btn_start"), command=self._run, width=20)
         self._btn.grid(row=3, column=1, pady=20)
 
         self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
@@ -653,7 +660,8 @@ class AdjustVolumeApp(ToolBase):
 
     def _select_input(self):
         path = filedialog.askopenfilename(
-            filetypes=[("视频/音频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.mp3 *.wav *.flac")])
+            filetypes=[(tr("tool.video.common.filter.video_audio"),
+                        "*.mp4 *.avi *.mkv *.mov *.wmv *.mp3 *.wav *.flac")])
         if path:
             self.input_var.set(path)
             base, ext = os.path.splitext(path)
@@ -662,9 +670,9 @@ class AdjustVolumeApp(ToolBase):
     def _select_output(self):
         src = self.input_var.get()
         if src and src.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv')):
-            ft, defext = [("视频文件", "*.mp4")], ".mp4"
+            ft, defext = [(tr("tool.video.common.filter.video"), "*.mp4")], ".mp4"
         else:
-            ft, defext = [("音频文件", "*.mp3")], ".mp3"
+            ft, defext = [(tr("tool.video.common.filter.audio"), "*.mp3")], ".mp3"
         path = filedialog.asksaveasfilename(defaultextension=defext, filetypes=ft)
         if path:
             self.output_var.set(path)
@@ -672,12 +680,12 @@ class AdjustVolumeApp(ToolBase):
     def _run(self):
         src, dst = self.input_var.get(), self.output_var.get()
         if not src or not dst:
-            self.status_var.set("⚠ 请选择输入和输出文件")
+            self.status_var.set(tr("tool.video.common.error.select_inout"))
             return
         db = self.volume_var.get()
         self._btn.config(state="disabled")
         self._progress["value"] = 0
-        self.status_var.set(f"正在调整音量 ({db:+.1f} dB)...")
+        self.status_var.set(tr("tool.video.adjust_volume.status_running", db=db))
 
         def _progress_cb(v):
             self._progress["value"] = v
@@ -688,11 +696,12 @@ class AdjustVolumeApp(ToolBase):
                 adjust_volume(src, dst, db, _progress_cb)
             except Exception as e:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
-                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 音量调整失败: {em}"))
-                self.set_error(f"音量调整失败: {e}")
+                self.master.after(0, lambda em=str(e): self.status_var.set(
+                    tr("tool.video.adjust_volume.status_fail", e=em)))
+                self.set_error(tr("tool.video.adjust_volume.error_failed", e=e))
                 return
             self.master.after(0, lambda: self._btn.config(state="normal"))
-            self.master.after(0, lambda: self.status_var.set("音量调整完成！"))
+            self.master.after(0, lambda: self.status_var.set(tr("tool.video.adjust_volume.status_done")))
             self.set_done()
 
         self.set_busy()
@@ -700,11 +709,11 @@ class AdjustVolumeApp(ToolBase):
 
 
 class ExtractClipApp(ToolBase):
-    """Tab 4：视频片段提取 — 独立窗口版。"""
+    """Tab 4: Extract video clip — standalone window."""
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("视频片段提取")
+        master.title(tr("tool.video.extract_clip.title"))
         master.geometry("650x420")
         self.input_var = tk.StringVar()
         self.output_var = tk.StringVar()
@@ -721,48 +730,49 @@ class ExtractClipApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="输入视频文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.input_video")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_input).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="起始时间:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.extract_clip.start_time")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         sf = tk.Frame(f)
         sf.grid(row=1, column=1, sticky="w")
         tk.Entry(sf, textvariable=self.start_var, width=15).pack(side=tk.LEFT)
-        tk.Label(sf, text="(格式: HH:MM:SS 或 HH:MM:SS.mmm)",
+        tk.Label(sf, text=tr("tool.video.extract_clip.time_hint"),
                  font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
 
-        tk.Label(f, text="结束时间:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.extract_clip.end_time")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
         ef = tk.Frame(f)
         ef.grid(row=2, column=1, sticky="w")
         tk.Entry(ef, textvariable=self.end_var, width=15).pack(side=tk.LEFT)
-        tk.Label(ef, text="(格式: HH:MM:SS 或 HH:MM:SS.mmm)",
+        tk.Label(ef, text=tr("tool.video.extract_clip.time_hint"),
                  font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
 
-        tk.Label(f, text="提取模式:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.extract_clip.mode_label")).grid(row=3, column=0, padx=10, pady=5, sticky="e")
         mf = tk.Frame(f)
         mf.grid(row=3, column=1, sticky="w")
-        tk.Radiobutton(mf, text="精确模式 (推荐)", variable=self.mode_var,
+        tk.Radiobutton(mf, text=tr("tool.video.extract_clip.mode_accurate"), variable=self.mode_var,
                        value="accurate").pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(mf, text="快速模式", variable=self.mode_var,
+        tk.Radiobutton(mf, text=tr("tool.video.extract_clip.mode_fast"), variable=self.mode_var,
                        value="fast").pack(side=tk.LEFT, padx=5)
         self._mode_hint = tk.Label(mf, text="", font=("Arial", 8), fg="gray")
         self._mode_hint.pack(side=tk.LEFT, padx=10)
         self.mode_var.trace_add('write', lambda *_: self._update_mode_hint())
         self._update_mode_hint()
 
-        tk.Label(f, text="输入字幕文件:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.extract_clip.input_srt")).grid(row=4, column=0, padx=10, pady=5, sticky="e")
         srtf = tk.Frame(f)
         srtf.grid(row=4, column=1, sticky="w")
         tk.Entry(srtf, textvariable=self.srt_input_var, width=40).pack(side=tk.LEFT)
-        tk.Button(srtf, text="浏览", command=lambda: self._select_srt()).pack(side=tk.LEFT, padx=5)
-        tk.Label(srtf, text="(可选)", font=("Arial", 9), fg="gray").pack(side=tk.LEFT)
+        tk.Button(srtf, text=tr("tool.video.common.browse"), command=lambda: self._select_srt()).pack(side=tk.LEFT, padx=5)
+        tk.Label(srtf, text=tr("tool.video.extract_clip.srt_optional"),
+                 font=("Arial", 9), fg="gray").pack(side=tk.LEFT)
 
-        tk.Label(f, text="输出视频文件:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.output_video")).grid(row=5, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=5, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=5, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_output).grid(row=5, column=2, padx=10)
 
-        self._btn = tk.Button(f, text="开始提取", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.video.extract_clip.btn_start"), command=self._run, width=20)
         self._btn.grid(row=6, column=1, pady=20)
 
         self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
@@ -772,27 +782,28 @@ class ExtractClipApp(ToolBase):
 
     def _update_mode_hint(self):
         if self.mode_var.get() == "accurate":
-            self._mode_hint.config(text="精确剪切，时间准确，需重新编码（稍慢）", fg="green")
+            self._mode_hint.config(text=tr("tool.video.extract_clip.mode_hint_accurate"), fg="green")
         else:
-            self._mode_hint.config(text="快速剪切，可能受关键帧影响", fg="orange")
+            self._mode_hint.config(text=tr("tool.video.extract_clip.mode_hint_fast"), fg="orange")
 
     def _select_input(self):
         path = filedialog.askopenfilename(
-            filetypes=[("视频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
+            filetypes=[(tr("tool.video.common.filter.video"), "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
         if path:
             self.input_var.set(path)
             base, ext = os.path.splitext(path)
             self.output_var.set(base + "_clip" + ext)
 
     def _select_srt(self):
-        path = filedialog.askopenfilename(filetypes=[("字幕文件", "*.srt")])
+        path = filedialog.askopenfilename(filetypes=[(tr("tool.video.common.filter.srt"), "*.srt")])
         if path:
             self.srt_input_var.set(path)
 
     def _select_output(self):
         path = filedialog.asksaveasfilename(
             defaultextension=".mp4",
-            filetypes=[("视频文件", "*.mp4"), ("所有视频", "*.avi *.mkv *.mov")])
+            filetypes=[(tr("tool.video.common.filter.video"), "*.mp4"),
+                       (tr("tool.video.common.filter.all_videos"), "*.avi *.mkv *.mov")])
         if path:
             self.output_var.set(path)
 
@@ -800,21 +811,22 @@ class ExtractClipApp(ToolBase):
         src, dst = self.input_var.get(), self.output_var.get()
         start, end = self.start_var.get(), self.end_var.get()
         if not src or not dst:
-            self.status_var.set("⚠ 请选择输入和输出文件")
+            self.status_var.set(tr("tool.video.common.error.select_inout"))
             return
         time_pattern = r'^\d{1,2}:\d{2}:\d{2}(\.\d{1,3})?$'
         if not re.match(time_pattern, start) or not re.match(time_pattern, end):
-            self.status_var.set("⚠ 时间格式不正确，请使用 HH:MM:SS 或 HH:MM:SS.mmm 格式")
+            self.status_var.set(tr("tool.video.extract_clip.error_invalid_time"))
             return
         input_srt = self.srt_input_var.get().strip()
         if input_srt and not os.path.isfile(input_srt):
-            self.status_var.set("⚠ 指定的字幕文件不存在")
+            self.status_var.set(tr("tool.video.extract_clip.error_srt_missing"))
             return
         accurate = (self.mode_var.get() == "accurate")
-        mode_text = "精确模式" if accurate else "快速模式"
+        mode_text = (tr("tool.video.extract_clip.mode_accurate_short") if accurate
+                     else tr("tool.video.extract_clip.mode_fast_short"))
         self._btn.config(state="disabled")
         self._progress["value"] = 0
-        self.status_var.set(f"正在提取视频片段 ({mode_text})...")
+        self.status_var.set(tr("tool.video.extract_clip.status_running", mode=mode_text))
 
         def _progress_cb(v):
             self._progress["value"] = v
@@ -825,23 +837,30 @@ class ExtractClipApp(ToolBase):
                 extract_video_clip(src, dst, start, end, _progress_cb, accurate)
             except Exception as e:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
-                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 片段提取失败: {em}"))
-                self.set_error(f"片段提取失败: {e}")
+                self.master.after(0, lambda em=str(e): self.status_var.set(
+                    tr("tool.video.extract_clip.status_fail", e=em)))
+                self.set_error(tr("tool.video.extract_clip.error_failed", e=e))
                 return
             srt_msg = ""
+            srt_failed = False
             if input_srt:
                 out_srt = os.path.splitext(dst)[0] + '.srt'
                 try:
                     ok, msg, count = extract_subtitle_clip(input_srt, out_srt, start, end)
-                    srt_msg = f"\n字幕：{msg}" + (f"，已保存到 {os.path.basename(out_srt)}" if ok and count > 0 else "")
+                    if ok and count > 0:
+                        srt_msg = tr("tool.video.extract_clip.srt_msg_saved",
+                                     msg=msg, filename=os.path.basename(out_srt))
+                    else:
+                        srt_msg = tr("tool.video.extract_clip.srt_msg", msg=msg)
                 except Exception as e:
                     # Subtitle extraction is secondary — warn but don't fail the whole op.
-                    srt_msg = f"\n字幕提取失败: {e}"
-                    self.set_warning(f"字幕片段提取失败: {e}")
+                    srt_msg = tr("tool.video.extract_clip.srt_fail", e=e)
+                    srt_failed = True
+                    self.set_warning(tr("tool.video.extract_clip.warning_srt_failed", e=e))
             self.master.after(0, lambda: self._btn.config(state="normal"))
-            self.master.after(0, lambda: self.status_var.set(f"✓ 视频片段提取完成！({mode_text}){srt_msg}"))
-            # Only set_done if we didn't already downgrade to warning.
-            if not input_srt or "字幕提取失败" not in srt_msg:
+            self.master.after(0, lambda: self.status_var.set(
+                tr("tool.video.extract_clip.status_done", mode=mode_text, srt_msg=srt_msg)))
+            if not srt_failed:
                 self.set_done()
 
         self.set_busy()
@@ -849,11 +868,11 @@ class ExtractClipApp(ToolBase):
 
 
 class AutoSplitApp(ToolBase):
-    """Tab 5：自动分割视频 — 独立窗口版。"""
+    """Tab 5: Auto split video — standalone window."""
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("自动分割视频")
+        master.title(tr("tool.video.auto_split.title"))
         master.geometry("650x380")
         self.input_var = tk.StringVar()
         self.output_dir_var = tk.StringVar()
@@ -867,40 +886,35 @@ class AutoSplitApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="输入视频文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.input_video")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_input).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="输出目录:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.common.output_dir")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_dir_var, width=50).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_dir).grid(row=1, column=2, padx=10)
+        tk.Button(f, text=tr("tool.video.common.browse"), command=self._select_dir).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="分割段数:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.auto_split.segments_label")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
         seg_frame = tk.Frame(f)
         seg_frame.grid(row=2, column=1, sticky="w")
         tk.Spinbox(seg_frame, from_=2, to=20, textvariable=self.segments_var, width=10).pack(side=tk.LEFT)
-        tk.Label(seg_frame, text="(将视频均匀分割为几段，默认3段)",
+        tk.Label(seg_frame, text=tr("tool.video.auto_split.segments_hint"),
                  font=("Arial", 9), fg="gray").pack(side=tk.LEFT, padx=10)
 
-        tk.Label(f, text="分割模式:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.video.auto_split.mode_label")).grid(row=3, column=0, padx=10, pady=5, sticky="e")
         kf_frame = tk.Frame(f)
         kf_frame.grid(row=3, column=1, sticky="w")
-        tk.Checkbutton(kf_frame, text="关键帧对齐 (推荐)",
+        tk.Checkbutton(kf_frame, text=tr("tool.video.auto_split.keyframe_align"),
                        variable=self.keyframe_var).pack(side=tk.LEFT, padx=5)
         self._kf_hint = tk.Label(kf_frame, text="", font=("Arial", 8), fg="gray")
         self._kf_hint.pack(side=tk.LEFT, padx=10)
         self.keyframe_var.trace_add('write', lambda *_: self._update_kf_hint())
         self._update_kf_hint()
 
-        info = ("功能说明：\n"
-                "• 自动将视频均匀分割为指定的段数\n"
-                "• 关键帧对齐模式：在最近的关键帧处分割，速度快，无需重新编码\n"
-                "• 输出文件将自动命名为：原文件名_part01, _part02, ...\n"
-                "• 推荐使用关键帧对齐模式以获得最佳性能")
-        tk.Label(f, text=info, justify=tk.LEFT, font=("Arial", 9),
+        tk.Label(f, text=tr("tool.video.auto_split.info"), justify=tk.LEFT, font=("Arial", 9),
                  fg="darkblue", bg="#f0f8ff").grid(row=4, column=0, columnspan=3, pady=10, padx=20)
 
-        self._btn = tk.Button(f, text="开始分割", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.video.auto_split.btn_start"), command=self._run, width=20)
         self._btn.grid(row=5, column=1, pady=20)
 
         self._progress = ttk.Progressbar(f, orient="horizontal", length=500, mode="determinate")
@@ -910,13 +924,13 @@ class AutoSplitApp(ToolBase):
 
     def _update_kf_hint(self):
         if self.keyframe_var.get():
-            self._kf_hint.config(text="在关键帧处分割，速度快且无需重新编码", fg="green")
+            self._kf_hint.config(text=tr("tool.video.auto_split.kf_hint_on"), fg="green")
         else:
-            self._kf_hint.config(text="按精确时间分割，可能稍慢", fg="orange")
+            self._kf_hint.config(text=tr("tool.video.auto_split.kf_hint_off"), fg="orange")
 
     def _select_input(self):
         path = filedialog.askopenfilename(
-            filetypes=[("视频文件", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
+            filetypes=[(tr("tool.video.common.filter.video"), "*.mp4 *.avi *.mkv *.mov *.wmv *.flv")])
         if path:
             self.input_var.set(path)
             self.output_dir_var.set(os.path.dirname(path))
@@ -932,21 +946,22 @@ class AutoSplitApp(ToolBase):
         n = self.segments_var.get()
         use_kf = self.keyframe_var.get()
         if not src or not out_dir:
-            self.status_var.set("⚠ 请选择输入文件和输出目录")
+            self.status_var.set(tr("tool.video.auto_split.error_missing_inout"))
             return
         if n < 2:
-            self.status_var.set("⚠ 分割段数至少为2段")
+            self.status_var.set(tr("tool.video.auto_split.error_min_segments"))
             return
         if not os.path.exists(out_dir):
             try:
                 os.makedirs(out_dir)
             except Exception:
-                self.status_var.set("⚠ 无法创建输出目录")
+                self.status_var.set(tr("tool.video.auto_split.error_cannot_create_dir"))
                 return
-        mode_text = "关键帧对齐" if use_kf else "精确时间"
+        mode_text = (tr("tool.video.auto_split.mode_keyframe") if use_kf
+                     else tr("tool.video.auto_split.mode_precise"))
         self._btn.config(state="disabled")
         self._progress["value"] = 0
-        self.status_var.set(f"正在分割视频为 {n} 段 ({mode_text})...")
+        self.status_var.set(tr("tool.video.auto_split.status_running", n=n, mode=mode_text))
 
         def _progress_cb(v):
             self._progress["value"] = v
@@ -957,17 +972,21 @@ class AutoSplitApp(ToolBase):
                 success, message, output_files = auto_split_video(src, out_dir, n, _progress_cb, use_kf)
             except Exception as e:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
-                self.master.after(0, lambda em=str(e): self.status_var.set(f"✗ 分割失败：{em}"))
-                self.set_error(f"视频分割失败: {e}")
+                self.master.after(0, lambda em=str(e): self.status_var.set(
+                    tr("tool.video.auto_split.status_fail", e=em)))
+                self.set_error(tr("tool.video.auto_split.error_failed", e=e))
                 return
             self.master.after(0, lambda: self._btn.config(state="normal"))
             if success:
-                self.master.after(0, lambda n=len(output_files): self.status_var.set(f"✓ 分割完成！已生成 {n} 个文件"))
-                logger.info(f"视频分割完成 → {len(output_files)} 个文件（{os.path.basename(src)}）")
+                self.master.after(0, lambda n_done=len(output_files): self.status_var.set(
+                    tr("tool.video.auto_split.status_done", n=n_done)))
+                logger.info(tr("tool.video.auto_split.log_done",
+                               n=len(output_files), filename=os.path.basename(src)))
                 self.set_done()
             else:
-                self.master.after(0, lambda m=message: self.status_var.set(f"✗ 分割失败：{m}"))
-                self.set_error(f"视频分割失败: {message}")
+                self.master.after(0, lambda m=message: self.status_var.set(
+                    tr("tool.video.auto_split.status_fail", e=m)))
+                self.set_error(tr("tool.video.auto_split.error_failed", e=message))
 
         self.set_busy()
         threading.Thread(target=_work, daemon=True).start()
