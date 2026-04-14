@@ -46,18 +46,23 @@ def _infer_lang_tag(srt_path: str) -> str:
     return "sub"
 
 
-def _build_sub_output_path(video_path: str, sub1_path: str, sub2_path: str = None) -> str:
-    """根据视频路径和字幕路径生成烧录后输出文件名（如 video_sub_zh+en.mp4）。"""
-    base = os.path.splitext(video_path)[0]
-    tag1 = _infer_lang_tag(sub1_path) if sub1_path else None
-    tag2 = _infer_lang_tag(sub2_path) if sub2_path else None
-    if tag1 and tag2:
-        return f"{base}_sub_{tag1}+{tag2}.mp4"
-    elif tag1:
-        return f"{base}_sub_{tag1}.mp4"
-    elif tag2:
-        return f"{base}_sub_{tag2}.mp4"
-    return f"{base}_sub.mp4"
+def _compute_default_output_path(video_path: str, sub1_path: str = None, sub2_path: str = None) -> str:
+    """Default output path: same dir as input video, name = Video_<lang>+<lang>.mp4.
+
+    The base name is literal "Video" (per user preference) rather than the
+    source video stem, so presets and downstream tooling can expect a
+    predictable filename. Duplicate or failed language tags are collapsed.
+    """
+    out_dir = os.path.dirname(os.path.abspath(video_path)) if video_path else ""
+    tags: list = []
+    for p in (sub1_path, sub2_path):
+        if not p:
+            continue
+        tag = _infer_lang_tag(p)
+        if tag and tag not in tags:
+            tags.append(tag)
+    name = "Video_" + "+".join(tags) + ".mp4" if tags else "Video.mp4"
+    return os.path.join(out_dir, name) if out_dir else name
 
 
 def get_video_resolution(video_path):
@@ -110,6 +115,7 @@ class SubtitleToolApp(ToolBase):
         "sub2_is_chinese": "sub2_is_chinese_var",
         "orientation":     "orientation_var",
         "encode_preset":   "encode_preset_var",
+        "auto_output":     "auto_output_var",
     }
 
     def __init__(self, master, initial_file=None):
@@ -154,6 +160,7 @@ class SubtitleToolApp(ToolBase):
 
         self.orientation_var    = tk.StringVar(value="horizontal")
         self.encode_preset_var  = tk.StringVar(value="veryfast")
+        self.auto_output_var    = tk.BooleanVar(value=True)
 
         self._build_ui()
         self._update_split_settings()
@@ -178,6 +185,7 @@ class SubtitleToolApp(ToolBase):
             elif ext in (".mp4", ".mkv", ".avi", ".mov"):
                 self.entry_video.delete(0, tk.END)
                 self.entry_video.insert(0, initial_file)
+            self._maybe_update_output_path()
 
     def _build_ui(self):
         root = self.master
@@ -201,14 +209,23 @@ class SubtitleToolApp(ToolBase):
                   command=self._on_preset_reset_default).grid(row=0, column=5, padx=3)
 
         # 视频文件
-        tk.Label(root, text="视频文件:").grid(row=1, column=0, padx=10, pady=15, sticky="e")
+        tk.Label(root, text="视频文件:").grid(row=1, column=0, padx=10, pady=(15, 2), sticky="e")
         self.entry_video = tk.Entry(root, width=55)
-        self.entry_video.grid(row=1, column=1, padx=5)
-        tk.Button(root, text="浏览", command=self._select_video).grid(row=1, column=2, padx=10)
+        self.entry_video.grid(row=1, column=1, padx=5, pady=(15, 2))
+        tk.Button(root, text="浏览", command=self._select_video).grid(row=1, column=2, padx=10, pady=(15, 2))
+
+        # 输出文件
+        tk.Label(root, text="输出文件:").grid(row=2, column=0, padx=10, pady=(2, 10), sticky="e")
+        self.entry_output = tk.Entry(root, width=55)
+        self.entry_output.grid(row=2, column=1, padx=5, pady=(2, 10))
+        frame_out_actions = tk.Frame(root)
+        frame_out_actions.grid(row=2, column=2, padx=10, pady=(2, 10), sticky="w")
+        tk.Button(frame_out_actions, text="浏览", command=self._select_output).pack(side=tk.LEFT)
+        tk.Checkbutton(frame_out_actions, text="自动", variable=self.auto_output_var).pack(side=tk.LEFT, padx=(4, 0))
 
         # 屏幕方向设置
         frame_orientation = tk.LabelFrame(root, text="屏幕方向", padx=10, pady=5)
-        frame_orientation.grid(row=2, column=0, columnspan=3, padx=15, pady=5, sticky="we")
+        frame_orientation.grid(row=3, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
         tk.Radiobutton(frame_orientation, text="横屏", variable=self.orientation_var,
                        value="horizontal", command=self._update_split_settings).grid(row=0, column=0, padx=20)
@@ -228,7 +245,7 @@ class SubtitleToolApp(ToolBase):
 
         # 字幕1（中文）
         frame_sub1 = tk.LabelFrame(root, text="中文字幕（底部，之上）", padx=5, pady=5)
-        frame_sub1.grid(row=3, column=0, columnspan=3, padx=10, pady=5, sticky="we")
+        frame_sub1.grid(row=4, column=0, columnspan=3, padx=10, pady=5, sticky="we")
         self.entry_sub1 = tk.Entry(frame_sub1, width=35)
         self.entry_sub1.grid(row=0, column=0, padx=5)
         tk.Button(frame_sub1, text="浏览", command=self._select_subtitle1).grid(row=0, column=1, padx=5)
@@ -246,7 +263,7 @@ class SubtitleToolApp(ToolBase):
 
         # 字幕2（英文）
         frame_sub2 = tk.LabelFrame(root, text="英文字幕（底部，最下方）", padx=5, pady=5)
-        frame_sub2.grid(row=4, column=0, columnspan=3, padx=10, pady=5, sticky="we")
+        frame_sub2.grid(row=5, column=0, columnspan=3, padx=10, pady=5, sticky="we")
         self.entry_sub2 = tk.Entry(frame_sub2, width=35)
         self.entry_sub2.grid(row=0, column=0, padx=5)
         tk.Button(frame_sub2, text="浏览", command=self._select_subtitle2).grid(row=0, column=1, padx=5)
@@ -264,7 +281,7 @@ class SubtitleToolApp(ToolBase):
 
         # 水印设置
         frame_watermark = tk.LabelFrame(root, text="水印设置（右上角）", padx=10, pady=5)
-        frame_watermark.grid(row=5, column=0, columnspan=3, padx=15, pady=5, sticky="we")
+        frame_watermark.grid(row=6, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
         # Row 0：图片水印（单选）
         tk.Radiobutton(frame_watermark, text="图片水印",
@@ -329,7 +346,7 @@ class SubtitleToolApp(ToolBase):
 
         # 进度
         frame_progress = tk.Frame(root)
-        frame_progress.grid(row=6, column=0, columnspan=3, pady=10)
+        frame_progress.grid(row=7, column=0, columnspan=3, pady=10)
         self.progress_bar = ttk.Progressbar(frame_progress, orient=tk.HORIZONTAL,
                                             length=400, mode='determinate')
         self.progress_bar.pack(pady=5)
@@ -343,7 +360,7 @@ class SubtitleToolApp(ToolBase):
         # 开始按钮
         self.btn_merge = tk.Button(root, text="开始烧录双语字幕",
                                    width=25, command=self._merge_videos)
-        self.btn_merge.grid(row=7, column=1, pady=25)
+        self.btn_merge.grid(row=8, column=1, pady=25)
 
     # ── 图片水印辅助 ────────────────────────────────────────────────────────
 
@@ -405,6 +422,7 @@ class SubtitleToolApp(ToolBase):
             return
         self.entry_video.delete(0, tk.END)
         self.entry_video.insert(0, file_path)
+        self._maybe_update_output_path()
         # 获取视频时长
         try:
             subprocess.run(['ffprobe', '-version'], capture_output=True, check=True, timeout=5)
@@ -447,6 +465,7 @@ class SubtitleToolApp(ToolBase):
         if path:
             self.entry_sub1.delete(0, tk.END)
             self.entry_sub1.insert(0, path)
+            self._maybe_update_output_path()
 
     def _select_subtitle2(self):
         path = filedialog.askopenfilename(
@@ -456,6 +475,47 @@ class SubtitleToolApp(ToolBase):
         if path:
             self.entry_sub2.delete(0, tk.END)
             self.entry_sub2.insert(0, path)
+            self._maybe_update_output_path()
+
+    def _select_output(self):
+        video = self.entry_video.get()
+        current = self.entry_output.get().strip()
+        if current:
+            init_dir = os.path.dirname(current) or os.path.dirname(video) or os.getcwd()
+            init_name = os.path.basename(current)
+        else:
+            default = _compute_default_output_path(
+                video, self.entry_sub1.get() or None, self.entry_sub2.get() or None
+            )
+            init_dir = os.path.dirname(default) or os.getcwd()
+            init_name = os.path.basename(default)
+        path = filedialog.asksaveasfilename(
+            title="选择输出文件",
+            defaultextension=".mp4",
+            filetypes=[("MP4 视频", "*.mp4"), ("所有文件", "*.*")],
+            initialdir=init_dir,
+            initialfile=init_name,
+        )
+        if path:
+            self.entry_output.delete(0, tk.END)
+            self.entry_output.insert(0, path)
+            # Manual choice implies the user wants to fix the name.
+            self.auto_output_var.set(False)
+
+    def _maybe_update_output_path(self):
+        """Regenerate entry_output from current video/subtitle paths when auto is on."""
+        if not self.auto_output_var.get():
+            return
+        video = self.entry_video.get()
+        if not video:
+            return
+        path = _compute_default_output_path(
+            video,
+            self.entry_sub1.get() or None if hasattr(self, "entry_sub1") else None,
+            self.entry_sub2.get() or None if hasattr(self, "entry_sub2") else None,
+        )
+        self.entry_output.delete(0, tk.END)
+        self.entry_output.insert(0, path)
 
     # ── 颜色选择 ────────────────────────────────────────────────────────────
 
@@ -682,11 +742,19 @@ class SubtitleToolApp(ToolBase):
                   f"OutlineColour=&H00000000&,BorderStyle=1,Outline=2,Shadow=0,"
                   f"Bold=0,Alignment=2,MarginV=50")
 
-        output_path = _build_sub_output_path(
-            video_path_abs,
-            sub1_path if show_sub1 else None,
-            sub2_path if show_sub2 else None,
-        )
+        output_path = self.entry_output.get().strip()
+        if not output_path:
+            output_path = _compute_default_output_path(
+                video_path_abs,
+                sub1_path if show_sub1 else None,
+                sub2_path if show_sub2 else None,
+            )
+        # Normalize to absolute and verify parent directory exists.
+        output_path = os.path.abspath(output_path)
+        out_dir = os.path.dirname(output_path)
+        if out_dir and not os.path.isdir(out_dir):
+            messagebox.showerror("错误", f"输出目录不存在: {out_dir}")
+            return
 
         width, height = get_video_resolution(video_path_abs)
 

@@ -52,6 +52,7 @@ BUILTIN_DEFAULT_PARAMS: dict = {
 
     "orientation":    "horizontal",
     "encode_preset":  "veryfast",
+    "auto_output":    True,
 }
 
 
