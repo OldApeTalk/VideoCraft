@@ -55,6 +55,7 @@ TOOL_MAP = {
     "daily-news":     {"file": "tools/text2video/text2video.py", "class": "DailyNewsApp"},
     "tiktok-publish":   {"file": "tools/publish/tiktok_publish.py",  "class": "TikTokPublishApp"},
     "youtube-publish":  {"file": "tools/publish/youtube_publish.py", "class": "YouTubePublishApp"},
+    "preferences":      {"file": "tools/preferences/preferences.py", "class": "PreferencesApp"},
 }
 
 # ── Tab 状态颜色 ──────────────────────────────────────────────────────────────
@@ -270,115 +271,121 @@ class VideoCraftHub:
     # ── 菜单 ──────────────────────────────────────────────────────────────────
 
     def _build_menu(self):
+        from i18n import tr
+
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
 
         # File
         file_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Open Folder...",
+        menubar.add_cascade(label=tr("menu.file"), menu=file_menu)
+        file_menu.add_command(label=tr("menu.file.open_folder"),
                               command=self.open_folder, accelerator="Ctrl+O")
         self._recent_menu = tk.Menu(file_menu, tearoff=0)
-        file_menu.add_cascade(label="Recent Projects", menu=self._recent_menu)
+        file_menu.add_cascade(label=tr("menu.file.recent_projects"), menu=self._recent_menu)
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.root.quit)
+        file_menu.add_command(label=tr("menu.file.preferences"),
+                              command=lambda: self.open_tool("preferences"))
+        file_menu.add_separator()
+        file_menu.add_command(label=tr("menu.file.exit"), command=self.root.quit)
         file_menu.bind("<Map>", lambda e: self._rebuild_recent_menu())
         self.root.bind("<Control-o>", lambda e: self.open_folder())
 
         # Download
         dl_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="下载", menu=dl_menu)
-        dl_menu.add_command(label="yt-dlp 下载器",
+        menubar.add_cascade(label=tr("menu.download"), menu=dl_menu)
+        dl_menu.add_command(label=tr("menu.download.yt_dlp"),
                             command=lambda: self.open_tool(
                                 "yt-dlp",
                                 initial_file=self.project.folder if self.project else None))
 
-        # 语音转字幕
+        # Speech to text
         stt_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="语音转字幕", menu=stt_menu)
-        stt_menu.add_command(label="LemonFox API",
+        menubar.add_cascade(label=tr("menu.speech"), menu=stt_menu)
+        stt_menu.add_command(label=tr("menu.speech.lemonfox"),
                              command=lambda: self.open_tool("speech2text"))
 
-        # 翻译
+        # Translate
         tr_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="翻译", menu=tr_menu)
-        tr_menu.add_command(label="Gemini 翻译",
+        menubar.add_cascade(label=tr("menu.translate"), menu=tr_menu)
+        tr_menu.add_command(label=tr("menu.translate.gemini"),
                             command=lambda: self.open_tool("translate"))
 
-        # 视频
+        # Video
         vid_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="视频", menu=vid_menu)
-        vid_menu.add_command(label="字幕烧录",
+        menubar.add_cascade(label=tr("menu.video"), menu=vid_menu)
+        vid_menu.add_command(label=tr("menu.video.subtitle_burn"),
                              command=lambda: self.open_tool("subtitle"))
-        vid_menu.add_command(label="逐字字幕",
+        vid_menu.add_command(label=tr("menu.video.word_subtitle"),
                              command=lambda: self.open_tool("word-subtitle"))
-        vid_menu.add_command(label="视频分段",
+        vid_menu.add_command(label=tr("menu.video.split"),
                              command=lambda: self.open_tool("splitvideo"))
         vid_menu.add_separator()
-        vid_menu.add_command(label="提取 MP3",
+        vid_menu.add_command(label=tr("menu.video.extract_mp3"),
                              command=lambda: self.open_tool("extract-audio"))
-        vid_menu.add_command(label="调整音量",
+        vid_menu.add_command(label=tr("menu.video.adjust_volume"),
                              command=lambda: self.open_tool("adjust-volume"))
-        vid_menu.add_command(label="视频片段提取",
+        vid_menu.add_command(label=tr("menu.video.extract_clip"),
                              command=lambda: self.open_tool("extract-clip"))
-        vid_menu.add_command(label="自动分割视频",
+        vid_menu.add_command(label=tr("menu.video.auto_split"),
                              command=lambda: self.open_tool("auto-split"))
-        vid_menu.add_command(label="码率转换",
+        vid_menu.add_command(label=tr("menu.video.convert_bitrate"),
                              command=lambda: self.open_tool("convert-bitrate"))
 
-        # 字幕
+        # Subtitle
         sub_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="字幕", menu=sub_menu)
-        sub_menu.add_command(label="提取字幕文字",
+        menubar.add_cascade(label=tr("menu.subtitle"), menu=sub_menu)
+        sub_menu.add_command(label=tr("menu.subtitle.extract_all"),
                              command=lambda: self.open_tool("srt-extract-subtitles"))
-        sub_menu.add_command(label="生成分段描述",
+        sub_menu.add_command(label=tr("menu.subtitle.gen_segments"),
                              command=lambda: self.open_tool("srt-gen-segments"))
-        sub_menu.add_command(label="提取段落内容",
+        sub_menu.add_command(label=tr("menu.subtitle.extract_paragraphs"),
                              command=lambda: self.open_tool("srt-extract-paragraphs"))
-        sub_menu.add_command(label="精炼分段",
+        sub_menu.add_command(label=tr("menu.subtitle.refine_segments"),
                              command=lambda: self.open_tool("srt-refine"))
-        sub_menu.add_command(label="生成标题",
+        sub_menu.add_command(label=tr("menu.subtitle.gen_titles"),
                              command=lambda: self.open_tool("srt-gen-titles"))
 
-        # 文字转视频
+        # Text to Video
         t2v_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="文字转视频", menu=t2v_menu)
-        t2v_menu.add_command(label="① 文字合成语音",
+        menubar.add_cascade(label=tr("menu.text2video"), menu=t2v_menu)
+        t2v_menu.add_command(label=tr("menu.text2video.tts"),
                              command=lambda: self.open_tool("tts"))
-        t2v_menu.add_command(label="② 生成字幕 SRT",
+        t2v_menu.add_command(label=tr("menu.text2video.srt_from_text"),
                              command=lambda: self.open_tool("tts-srt"))
-        t2v_menu.add_command(label="③ 合成视频",
+        t2v_menu.add_command(label=tr("menu.text2video.audio_video"),
                              command=lambda: self.open_tool("tts-video"))
         t2v_menu.add_separator()
-        t2v_menu.add_command(label="每日要闻合成",
+        t2v_menu.add_command(label=tr("menu.text2video.daily_news"),
                              command=lambda: self.open_tool("daily-news"))
 
         # AI
         ai_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="AI", menu=ai_menu)
-        ai_menu.add_command(label="Router 管理",
+        menubar.add_cascade(label=tr("menu.ai"), menu=ai_menu)
+        ai_menu.add_command(label=tr("menu.ai.router_manager"),
                             command=lambda: open_router_manager(self.root))
 
-        # 发布
+        # Publish
         pub_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="发布", menu=pub_menu)
-        pub_menu.add_command(label="TikTok 发布",
+        menubar.add_cascade(label=tr("menu.publish"), menu=pub_menu)
+        pub_menu.add_command(label=tr("menu.publish.tiktok"),
                              command=lambda: self.open_tool("tiktok-publish"))
-        pub_menu.add_command(label="YouTube 发布",
+        pub_menu.add_command(label=tr("menu.publish.youtube"),
                              command=lambda: self.open_tool("youtube-publish"))
 
         # Help
         help_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="关于 VideoCraft",
+        menubar.add_cascade(label=tr("menu.help"), menu=help_menu)
+        help_menu.add_command(label=tr("menu.help.about"),
                               command=self._show_about)
 
     def _rebuild_recent_menu(self):
         assert self._recent_menu is not None
+        from i18n import tr
         self._recent_menu.delete(0, "end")
         recents = get_recent_projects()
         if not recents:
-            self._recent_menu.add_command(label="（无历史记录）", state="disabled")
+            self._recent_menu.add_command(label=tr("menu.file.recent_empty"), state="disabled")
         else:
             for path in recents:
                 self._recent_menu.add_command(
@@ -407,9 +414,10 @@ class VideoCraftHub:
         self._pane.add(sidebar_frame, weight=0)
 
         # Sidebar 顶部工具栏
+        from i18n import tr
         sb_top = tk.Frame(sidebar_frame, bg="#e8e8e8")
         sb_top.pack(fill="x")
-        tk.Label(sb_top, text="资源管理器", font=("", 9, "bold"),
+        tk.Label(sb_top, text=tr("hub.sidebar.title"), font=("", 9, "bold"),
                  bg="#e8e8e8", fg="#555").pack(side="left", padx=8, pady=4)
         tk.Button(sb_top, text="⟳", width=3, relief="flat",
                   command=self.refresh_sidebar,
@@ -448,6 +456,7 @@ class VideoCraftHub:
 
     def _show_welcome(self):
         """隐藏 Tab 系统，显示欢迎页（懒加载）。"""
+        from i18n import tr
         assert self._tab_bar is not None and self._content_area is not None
         self._tab_bar.pack_forget()
         self._content_area.pack_forget()
@@ -455,11 +464,11 @@ class VideoCraftHub:
             self._welcome_frame = tk.Frame(self._content, bg="white")
             inner = tk.Frame(self._welcome_frame, bg="white")
             inner.place(relx=0.5, rely=0.45, anchor="center")
-            tk.Label(inner, text="VideoCraft", font=("", 22, "bold"),
+            tk.Label(inner, text=tr("hub.welcome.title"), font=("", 22, "bold"),
                      bg="white", fg="#333").pack(pady=(0, 6))
-            tk.Label(inner, text="打开一个文件夹以开始工作",
+            tk.Label(inner, text=tr("hub.welcome.hint"),
                      font=("", 11), bg="white", fg="#888").pack(pady=(0, 20))
-            tk.Button(inner, text="  打开文件夹  ", font=("", 11),
+            tk.Button(inner, text=tr("hub.welcome.open_folder_btn"), font=("", 11),
                       command=self.open_folder,
                       bg="#0078d4", fg="white", relief="flat",
                       padx=10, pady=6).pack()
@@ -693,13 +702,14 @@ class VideoCraftHub:
         """Multi-line colored log panel, lives inside self._log_frame
         (second child of the vertical PanedWindow so the user can drag it)."""
         from hub_logger import logger
+        from i18n import tr
 
         # Title bar
         title_bar = tk.Frame(self._log_frame, bg="#2d2d2d")
         title_bar.pack(fill="x")
-        tk.Label(title_bar, text="日志", bg="#2d2d2d", fg="#aaa",
+        tk.Label(title_bar, text=tr("hub.log.title"), bg="#2d2d2d", fg="#aaa",
                  font=("", 9), padx=6).pack(side="left")
-        tk.Button(title_bar, text="清空", bg="#2d2d2d", fg="#888",
+        tk.Button(title_bar, text=tr("hub.log.clear"), bg="#2d2d2d", fg="#888",
                   relief="flat", font=("", 8), cursor="hand2",
                   command=self._clear_log).pack(side="right", padx=4, pady=1)
 
@@ -835,6 +845,7 @@ class VideoCraftHub:
             "VideoCraft\n视频生产工具集\n\n"
             "核心流程：下载 → 语音转字幕 → 翻译 → 字幕烧录"
         )
+
 
 
 # ── 入口 ──────────────────────────────────────────────────────────────────────

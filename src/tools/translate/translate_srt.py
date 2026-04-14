@@ -224,13 +224,15 @@ def split_audio_by_size(audio_path, max_size_kb=100):
 # ===================== GUI 主界面 =====================
 class TranslateApp(ToolBase):
     def __init__(self, master, initial_file: str = None):
+        from i18n import tr
+
         self.master = master
-        master.title("SRT 字幕批量翻译")
+        master.title(tr("tool.translate.title"))
         master.geometry("700x430")
         master.resizable(False, False)
 
         # ── Row 0: AI 档位选择 + Router 管理 ──────────────────────────────────
-        tk.Label(master, text="AI 档位:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(master, text=tr("tool.translate.tier")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         self.tier_var = tk.StringVar(value=TIER_STANDARD)
         tier_frame = tk.Frame(master)
         tier_frame.grid(row=0, column=1, sticky="w")
@@ -240,25 +242,25 @@ class TranslateApp(ToolBase):
                         value=TIER_STANDARD).pack(side=tk.LEFT, padx=(0, 8))
         ttk.Radiobutton(tier_frame, text="低档 (经济)", variable=self.tier_var,
                         value=TIER_ECONOMY).pack(side=tk.LEFT)
-        tk.Button(master, text="Router 管理", command=self.open_router_manager
+        tk.Button(master, text=tr("tool.translate.router_manager"), command=self.open_router_manager
                   ).grid(row=0, column=2, padx=10)
 
         # ── Row 1: 源语言 ──────────────────────────────────────────────────────
-        tk.Label(master, text="源语言 (Source):").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(master, text=tr("tool.translate.source_lang")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         self.source_lang_var = tk.StringVar(value="English (英语)")
         self.source_combo = ttk.Combobox(master, textvariable=self.source_lang_var,
                                          values=language_options, state="readonly", width=30)
         self.source_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(0, 10))
 
         # ── Row 2: 目标语言 ────────────────────────────────────────────────────
-        tk.Label(master, text="目标语言 (Target):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(master, text=tr("tool.translate.target_lang")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
         self.target_lang_var = tk.StringVar(value="Chinese (中文)")
         self.target_combo = ttk.Combobox(master, textvariable=self.target_lang_var,
                                          values=language_options, state="readonly", width=30)
         self.target_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
 
         # ── Row 3: 批次大小 ────────────────────────────────────────────────────
-        tk.Label(master, text="每批次字幕条数:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(master, text=tr("tool.translate.batch_size")).grid(row=3, column=0, padx=10, pady=5, sticky="e")
         self.batch_size_var = tk.StringVar(value="100")
         batch_size_frame = tk.Frame(master)
         batch_size_frame.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0, 10))
@@ -269,13 +271,13 @@ class TranslateApp(ToolBase):
                  font=("Arial", 8), fg="gray").pack(side=tk.LEFT, padx=5)
 
         # ── Row 4: SRT 文件 ────────────────────────────────────────────────────
-        tk.Label(master, text="原始SRT文件:").grid(row=4, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(master, text=tr("tool.translate.source_label")).grid(row=4, column=0, padx=10, pady=10, sticky="e")
         self.srt_path_var = tk.StringVar()
         tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=4, column=1, sticky="w")
-        tk.Button(master, text="浏览", command=self.select_srt).grid(row=4, column=2, padx=10)
+        tk.Button(master, text=tr("tool.translate.browse"), command=self.select_srt).grid(row=4, column=2, padx=10)
 
         # ── Row 5: Prompt 编辑 ─────────────────────────────────────────────────
-        tk.Label(master, text="Prompt提示语:").grid(row=5, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(master, text=tr("tool.translate.prompt_label")).grid(row=5, column=0, padx=10, pady=5, sticky="ne")
         self.translate_prompt_text = tk.Text(master, height=10, width=50, wrap=tk.WORD)
         self.translate_prompt_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0, 10))
         default_translate_prompt = """You are a professional SRT subtitle translator. Your task is to translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
@@ -302,7 +304,8 @@ Return the translated subtitles in the same special 【number】 format with {{b
         self.translate_prompt_text.insert(tk.END, default_translate_prompt)
 
         # ── Row 6: 翻译按钮 ────────────────────────────────────────────────────
-        self.trans_btn = tk.Button(master, text="开始翻译", command=self.translate_srt, width=20)
+        self.trans_btn = tk.Button(master, text=tr("tool.translate.btn_start"),
+                                   command=self.translate_srt, width=20)
         self.trans_btn.grid(row=6, column=1, pady=20)
 
         # ── Row 7: 状态栏 ──────────────────────────────────────────────────────
@@ -351,7 +354,8 @@ Return the translated subtitles in the same special 【number】 format with {{b
 
         def finish():
             # Always re-enable the button, even on failure
-            self.master.after(0, lambda: self.trans_btn.config(state="normal", text="开始翻译"))
+            from i18n import tr as _tr
+            self.master.after(0, lambda: self.trans_btn.config(state="normal", text=_tr("tool.translate.btn_start")))
 
         try:
             # Parse SRT on the worker thread (file I/O, no UI involved)
@@ -513,8 +517,9 @@ Return the translated subtitles in the same special 【number】 format with {{b
             self.status_var.set("⚠ 源语言和目标语言不能相同")
             return
 
-        self.trans_btn.config(state="disabled", text="翻译中…")
-        self.status_var.set("正在读取字幕...")
+        from i18n import tr as _tr
+        self.trans_btn.config(state="disabled", text=_tr("tool.translate.btn_running"))
+        self.status_var.set(_tr("tool.translate.status_reading"))
         self.set_busy()
 
         threading.Thread(

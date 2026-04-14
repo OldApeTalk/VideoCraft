@@ -1,0 +1,82 @@
+{
+  "menu.file": "文件",
+  "menu.file.open_folder": "打开文件夹...",
+  "menu.file.recent_projects": "最近工程",
+  "menu.file.recent_empty": "（无历史记录）",
+  "menu.file.preferences": "首选项...",
+  "menu.file.exit": "退出",
+
+  "menu.download": "下载",
+  "menu.download.yt_dlp": "yt-dlp 下载器",
+
+  "menu.speech": "语音转字幕",
+  "menu.speech.lemonfox": "LemonFox API",
+
+  "menu.translate": "翻译",
+  "menu.translate.gemini": "Gemini 翻译",
+
+  "menu.video": "视频",
+  "menu.video.subtitle_burn": "字幕烧录",
+  "menu.video.word_subtitle": "逐字字幕",
+  "menu.video.split": "视频分段",
+  "menu.video.extract_mp3": "提取 MP3",
+  "menu.video.adjust_volume": "调整音量",
+  "menu.video.extract_clip": "视频片段提取",
+  "menu.video.auto_split": "自动分割视频",
+  "menu.video.convert_bitrate": "码率转换",
+
+  "menu.subtitle": "字幕",
+  "menu.subtitle.extract_all": "提取字幕文字",
+  "menu.subtitle.gen_segments": "生成分段描述",
+  "menu.subtitle.extract_paragraphs": "提取段落内容",
+  "menu.subtitle.refine_segments": "精炼分段",
+  "menu.subtitle.gen_titles": "生成标题",
+
+  "menu.text2video": "文字转视频",
+  "menu.text2video.tts": "① 文字合成语音",
+  "menu.text2video.srt_from_text": "② 生成字幕 SRT",
+  "menu.text2video.audio_video": "③ 合成视频",
+  "menu.text2video.daily_news": "每日要闻合成",
+
+  "menu.ai": "AI",
+  "menu.ai.router_manager": "Router 管理",
+
+  "menu.publish": "发布",
+  "menu.publish.tiktok": "TikTok 发布",
+  "menu.publish.youtube": "YouTube 发布",
+
+  "menu.help": "帮助",
+  "menu.help.about": "关于 VideoCraft",
+
+  "hub.welcome.title": "VideoCraft",
+  "hub.welcome.hint": "打开一个文件夹以开始工作",
+  "hub.welcome.open_folder_btn": "  打开文件夹  ",
+  "hub.log.title": "日志",
+  "hub.log.clear": "清空",
+  "hub.sidebar.title": "资源管理器",
+  "hub.sidebar.refresh_tooltip": "刷新",
+
+  "tool.preferences.title": "首选项",
+  "tool.preferences.section_language": "界面语言",
+  "tool.preferences.language_label": "当前语言:",
+  "tool.preferences.language_zh": "中文",
+  "tool.preferences.language_en": "English",
+  "tool.preferences.save": "保存",
+  "tool.preferences.saved_restart": "✓ 已保存。关闭并重启 VideoCraft 以生效。",
+  "tool.preferences.saved_no_change": "✓ 已保存（未变更）。",
+  "tool.preferences.coverage_note": "注：部分工具界面仍为中文，将在后续版本完成翻译。",
+
+  "tool.translate.title": "Gemini 翻译 SRT",
+  "tool.translate.source_label": "SRT 文件:",
+  "tool.translate.browse": "浏览",
+  "tool.translate.source_lang": "源语言:",
+  "tool.translate.target_lang": "目标语言:",
+  "tool.translate.prompt_label": "Prompt 提示语:",
+  "tool.translate.batch_size": "每批条数:",
+  "tool.translate.tier": "档位:",
+  "tool.translate.btn_start": "开始翻译",
+  "tool.translate.btn_running": "翻译中…",
+  "tool.translate.router_manager": "Router 管理",
+  "tool.translate.status_ready": "就绪",
+  "tool.translate.status_reading": "正在读取字幕..."
+}

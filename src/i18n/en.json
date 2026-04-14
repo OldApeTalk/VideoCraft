@@ -1,0 +1,82 @@
+{
+  "menu.file": "File",
+  "menu.file.open_folder": "Open Folder...",
+  "menu.file.recent_projects": "Recent Projects",
+  "menu.file.recent_empty": "(no recent projects)",
+  "menu.file.preferences": "Preferences...",
+  "menu.file.exit": "Exit",
+
+  "menu.download": "Download",
+  "menu.download.yt_dlp": "yt-dlp Downloader",
+
+  "menu.speech": "Speech to Text",
+  "menu.speech.lemonfox": "LemonFox API",
+
+  "menu.translate": "Translate",
+  "menu.translate.gemini": "Gemini Translate",
+
+  "menu.video": "Video",
+  "menu.video.subtitle_burn": "Burn Subtitles",
+  "menu.video.word_subtitle": "Word-level Subtitles",
+  "menu.video.split": "Split Video",
+  "menu.video.extract_mp3": "Extract MP3",
+  "menu.video.adjust_volume": "Adjust Volume",
+  "menu.video.extract_clip": "Extract Clip",
+  "menu.video.auto_split": "Auto Split Video",
+  "menu.video.convert_bitrate": "Convert Bitrate",
+
+  "menu.subtitle": "Subtitles",
+  "menu.subtitle.extract_all": "Extract Subtitle Text",
+  "menu.subtitle.gen_segments": "Generate Segment Descriptions",
+  "menu.subtitle.extract_paragraphs": "Extract Paragraph Content",
+  "menu.subtitle.refine_segments": "Refine Segments",
+  "menu.subtitle.gen_titles": "Generate Titles",
+
+  "menu.text2video": "Text to Video",
+  "menu.text2video.tts": "1. Text to Speech",
+  "menu.text2video.srt_from_text": "2. Generate SRT",
+  "menu.text2video.audio_video": "3. Compose Video",
+  "menu.text2video.daily_news": "Daily News Composer",
+
+  "menu.ai": "AI",
+  "menu.ai.router_manager": "Router Manager",
+
+  "menu.publish": "Publish",
+  "menu.publish.tiktok": "TikTok Publish",
+  "menu.publish.youtube": "YouTube Publish",
+
+  "menu.help": "Help",
+  "menu.help.about": "About VideoCraft",
+
+  "hub.welcome.title": "VideoCraft",
+  "hub.welcome.hint": "Open a folder to start working",
+  "hub.welcome.open_folder_btn": "  Open Folder  ",
+  "hub.log.title": "Log",
+  "hub.log.clear": "Clear",
+  "hub.sidebar.title": "Explorer",
+  "hub.sidebar.refresh_tooltip": "Refresh",
+
+  "tool.preferences.title": "Preferences",
+  "tool.preferences.section_language": "Interface Language",
+  "tool.preferences.language_label": "Current language:",
+  "tool.preferences.language_zh": "Chinese",
+  "tool.preferences.language_en": "English",
+  "tool.preferences.save": "Save",
+  "tool.preferences.saved_restart": "✓ Saved. Close and restart VideoCraft to apply.",
+  "tool.preferences.saved_no_change": "✓ Saved (no change).",
+  "tool.preferences.coverage_note": "Note: some tool windows are still Chinese-only and will be translated in later releases.",
+
+  "tool.translate.title": "Gemini SRT Translator",
+  "tool.translate.source_label": "SRT file:",
+  "tool.translate.browse": "Browse",
+  "tool.translate.source_lang": "Source language:",
+  "tool.translate.target_lang": "Target language:",
+  "tool.translate.prompt_label": "Prompt:",
+  "tool.translate.batch_size": "Batch size:",
+  "tool.translate.tier": "Tier:",
+  "tool.translate.btn_start": "Start Translation",
+  "tool.translate.btn_running": "Translating…",
+  "tool.translate.router_manager": "Router Manager",
+  "tool.translate.status_ready": "Ready",
+  "tool.translate.status_reading": "Reading subtitles..."
+}
