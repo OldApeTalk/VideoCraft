@@ -6,6 +6,7 @@
 
 from tools.base import ToolBase
 from tools.subtitle import presets as burn_presets
+from i18n import tr
 import tkinter as tk
 from tkinter import filedialog, messagebox, colorchooser, simpledialog, ttk
 import os
@@ -75,7 +76,7 @@ def get_video_resolution(video_path):
             width, height = map(int, result.stdout.strip().split(','))
             return width, height
     except Exception as e:
-        logger.error(f"ffprobe 获取分辨率失败 ({os.path.basename(video_path)}): {e}")
+        logger.error(f"ffprobe failed to read resolution ({os.path.basename(video_path)}): {e}")
     return None, None
 
 
@@ -120,7 +121,7 @@ class SubtitleToolApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("双语字幕工具（分割与烧录）")
+        master.title(tr("tool.subtitle.title"))
         master.geometry("900x650")
 
         # 状态变量
@@ -191,100 +192,100 @@ class SubtitleToolApp(ToolBase):
         root = self.master
 
         # 预设栏
-        frame_preset = tk.LabelFrame(root, text="参数预设 Preset", padx=10, pady=5)
+        frame_preset = tk.LabelFrame(root, text=tr("tool.subtitle.preset.frame_title"), padx=10, pady=5)
         frame_preset.grid(row=0, column=0, columnspan=3, padx=15, pady=(10, 2), sticky="we")
-        tk.Label(frame_preset, text="当前预设:").grid(row=0, column=0, padx=(0, 5))
+        tk.Label(frame_preset, text=tr("tool.subtitle.preset.current_label")).grid(row=0, column=0, padx=(0, 5))
         self.preset_combo = ttk.Combobox(frame_preset, width=24, state="readonly")
         self.preset_combo.grid(row=0, column=1, padx=2)
         self.preset_combo.bind("<<ComboboxSelected>>", self._on_preset_selected)
-        self.btn_preset_save = tk.Button(frame_preset, text="保存", width=6,
+        self.btn_preset_save = tk.Button(frame_preset, text=tr("tool.subtitle.preset.save"), width=6,
                                          command=self._on_preset_save)
         self.btn_preset_save.grid(row=0, column=2, padx=3)
-        tk.Button(frame_preset, text="另存为...", width=8,
+        tk.Button(frame_preset, text=tr("tool.subtitle.preset.save_as"), width=8,
                   command=self._on_preset_save_as).grid(row=0, column=3, padx=3)
-        self.btn_preset_delete = tk.Button(frame_preset, text="删除", width=6,
+        self.btn_preset_delete = tk.Button(frame_preset, text=tr("tool.subtitle.preset.delete"), width=6,
                                            command=self._on_preset_delete)
         self.btn_preset_delete.grid(row=0, column=4, padx=3)
-        tk.Button(frame_preset, text="重置为默认", width=10,
+        tk.Button(frame_preset, text=tr("tool.subtitle.preset.reset_default"), width=10,
                   command=self._on_preset_reset_default).grid(row=0, column=5, padx=3)
 
         # 视频文件
-        tk.Label(root, text="视频文件:").grid(row=1, column=0, padx=10, pady=(15, 2), sticky="e")
+        tk.Label(root, text=tr("tool.subtitle.video.label")).grid(row=1, column=0, padx=10, pady=(15, 2), sticky="e")
         self.entry_video = tk.Entry(root, width=55)
         self.entry_video.grid(row=1, column=1, padx=5, pady=(15, 2))
-        tk.Button(root, text="浏览", command=self._select_video).grid(row=1, column=2, padx=10, pady=(15, 2))
+        tk.Button(root, text=tr("tool.subtitle.browse"), command=self._select_video).grid(row=1, column=2, padx=10, pady=(15, 2))
 
         # 输出文件
-        tk.Label(root, text="输出文件:").grid(row=2, column=0, padx=10, pady=(2, 10), sticky="e")
+        tk.Label(root, text=tr("tool.subtitle.output.label")).grid(row=2, column=0, padx=10, pady=(2, 10), sticky="e")
         self.entry_output = tk.Entry(root, width=55)
         self.entry_output.grid(row=2, column=1, padx=5, pady=(2, 10))
         frame_out_actions = tk.Frame(root)
         frame_out_actions.grid(row=2, column=2, padx=10, pady=(2, 10), sticky="w")
-        tk.Button(frame_out_actions, text="浏览", command=self._select_output).pack(side=tk.LEFT)
-        tk.Checkbutton(frame_out_actions, text="自动", variable=self.auto_output_var).pack(side=tk.LEFT, padx=(4, 0))
+        tk.Button(frame_out_actions, text=tr("tool.subtitle.browse"), command=self._select_output).pack(side=tk.LEFT)
+        tk.Checkbutton(frame_out_actions, text=tr("tool.subtitle.output.auto"), variable=self.auto_output_var).pack(side=tk.LEFT, padx=(4, 0))
 
         # 屏幕方向设置
-        frame_orientation = tk.LabelFrame(root, text="屏幕方向", padx=10, pady=5)
+        frame_orientation = tk.LabelFrame(root, text=tr("tool.subtitle.orientation.frame_title"), padx=10, pady=5)
         frame_orientation.grid(row=3, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
-        tk.Radiobutton(frame_orientation, text="横屏", variable=self.orientation_var,
+        tk.Radiobutton(frame_orientation, text=tr("tool.subtitle.orientation.horizontal"), variable=self.orientation_var,
                        value="horizontal", command=self._update_split_settings).grid(row=0, column=0, padx=20)
-        tk.Radiobutton(frame_orientation, text="竖屏", variable=self.orientation_var,
+        tk.Radiobutton(frame_orientation, text=tr("tool.subtitle.orientation.vertical"), variable=self.orientation_var,
                        value="vertical", command=self._update_split_settings).grid(row=0, column=1, padx=20)
-        tk.Radiobutton(frame_orientation, text="方形", variable=self.orientation_var,
+        tk.Radiobutton(frame_orientation, text=tr("tool.subtitle.orientation.square"), variable=self.orientation_var,
                        value="square", command=self._update_split_settings).grid(row=0, column=2, padx=20)
 
-        tk.Label(frame_orientation, text="  |  编码速度:").grid(row=0, column=3, padx=(40, 5), sticky="e")
+        tk.Label(frame_orientation, text=tr("tool.subtitle.orientation.encode_label")).grid(row=0, column=3, padx=(40, 5), sticky="e")
         encode_preset_combo = ttk.Combobox(
             frame_orientation, textvariable=self.encode_preset_var,
             values=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium"],
             width=12, state="readonly")
         encode_preset_combo.grid(row=0, column=4, padx=5)
-        tk.Label(frame_orientation, text="(高分辨率建议: veryfast或更快)",
+        tk.Label(frame_orientation, text=tr("tool.subtitle.orientation.encode_hint"),
                  font=("Arial", 8), fg="gray").grid(row=0, column=5, padx=5)
 
         # 字幕1（中文）
-        frame_sub1 = tk.LabelFrame(root, text="中文字幕（底部，之上）", padx=5, pady=5)
+        frame_sub1 = tk.LabelFrame(root, text=tr("tool.subtitle.sub1.frame_title"), padx=5, pady=5)
         frame_sub1.grid(row=4, column=0, columnspan=3, padx=10, pady=5, sticky="we")
         self.entry_sub1 = tk.Entry(frame_sub1, width=35)
         self.entry_sub1.grid(row=0, column=0, padx=5)
-        tk.Button(frame_sub1, text="浏览", command=self._select_subtitle1).grid(row=0, column=1, padx=5)
-        tk.Label(frame_sub1, text="字号:").grid(row=0, column=2, padx=2)
+        tk.Button(frame_sub1, text=tr("tool.subtitle.browse"), command=self._select_subtitle1).grid(row=0, column=1, padx=5)
+        tk.Label(frame_sub1, text=tr("tool.subtitle.sub.fontsize")).grid(row=0, column=2, padx=2)
         tk.Spinbox(frame_sub1, from_=10, to=60, width=4, textvariable=self.sub1_fontsize_var).grid(row=0, column=3, padx=2)
-        tk.Label(frame_sub1, text="颜色:").grid(row=0, column=4, padx=2)
+        tk.Label(frame_sub1, text=tr("tool.subtitle.sub.color")).grid(row=0, column=4, padx=2)
         tk.Entry(frame_sub1, width=8, textvariable=self.sub1_color_var).grid(row=0, column=5, padx=2)
-        tk.Button(frame_sub1, text="选择", command=self._choose_sub1_color).grid(row=0, column=6, padx=2)
-        tk.Checkbutton(frame_sub1, text="显示", variable=self.sub1_show_var).grid(row=0, column=7, padx=5)
+        tk.Button(frame_sub1, text=tr("tool.subtitle.sub.choose"), command=self._choose_sub1_color).grid(row=0, column=6, padx=2)
+        tk.Checkbutton(frame_sub1, text=tr("tool.subtitle.sub.show"), variable=self.sub1_show_var).grid(row=0, column=7, padx=5)
 
-        tk.Checkbutton(frame_sub1, text="分割字幕", variable=self.split_sub1_var).grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        tk.Label(frame_sub1, text="最大字符:").grid(row=1, column=1, padx=2)
+        tk.Checkbutton(frame_sub1, text=tr("tool.subtitle.sub.split"), variable=self.split_sub1_var).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(frame_sub1, text=tr("tool.subtitle.sub.max_chars")).grid(row=1, column=1, padx=2)
         tk.Spinbox(frame_sub1, from_=10, to=100, width=4, textvariable=self.sub1_max_chars_var).grid(row=1, column=2, padx=2)
-        tk.Checkbutton(frame_sub1, text="中文", variable=self.sub1_is_chinese_var).grid(row=1, column=3, padx=5)
+        tk.Checkbutton(frame_sub1, text=tr("tool.subtitle.sub.is_chinese"), variable=self.sub1_is_chinese_var).grid(row=1, column=3, padx=5)
 
         # 字幕2（英文）
-        frame_sub2 = tk.LabelFrame(root, text="英文字幕（底部，最下方）", padx=5, pady=5)
+        frame_sub2 = tk.LabelFrame(root, text=tr("tool.subtitle.sub2.frame_title"), padx=5, pady=5)
         frame_sub2.grid(row=5, column=0, columnspan=3, padx=10, pady=5, sticky="we")
         self.entry_sub2 = tk.Entry(frame_sub2, width=35)
         self.entry_sub2.grid(row=0, column=0, padx=5)
-        tk.Button(frame_sub2, text="浏览", command=self._select_subtitle2).grid(row=0, column=1, padx=5)
-        tk.Label(frame_sub2, text="字号:").grid(row=0, column=2, padx=2)
+        tk.Button(frame_sub2, text=tr("tool.subtitle.browse"), command=self._select_subtitle2).grid(row=0, column=1, padx=5)
+        tk.Label(frame_sub2, text=tr("tool.subtitle.sub.fontsize")).grid(row=0, column=2, padx=2)
         tk.Spinbox(frame_sub2, from_=10, to=60, width=4, textvariable=self.sub2_fontsize_var).grid(row=0, column=3, padx=2)
-        tk.Label(frame_sub2, text="颜色:").grid(row=0, column=4, padx=2)
+        tk.Label(frame_sub2, text=tr("tool.subtitle.sub.color")).grid(row=0, column=4, padx=2)
         tk.Entry(frame_sub2, width=8, textvariable=self.sub2_color_var).grid(row=0, column=5, padx=2)
-        tk.Button(frame_sub2, text="选择", command=self._choose_sub2_color).grid(row=0, column=6, padx=2)
-        tk.Checkbutton(frame_sub2, text="显示", variable=self.sub2_show_var).grid(row=0, column=7, padx=5)
+        tk.Button(frame_sub2, text=tr("tool.subtitle.sub.choose"), command=self._choose_sub2_color).grid(row=0, column=6, padx=2)
+        tk.Checkbutton(frame_sub2, text=tr("tool.subtitle.sub.show"), variable=self.sub2_show_var).grid(row=0, column=7, padx=5)
 
-        tk.Checkbutton(frame_sub2, text="分割字幕", variable=self.split_sub2_var).grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        tk.Label(frame_sub2, text="最大字符:").grid(row=1, column=1, padx=2)
+        tk.Checkbutton(frame_sub2, text=tr("tool.subtitle.sub.split"), variable=self.split_sub2_var).grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(frame_sub2, text=tr("tool.subtitle.sub.max_chars")).grid(row=1, column=1, padx=2)
         tk.Spinbox(frame_sub2, from_=10, to=100, width=4, textvariable=self.sub2_max_chars_var).grid(row=1, column=2, padx=2)
-        tk.Checkbutton(frame_sub2, text="中文", variable=self.sub2_is_chinese_var).grid(row=1, column=3, padx=5)
+        tk.Checkbutton(frame_sub2, text=tr("tool.subtitle.sub.is_chinese"), variable=self.sub2_is_chinese_var).grid(row=1, column=3, padx=5)
 
         # 水印设置
-        frame_watermark = tk.LabelFrame(root, text="水印设置（右上角）", padx=10, pady=5)
+        frame_watermark = tk.LabelFrame(root, text=tr("tool.subtitle.watermark.frame_title"), padx=10, pady=5)
         frame_watermark.grid(row=6, column=0, columnspan=3, padx=15, pady=5, sticky="we")
 
         # Row 0：图片水印（单选）
-        tk.Radiobutton(frame_watermark, text="图片水印",
+        tk.Radiobutton(frame_watermark, text=tr("tool.subtitle.watermark.image_radio"),
                        variable=self.watermark_type_var, value="image").grid(row=0, column=0, sticky="e")
         wm_img_files = self._scan_watermark_images()
         wm_img_names = [os.path.basename(f) for f in wm_img_files]
@@ -296,35 +297,35 @@ class SubtitleToolApp(ToolBase):
             self._wm_img_combo.set(wm_img_names[0])
         self._wm_img_combo.bind("<<ComboboxSelected>>", self._on_wm_img_selected)
         self._wm_img_combo.grid(row=0, column=1, padx=4)
-        tk.Button(frame_watermark, text="浏览", command=self._select_watermark_image).grid(row=0, column=2, padx=3)
-        tk.Label(frame_watermark, text="比例:").grid(row=0, column=3, sticky="e")
+        tk.Button(frame_watermark, text=tr("tool.subtitle.browse"), command=self._select_watermark_image).grid(row=0, column=2, padx=3)
+        tk.Label(frame_watermark, text=tr("tool.subtitle.watermark.scale")).grid(row=0, column=3, sticky="e")
         tk.Spinbox(frame_watermark, from_=0.05, to=0.5, increment=0.05, width=5, format="%.2f",
                    textvariable=self.watermark_img_scale_var).grid(row=0, column=4, padx=2)
-        tk.Label(frame_watermark, text="透明度(%):").grid(row=0, column=5, sticky="e")
+        tk.Label(frame_watermark, text=tr("tool.subtitle.watermark.alpha")).grid(row=0, column=5, sticky="e")
         tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL,
                  variable=self.watermark_img_alpha_var, length=80).grid(row=0, column=6, padx=3)
-        tk.Checkbutton(frame_watermark, text="显示",
+        tk.Checkbutton(frame_watermark, text=tr("tool.subtitle.sub.show"),
                        variable=self.watermark_show_var).grid(row=0, column=7, padx=5)
 
         # Row 1：文字水印（单选）
-        tk.Radiobutton(frame_watermark, text="文字水印",
+        tk.Radiobutton(frame_watermark, text=tr("tool.subtitle.watermark.text_radio"),
                        variable=self.watermark_type_var, value="text").grid(row=1, column=0, sticky="e")
         ttk.Combobox(frame_watermark, textvariable=self.watermark_text_var, width=20,
                      values=["字幕By老猿@OldApeTalk", "字幕制作By 老猿",
                              "@VideoCraftNews"]).grid(row=1, column=1, padx=4)
-        tk.Label(frame_watermark, text="字号:").grid(row=1, column=2, sticky="e")
+        tk.Label(frame_watermark, text=tr("tool.subtitle.sub.fontsize")).grid(row=1, column=2, sticky="e")
         tk.Spinbox(frame_watermark, from_=10, to=100, width=4,
                    textvariable=self.watermark_fontsize_var).grid(row=1, column=3, padx=2)
-        tk.Label(frame_watermark, text="颜色:").grid(row=1, column=4, sticky="e")
+        tk.Label(frame_watermark, text=tr("tool.subtitle.sub.color")).grid(row=1, column=4, sticky="e")
         tk.Entry(frame_watermark, textvariable=self.watermark_color_var, width=9).grid(row=1, column=5, padx=2)
-        tk.Button(frame_watermark, text="选择",
+        tk.Button(frame_watermark, text=tr("tool.subtitle.sub.choose"),
                   command=self._choose_watermark_color).grid(row=1, column=6, padx=2)
-        tk.Label(frame_watermark, text="透明度(%):").grid(row=1, column=7, sticky="e")
+        tk.Label(frame_watermark, text=tr("tool.subtitle.watermark.alpha")).grid(row=1, column=7, sticky="e")
         tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL,
                  variable=self.watermark_txt_alpha_var, length=80).grid(row=1, column=8, padx=3)
 
         # Row 2：日期（独立字号 + 颜色 + 透明度）
-        tk.Checkbutton(frame_watermark, text="显示日期",
+        tk.Checkbutton(frame_watermark, text=tr("tool.subtitle.watermark.show_date"),
                        variable=self.watermark_show_date_var).grid(row=2, column=0, sticky="e", padx=5)
         date_widget_cls = DateEntry if DateEntry else tk.Entry
         date_kwargs = (dict(textvariable=self.watermark_date_var, width=12,
@@ -333,14 +334,14 @@ class SubtitleToolApp(ToolBase):
                        if DateEntry else
                        dict(textvariable=self.watermark_date_var, width=12))
         date_widget_cls(frame_watermark, **date_kwargs).grid(row=2, column=1, sticky="w", padx=4)
-        tk.Label(frame_watermark, text="字号:").grid(row=2, column=2, sticky="e")
+        tk.Label(frame_watermark, text=tr("tool.subtitle.sub.fontsize")).grid(row=2, column=2, sticky="e")
         tk.Spinbox(frame_watermark, from_=10, to=100, width=4,
                    textvariable=self.watermark_date_fontsize_var).grid(row=2, column=3, padx=2)
-        tk.Label(frame_watermark, text="颜色:").grid(row=2, column=4, sticky="e")
+        tk.Label(frame_watermark, text=tr("tool.subtitle.sub.color")).grid(row=2, column=4, sticky="e")
         tk.Entry(frame_watermark, textvariable=self.watermark_date_color_var, width=9).grid(row=2, column=5, padx=2)
-        tk.Button(frame_watermark, text="选择",
+        tk.Button(frame_watermark, text=tr("tool.subtitle.sub.choose"),
                   command=self._choose_date_color).grid(row=2, column=6, padx=2)
-        tk.Label(frame_watermark, text="透明度(%):").grid(row=2, column=7, sticky="e")
+        tk.Label(frame_watermark, text=tr("tool.subtitle.watermark.alpha")).grid(row=2, column=7, sticky="e")
         tk.Scale(frame_watermark, from_=0, to=100, orient=tk.HORIZONTAL,
                  variable=self.watermark_date_alpha_var, length=80).grid(row=2, column=8, padx=3)
 
@@ -350,18 +351,18 @@ class SubtitleToolApp(ToolBase):
         frame_progress.grid(row=7, column=0, columnspan=3, padx=15, pady=10, sticky="we")
         frame_progress.columnconfigure(3, weight=1)   # progress_bar column stretches
 
-        self.label_duration  = tk.Label(frame_progress, text="时长 --:--:--", width=14, anchor="w")
+        self.label_duration  = tk.Label(frame_progress, text=tr("tool.subtitle.progress.duration_unknown"), width=14, anchor="w")
         self.label_duration.grid(row=0, column=0, padx=(0, 4))
-        self.label_elapsed   = tk.Label(frame_progress, text="已用 00:00:00", width=14, anchor="w")
+        self.label_elapsed   = tk.Label(frame_progress, text=tr("tool.subtitle.progress.elapsed_zero"), width=14, anchor="w")
         self.label_elapsed.grid(row=0, column=1, padx=(0, 4))
-        self.label_remaining = tk.Label(frame_progress, text="剩余 --:--:--", width=14, anchor="w")
+        self.label_remaining = tk.Label(frame_progress, text=tr("tool.subtitle.progress.remaining_unknown"), width=14, anchor="w")
         self.label_remaining.grid(row=0, column=2, padx=(0, 8))
 
         self.progress_bar = ttk.Progressbar(frame_progress, orient=tk.HORIZONTAL,
                                             mode='determinate')
         self.progress_bar.grid(row=0, column=3, sticky="we", padx=(0, 8))
 
-        self.btn_merge = tk.Button(frame_progress, text="开始烧录双语字幕",
+        self.btn_merge = tk.Button(frame_progress, text=tr("tool.subtitle.action.start"),
                                    width=18, command=self._merge_videos)
         self.btn_merge.grid(row=0, column=4)
 
@@ -390,8 +391,9 @@ class SubtitleToolApp(ToolBase):
 
     def _select_watermark_image(self):
         path = filedialog.askopenfilename(
-            title="选择水印图片",
-            filetypes=[("PNG 图片", "*.png"), ("所有文件", "*.*")]
+            title=tr("tool.subtitle.dialog.select_watermark_image"),
+            filetypes=[(tr("tool.subtitle.filter.png"), "*.png"),
+                       (tr("tool.subtitle.filter.all_files"), "*.*")]
         )
         if path:
             self.watermark_img_path_var.set(path)
@@ -418,8 +420,9 @@ class SubtitleToolApp(ToolBase):
 
     def _select_video(self):
         file_path = filedialog.askopenfilename(
-            title="选择视频文件",
-            filetypes=[("视频文件", "*.mp4 *.avi *.mov *.mkv"), ("所有文件", "*.*")]
+            title=tr("tool.subtitle.dialog.select_video"),
+            filetypes=[(tr("tool.subtitle.filter.video"), "*.mp4 *.avi *.mov *.mkv"),
+                       (tr("tool.subtitle.filter.all_files"), "*.*")]
         )
         if not file_path:
             return
@@ -430,9 +433,9 @@ class SubtitleToolApp(ToolBase):
         try:
             subprocess.run(['ffprobe', '-version'], capture_output=True, check=True, timeout=5)
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-            messagebox.showerror("错误", "未找到ffprobe。请确保已安装FFmpeg并将其添加到系统PATH中。")
+            messagebox.showerror(tr("dialog.common.error"), tr("tool.subtitle.warning.no_ffprobe"))
             self.video_duration = 0.0
-            self.label_duration.config(text="时长 (无FFmpeg)")
+            self.label_duration.config(text=tr("tool.subtitle.progress.duration_no_ffmpeg"))
             return
 
         try:
@@ -446,24 +449,27 @@ class SubtitleToolApp(ToolBase):
                 if result2.returncode == 0:
                     duration_str = json.loads(result2.stdout)['format']['duration']
                 else:
-                    raise Exception(f"ffprobe命令失败: {result.stderr.strip()}")
+                    raise Exception(f"ffprobe failed: {result.stderr.strip()}")
             else:
                 duration_str = result.stdout.strip()
             self.video_duration = float(duration_str)
-            self.label_duration.config(text=f"时长 {time.strftime('%H:%M:%S', time.gmtime(self.video_duration))}")
+            hms = time.strftime('%H:%M:%S', time.gmtime(self.video_duration))
+            self.label_duration.config(text=tr("tool.subtitle.progress.duration_fmt", hms=hms))
         except subprocess.TimeoutExpired:
             self.video_duration = 0.0
-            self.label_duration.config(text="时长 (超时)")
-            messagebox.showwarning("警告", "获取视频时长超时。")
+            self.label_duration.config(text=tr("tool.subtitle.progress.duration_timeout"))
+            messagebox.showwarning(tr("dialog.common.warning"), tr("tool.subtitle.warning.duration_timeout"))
         except Exception as e:
             self.video_duration = 0.0
-            self.label_duration.config(text="时长 --:--:--")
-            messagebox.showwarning("警告", f"获取视频时长失败: {e}\n您可以继续使用，但进度条可能不准确。")
+            self.label_duration.config(text=tr("tool.subtitle.progress.duration_unknown"))
+            messagebox.showwarning(tr("dialog.common.warning"),
+                                   tr("tool.subtitle.warning.duration_failed", e=e))
 
     def _select_subtitle1(self):
         path = filedialog.askopenfilename(
-            title="选择中文字幕文件（底部，位于英文字幕之上）",
-            filetypes=[("SRT 字幕文件", "*.srt"), ("所有文件", "*.*")]
+            title=tr("tool.subtitle.dialog.select_sub1"),
+            filetypes=[(tr("tool.subtitle.filter.srt"), "*.srt"),
+                       (tr("tool.subtitle.filter.all_files"), "*.*")]
         )
         if path:
             self.entry_sub1.delete(0, tk.END)
@@ -472,8 +478,9 @@ class SubtitleToolApp(ToolBase):
 
     def _select_subtitle2(self):
         path = filedialog.askopenfilename(
-            title="选择英文字幕文件（底部，最下方）",
-            filetypes=[("SRT 字幕文件", "*.srt"), ("所有文件", "*.*")]
+            title=tr("tool.subtitle.dialog.select_sub2"),
+            filetypes=[(tr("tool.subtitle.filter.srt"), "*.srt"),
+                       (tr("tool.subtitle.filter.all_files"), "*.*")]
         )
         if path:
             self.entry_sub2.delete(0, tk.END)
@@ -493,9 +500,10 @@ class SubtitleToolApp(ToolBase):
             init_dir = os.path.dirname(default) or os.getcwd()
             init_name = os.path.basename(default)
         path = filedialog.asksaveasfilename(
-            title="选择输出文件",
+            title=tr("tool.subtitle.dialog.select_output"),
             defaultextension=".mp4",
-            filetypes=[("MP4 视频", "*.mp4"), ("所有文件", "*.*")],
+            filetypes=[(tr("tool.subtitle.filter.mp4"), "*.mp4"),
+                       (tr("tool.subtitle.filter.all_files"), "*.*")],
             initialdir=init_dir,
             initialfile=init_name,
         )
@@ -523,22 +531,22 @@ class SubtitleToolApp(ToolBase):
     # ── 颜色选择 ────────────────────────────────────────────────────────────
 
     def _choose_watermark_color(self):
-        color = colorchooser.askcolor(title="选择水印颜色")
+        color = colorchooser.askcolor(title=tr("tool.subtitle.dialog.choose_watermark_color"))
         if color and color[1]:
             self.watermark_color_var.set(color[1])
 
     def _choose_date_color(self):
-        color = colorchooser.askcolor(title="选择日期颜色")
+        color = colorchooser.askcolor(title=tr("tool.subtitle.dialog.choose_date_color"))
         if color and color[1]:
             self.watermark_date_color_var.set(color[1])
 
     def _choose_sub1_color(self):
-        color = colorchooser.askcolor(title="选择中文字幕颜色")
+        color = colorchooser.askcolor(title=tr("tool.subtitle.dialog.choose_sub1_color"))
         if color and color[1]:
             self.sub1_color_var.set(color[1])
 
     def _choose_sub2_color(self):
-        color = colorchooser.askcolor(title="选择英文字幕颜色")
+        color = colorchooser.askcolor(title=tr("tool.subtitle.dialog.choose_sub2_color"))
         if color and color[1]:
             self.sub2_color_var.set(color[1])
 
@@ -601,21 +609,30 @@ class SubtitleToolApp(ToolBase):
     def _on_preset_save(self) -> None:
         name = self.preset_combo.get()
         if name == burn_presets.BUILTIN_DEFAULT_NAME:
-            messagebox.showinfo("提示", "Default 预设受保护，请使用『另存为...』创建新预设。")
+            messagebox.showinfo(tr("dialog.common.info"),
+                                tr("tool.subtitle.preset.default_protected"))
             return
         burn_presets.upsert_preset(self._preset_store, name, self._collect_params())
         burn_presets.save_store(self._preset_store)
-        messagebox.showinfo("已保存", f"预设『{name}』已更新。")
+        messagebox.showinfo(tr("tool.subtitle.preset.saved_title"),
+                            tr("tool.subtitle.preset.saved_msg", name=name))
 
     def _on_preset_save_as(self) -> None:
-        name = simpledialog.askstring("另存为预设", "请输入预设名称：", parent=self.master)
+        name = simpledialog.askstring(
+            tr("tool.subtitle.preset.save_as_title"),
+            tr("tool.subtitle.preset.save_as_prompt"),
+            parent=self.master,
+        )
         if not name:
             return
         name = name.strip()
         if not name:
             return
         if name in self._preset_store.get("presets", {}):
-            if not messagebox.askyesno("覆盖确认", f"预设『{name}』已存在，是否覆盖？"):
+            if not messagebox.askyesno(
+                tr("tool.subtitle.preset.overwrite_title"),
+                tr("tool.subtitle.preset.overwrite_confirm", name=name),
+            ):
                 return
         burn_presets.upsert_preset(self._preset_store, name, self._collect_params())
         burn_presets.set_last_used(self._preset_store, name)
@@ -626,7 +643,10 @@ class SubtitleToolApp(ToolBase):
         name = self.preset_combo.get()
         if name == burn_presets.BUILTIN_DEFAULT_NAME:
             return
-        if not messagebox.askyesno("删除确认", f"确定删除预设『{name}』？"):
+        if not messagebox.askyesno(
+            tr("tool.subtitle.preset.delete_title"),
+            tr("tool.subtitle.preset.delete_confirm", name=name),
+        ):
             return
         burn_presets.delete_preset(self._preset_store, name)
         burn_presets.save_store(self._preset_store)
@@ -664,17 +684,20 @@ class SubtitleToolApp(ToolBase):
 
     def _update_progress(self, progress, elapsed, remaining):
         self.progress_bar['value'] = progress
-        self.label_elapsed.config(text=f"已用 {time.strftime('%H:%M:%S', time.gmtime(elapsed))}")
+        elapsed_hms = time.strftime('%H:%M:%S', time.gmtime(elapsed))
+        self.label_elapsed.config(text=tr("tool.subtitle.progress.elapsed_fmt", hms=elapsed_hms))
         if remaining > 0:
-            self.label_remaining.config(text=f"剩余 {time.strftime('%H:%M:%S', time.gmtime(remaining))}")
+            remaining_hms = time.strftime('%H:%M:%S', time.gmtime(remaining))
+            self.label_remaining.config(text=tr("tool.subtitle.progress.remaining_fmt", hms=remaining_hms))
         else:
-            self.label_remaining.config(text="剩余 计算中")
+            self.label_remaining.config(text=tr("tool.subtitle.progress.remaining_calc"))
 
     # ── 主流程 ──────────────────────────────────────────────────────────────
 
     def _merge_videos(self):
         if self.processing:
-            messagebox.showwarning("警告", "正在处理中，请等待完成。")
+            messagebox.showwarning(tr("dialog.common.warning"),
+                                   tr("tool.subtitle.warning.processing"))
             return
 
         video_path = self.entry_video.get()
@@ -685,24 +708,28 @@ class SubtitleToolApp(ToolBase):
         show_sub2 = self.sub2_show_var.get()
 
         if not video_path:
-            messagebox.showerror("错误", "请选择视频文件。")
+            messagebox.showerror(tr("dialog.common.error"), tr("tool.subtitle.error.no_video"))
             return
         if not os.path.exists(video_path):
-            messagebox.showerror("错误", f"视频文件不存在: {video_path}")
+            messagebox.showerror(tr("dialog.common.error"),
+                                 tr("tool.subtitle.error.video_not_found", path=video_path))
             return
         if show_sub1 and not sub1_path:
-            messagebox.showerror("错误", "已勾选显示字幕1，请选择对应 SRT 文件。")
+            messagebox.showerror(tr("dialog.common.error"), tr("tool.subtitle.error.no_sub1"))
             return
         if show_sub2 and not sub2_path:
-            messagebox.showerror("错误", "已勾选显示字幕2，请选择对应 SRT 文件。")
+            messagebox.showerror(tr("dialog.common.error"), tr("tool.subtitle.error.no_sub2"))
             return
         if not show_sub1 and not show_sub2:
-            messagebox.showerror("错误", "至少需要勾选一条字幕轨道。")
+            messagebox.showerror(tr("dialog.common.error"), tr("tool.subtitle.error.no_subtitle"))
             return
-        for p, name in ([(sub1_path, "字幕1")] if show_sub1 else []) + \
-                       ([(sub2_path, "字幕2")] if show_sub2 else []):
+        sub1_name = tr("tool.subtitle.sub1_name")
+        sub2_name = tr("tool.subtitle.sub2_name")
+        for p, name in ([(sub1_path, sub1_name)] if show_sub1 else []) + \
+                       ([(sub2_path, sub2_name)] if show_sub2 else []):
             if not os.path.exists(p):
-                messagebox.showerror("错误", f"{name}文件不存在: {p}")
+                messagebox.showerror(tr("dialog.common.error"),
+                                     tr("tool.subtitle.error.sub_not_found", name=name, path=p))
                 return
 
         # 字幕分割
@@ -722,7 +749,7 @@ class SubtitleToolApp(ToolBase):
                 with open(temp_sub2_path, 'w', encoding='utf-8') as f:
                     f.write(srt.compose(subs2))
         except Exception as e:
-            messagebox.showerror("字幕分割错误", str(e))
+            messagebox.showerror(tr("tool.subtitle.error.split_failed_title"), str(e))
             return
 
         # 路径处理
@@ -756,7 +783,8 @@ class SubtitleToolApp(ToolBase):
         output_path = os.path.abspath(output_path)
         out_dir = os.path.dirname(output_path)
         if out_dir and not os.path.isdir(out_dir):
-            messagebox.showerror("错误", f"输出目录不存在: {out_dir}")
+            messagebox.showerror(tr("dialog.common.error"),
+                                 tr("tool.subtitle.error.output_dir_missing", dir=out_dir))
             return
 
         width, height = get_video_resolution(video_path_abs)
@@ -890,8 +918,8 @@ class SubtitleToolApp(ToolBase):
         self.processing = True
         self.btn_merge.config(state=tk.DISABLED)
         self.progress_bar['value'] = 0
-        self.label_elapsed.config(text="已用 00:00:00")
-        self.label_remaining.config(text="剩余 --:--:--")
+        self.label_elapsed.config(text=tr("tool.subtitle.progress.elapsed_zero"))
+        self.label_remaining.config(text=tr("tool.subtitle.progress.remaining_unknown"))
         self.set_busy()
 
         threading.Thread(
@@ -936,13 +964,13 @@ class SubtitleToolApp(ToolBase):
                         try:
                             os.remove(tmp)
                         except Exception as cleanup_e:
-                            logger.error(f"清理临时字幕失败 {tmp}: {cleanup_e}")
-                logger.info(f"字幕烧录完成 → {os.path.basename(output_path)}")
+                            logger.error(f"Failed to clean up temp subtitle {tmp}: {cleanup_e}")
+                logger.info(f"Subtitle burn complete → {os.path.basename(output_path)}")
                 self.set_done()
             else:
-                self.set_error(f"字幕烧录失败: FFmpeg 执行失败（返回码 {process.returncode}）")
+                self.set_error(tr("tool.subtitle.error.burn_ffmpeg", code=process.returncode))
         except Exception as e:
-            self.set_error(f"字幕烧录失败: {e}")
+            self.set_error(tr("tool.subtitle.error.burn_generic", e=e))
         finally:
             self.processing = False
             self.master.after(0, lambda: self.btn_merge.config(state=tk.NORMAL))
