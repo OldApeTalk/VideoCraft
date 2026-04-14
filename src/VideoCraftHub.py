@@ -288,7 +288,10 @@ class VideoCraftHub:
                               command=lambda: self.open_tool("preferences"))
         file_menu.add_separator()
         file_menu.add_command(label=tr("menu.file.exit"), command=self.root.quit)
-        file_menu.bind("<Map>", lambda e: self._rebuild_recent_menu())
+        # postcommand fires right before the menu is posted — reliable across
+        # platforms, unlike <Map> events on tk.Menu which don't fire on
+        # Windows native menus.
+        file_menu.configure(postcommand=self._rebuild_recent_menu)
         self.root.bind("<Control-o>", lambda e: self.open_folder())
 
         # Download
