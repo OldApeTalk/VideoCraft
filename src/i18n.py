@@ -16,7 +16,9 @@ import os
 
 LOCALE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "i18n")
 SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".videocraft", "settings.json")
-DEFAULT_LANG = "zh"
+# Factory default is English: the first wave of open-source users is expected
+# to be English-speaking. Users can switch to Chinese via File > Preferences.
+DEFAULT_LANG = "en"
 SUPPORTED = ("zh", "en")
 
 
