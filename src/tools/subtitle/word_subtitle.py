@@ -11,6 +11,7 @@ ASS 卡拉OK原理：
 """
 
 from tools.base import ToolBase
+from i18n import tr
 import json
 import os
 import re
@@ -107,7 +108,7 @@ class WordSubtitleApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("逐字字幕烧录")
+        master.title(tr("tool.word_subtitle.title"))
         master.geometry("720x700")
         self.processing = False
         self._build_ui()
@@ -125,34 +126,34 @@ class WordSubtitleApp(ToolBase):
         f = self.master
         pad = dict(padx=10, pady=4)
 
-        # ── 文件 ──
-        file_frame = tk.LabelFrame(f, text="文件", padx=8, pady=6)
+        # ── Files ──
+        file_frame = tk.LabelFrame(f, text=tr("tool.word_subtitle.frame_file"), padx=8, pady=6)
         file_frame.pack(fill="x", **pad)
         file_frame.columnconfigure(1, weight=1)
-        self._build_file_row(file_frame, 0, "视频文件:", "entry_video", self._select_video)
-        self._build_file_row(file_frame, 1, "JSON 字幕:", "entry_json", self._select_json)
-        self._build_file_row(file_frame, 2, "输出文件:", "entry_output", self._select_output)
+        self._build_file_row(file_frame, 0, tr("tool.word_subtitle.label_video"),  "entry_video",  self._select_video)
+        self._build_file_row(file_frame, 1, tr("tool.word_subtitle.label_json"),   "entry_json",   self._select_json)
+        self._build_file_row(file_frame, 2, tr("tool.word_subtitle.label_output"), "entry_output", self._select_output)
 
-        # ── 字幕样式 ──
-        style_frame = tk.LabelFrame(f, text="字幕样式", padx=8, pady=6)
+        # ── Subtitle style ──
+        style_frame = tk.LabelFrame(f, text=tr("tool.word_subtitle.frame_style"), padx=8, pady=6)
         style_frame.pack(fill="x", **pad)
 
         self.fontsize_var        = tk.IntVar(value=60)
-        self.pos_pct_var         = tk.IntVar(value=20)  # 0%=底部 100%=顶部
+        self.pos_pct_var         = tk.IntVar(value=20)  # 0% = bottom, 100% = top
         self.bold_var            = tk.BooleanVar(value=True)
         self.unspoken_color_var  = tk.StringVar(value="#FFFFFF")
         self.highlight_color_var = tk.StringVar(value="#FFD700")
         self.outline_color_var   = tk.StringVar(value="#000000")
 
-        # 行 0：字号 / 加粗
-        tk.Label(style_frame, text="字号:").grid(row=0, column=0, sticky="e", padx=4, pady=3)
+        # Row 0: fontsize / bold
+        tk.Label(style_frame, text=tr("tool.word_subtitle.label_fontsize")).grid(row=0, column=0, sticky="e", padx=4, pady=3)
         tk.Spinbox(style_frame, from_=10, to=80, width=5,
                    textvariable=self.fontsize_var).grid(row=0, column=1, sticky="w", padx=4)
-        tk.Checkbutton(style_frame, text="加粗",
+        tk.Checkbutton(style_frame, text=tr("tool.word_subtitle.label_bold"),
                        variable=self.bold_var).grid(row=0, column=2, columnspan=2, padx=8)
 
-        # 行 1：垂直位置拖动条
-        tk.Label(style_frame, text="垂直位置:").grid(row=1, column=0, sticky="e", padx=4, pady=(4, 0))
+        # Row 1: vertical position slider
+        tk.Label(style_frame, text=tr("tool.word_subtitle.label_vpos")).grid(row=1, column=0, sticky="e", padx=4, pady=(4, 0))
         pos_scale = tk.Scale(
             style_frame, from_=0, to=100, orient="horizontal",
             variable=self.pos_pct_var, length=260,
@@ -161,16 +162,16 @@ class WordSubtitleApp(ToolBase):
         pos_scale.grid(row=1, column=1, columnspan=3, sticky="w", padx=4)
         self._pos_label = tk.Label(style_frame, text="20%", width=5, anchor="w")
         self._pos_label.grid(row=1, column=4, sticky="w")
-        tk.Label(style_frame, text="← 底部 / 顶部 →",
+        tk.Label(style_frame, text=tr("tool.word_subtitle.label_vpos_hint"),
                  fg="gray", font=("", 8)).grid(row=2, column=1, columnspan=3, sticky="w", padx=4)
         self.pos_pct_var.trace_add("write",
             lambda *_: self._pos_label.config(text=f"{self.pos_pct_var.get()}%"))
 
-        # 行 1-3：颜色
+        # Rows 3-5: colors
         color_rows = [
-            ("未播颜色:", self.unspoken_color_var,  self._choose_unspoken_color),
-            ("高亮颜色:", self.highlight_color_var, self._choose_highlight_color),
-            ("描边颜色:", self.outline_color_var,   self._choose_outline_color),
+            (tr("tool.word_subtitle.label_unspoken"),  self.unspoken_color_var,  self._choose_unspoken_color),
+            (tr("tool.word_subtitle.label_highlight"), self.highlight_color_var, self._choose_highlight_color),
+            (tr("tool.word_subtitle.label_outline"),   self.outline_color_var,   self._choose_outline_color),
         ]
         self._color_previews = {}
         for r, (label, var, cmd) in enumerate(color_rows, start=3):
@@ -181,25 +182,25 @@ class WordSubtitleApp(ToolBase):
             preview.grid(row=r, column=2, sticky="w", padx=(0, 2))
             self._color_previews[id(var)] = (var, preview)
             var.trace_add("write", lambda *_, v=var, lbl=preview: self._sync_preview(v, lbl))
-            tk.Button(style_frame, text="选色", width=5,
+            tk.Button(style_frame, text=tr("tool.word_subtitle.btn_choose_color"), width=5,
                       command=cmd).grid(row=r, column=3, sticky="w", padx=4)
 
-        # ── 分行方式 & 效果 ──
-        line_frame = tk.LabelFrame(f, text="分行方式 & 效果", padx=8, pady=6)
+        # ── Line break & effect ──
+        line_frame = tk.LabelFrame(f, text=tr("tool.word_subtitle.frame_line"), padx=8, pady=6)
         line_frame.pack(fill="x", **pad)
 
         self.line_mode_var = tk.StringVar(value="segment")
-        tk.Radiobutton(line_frame, text="按句子（segment）",
+        tk.Radiobutton(line_frame, text=tr("tool.word_subtitle.radio_by_segment"),
                        variable=self.line_mode_var, value="segment",
                        command=self._on_line_mode_change).grid(
             row=0, column=0, sticky="w", padx=4)
-        tk.Radiobutton(line_frame, text="按字数",
+        tk.Radiobutton(line_frame, text=tr("tool.word_subtitle.radio_by_chars"),
                        variable=self.line_mode_var, value="words",
                        command=self._on_line_mode_change).grid(
             row=0, column=1, sticky="w", padx=4)
 
         self.max_words_var = tk.IntVar(value=8)
-        tk.Label(line_frame, text="每行最多词数:").grid(
+        tk.Label(line_frame, text=tr("tool.word_subtitle.label_max_words")).grid(
             row=0, column=2, sticky="e", padx=(16, 2))
         self._spinbox_maxwords = tk.Spinbox(
             line_frame, from_=2, to=30, width=4,
@@ -207,15 +208,15 @@ class WordSubtitleApp(ToolBase):
         self._spinbox_maxwords.grid(row=0, column=3, sticky="w", padx=4)
 
         self.kf_style_var = tk.StringVar(value=r"\kf")
-        tk.Label(line_frame, text="高亮效果:").grid(row=1, column=0, sticky="e", padx=4, pady=4)
+        tk.Label(line_frame, text=tr("tool.word_subtitle.label_highlight_effect")).grid(row=1, column=0, sticky="e", padx=4, pady=4)
         ttk.Combobox(
             line_frame, textvariable=self.kf_style_var,
-            state="readonly", width=20,
-            values=[r"\kf  填充动画（推荐）", r"\k  即时切换"],
+            state="readonly", width=24,
+            values=[tr("tool.word_subtitle.kf_fill"), tr("tool.word_subtitle.kf_instant")],
         ).grid(row=1, column=1, columnspan=3, sticky="w", padx=4)
 
-        # ── 编码 ──
-        enc_frame = tk.LabelFrame(f, text="编码", padx=8, pady=6)
+        # ── Encoding ──
+        enc_frame = tk.LabelFrame(f, text=tr("tool.word_subtitle.frame_encode"), padx=8, pady=6)
         enc_frame.pack(fill="x", **pad)
 
         self.crf_var    = tk.IntVar(value=18)
@@ -244,8 +245,8 @@ class WordSubtitleApp(ToolBase):
         vsb.pack(side="right", fill="y")
         self.log_text.pack(fill="both", expand=True)
 
-        # ── 开始按钮 ──
-        self.btn_start = tk.Button(f, text="开始烧录", width=20,
+        # ── Start button ──
+        self.btn_start = tk.Button(f, text=tr("tool.word_subtitle.btn_start"), width=20,
                                    bg="#0078d4", fg="white",
                                    command=self._start_burn)
         self.btn_start.pack(pady=(0, 8))
@@ -255,7 +256,7 @@ class WordSubtitleApp(ToolBase):
         entry = tk.Entry(parent, width=52)
         entry.grid(row=row, column=1, sticky="ew", padx=4)
         setattr(self, attr, entry)
-        tk.Button(parent, text="浏览", width=5, command=cmd).grid(row=row, column=2, padx=4)
+        tk.Button(parent, text=tr("tool.word_subtitle.browse"), width=5, command=cmd).grid(row=row, column=2, padx=4)
 
     def _sync_preview(self, var: tk.StringVar, label: tk.Label):
         color = var.get().strip()
@@ -269,9 +270,9 @@ class WordSubtitleApp(ToolBase):
 
     def _select_video(self):
         p = filedialog.askopenfilename(
-            title="选择视频文件",
-            filetypes=[("视频文件", "*.mp4;*.mkv;*.avi;*.mov;*.webm"),
-                       ("所有文件", "*.*")])
+            title=tr("tool.word_subtitle.dialog_video"),
+            filetypes=[(tr("tool.word_subtitle.filter_video"), "*.mp4;*.mkv;*.avi;*.mov;*.webm"),
+                       (tr("tool.word_subtitle.filter_all"), "*.*")])
         if p:
             self.entry_video.delete(0, tk.END)
             self.entry_video.insert(0, p)
@@ -279,8 +280,9 @@ class WordSubtitleApp(ToolBase):
 
     def _select_json(self):
         p = filedialog.askopenfilename(
-            title="选择 JSON 字幕文件",
-            filetypes=[("JSON 文件", "*.json"), ("所有文件", "*.*")])
+            title=tr("tool.word_subtitle.dialog_json"),
+            filetypes=[(tr("tool.word_subtitle.filter_json"), "*.json"),
+                       (tr("tool.word_subtitle.filter_all"), "*.*")])
         if p:
             self.entry_json.delete(0, tk.END)
             self.entry_json.insert(0, p)
@@ -290,9 +292,9 @@ class WordSubtitleApp(ToolBase):
         video = self.entry_video.get().strip()
         init_dir = os.path.dirname(video) if video else ""
         p = filedialog.asksaveasfilename(
-            title="保存输出视频",
+            title=tr("tool.word_subtitle.dialog_output"),
             defaultextension=".mp4",
-            filetypes=[("MP4 文件", "*.mp4")],
+            filetypes=[(tr("tool.word_subtitle.filter_mp4"), "*.mp4")],
             initialdir=init_dir)
         if p:
             self.entry_output.delete(0, tk.END)
@@ -306,22 +308,22 @@ class WordSubtitleApp(ToolBase):
         self.entry_output.delete(0, tk.END)
         self.entry_output.insert(0, stem + "_karaoke.mp4")
 
-    # ── 颜色选择 ──────────────────────────────────────────────────────────────
+    # ── Color pickers ────────────────────────────────────────────────────────
 
     def _choose_unspoken_color(self):
-        c = colorchooser.askcolor(title="未播文字颜色",
+        c = colorchooser.askcolor(title=tr("tool.word_subtitle.dialog_color_unspoken"),
                                   initialcolor=self.unspoken_color_var.get())
         if c and c[1]:
             self.unspoken_color_var.set(c[1])
 
     def _choose_highlight_color(self):
-        c = colorchooser.askcolor(title="高亮颜色（已播）",
+        c = colorchooser.askcolor(title=tr("tool.word_subtitle.dialog_color_highlight"),
                                   initialcolor=self.highlight_color_var.get())
         if c and c[1]:
             self.highlight_color_var.set(c[1])
 
     def _choose_outline_color(self):
-        c = colorchooser.askcolor(title="描边颜色",
+        c = colorchooser.askcolor(title=tr("tool.word_subtitle.dialog_color_outline"),
                                   initialcolor=self.outline_color_var.get())
         if c and c[1]:
             self.outline_color_var.set(c[1])
@@ -426,7 +428,7 @@ class WordSubtitleApp(ToolBase):
 
         # 无逐字数据时合成
         if not words:
-            self._log("提示: JSON 中无 words[]，将按 segment 时间均分\n")
+            self._log(tr("tool.word_subtitle.log_hint_no_words"))
             for seg in segments:
                 words.extend(self._synthesise_words(seg))
 
@@ -484,30 +486,35 @@ class WordSubtitleApp(ToolBase):
         jpath  = self.entry_json.get().strip()
         output = self.entry_output.get().strip()
 
-        for label, path in [("视频文件", video), ("JSON 文件", jpath)]:
+        label_video = tr("tool.word_subtitle.label_video_file")
+        label_json = tr("tool.word_subtitle.label_json_file")
+        for label, path in [(label_video, video), (label_json, jpath)]:
             if not path or not os.path.exists(path):
-                messagebox.showerror("缺少文件", f"{label} 不存在或未填写。")
+                messagebox.showerror(
+                    tr("tool.word_subtitle.error_missing_file_title"),
+                    tr("tool.word_subtitle.error_missing_file_msg", label=label))
                 return
         if not output:
-            messagebox.showerror("缺少路径", "请指定输出文件路径。")
+            messagebox.showerror(
+                tr("tool.word_subtitle.error_missing_path_title"),
+                tr("tool.word_subtitle.error_missing_path_msg"))
             return
 
         try:
             with open(jpath, "r", encoding="utf-8-sig") as fp:
                 json_data = json.load(fp)
         except Exception as e:
-            messagebox.showerror("JSON 读取失败", str(e))
+            messagebox.showerror(tr("tool.word_subtitle.error_json_read_title"), str(e))
             return
 
         if "segments" not in json_data and "words" not in json_data:
             messagebox.showerror(
-                "格式错误",
-                "JSON 中未找到 segments 或 words 字段。\n"
-                "请使用 LemonFox API 转录结果（verbose_json 格式）。")
+                tr("tool.word_subtitle.error_format_title"),
+                tr("tool.word_subtitle.error_format_msg"))
             return
 
         res_w, res_h = _get_video_resolution(video)
-        self._log(f"视频分辨率: {res_w}×{res_h}\n")
+        self._log(tr("tool.word_subtitle.log_resolution", w=res_w, h=res_h))
 
         style_cfg = {
             "fontsize":   self.fontsize_var.get(),
@@ -526,9 +533,9 @@ class WordSubtitleApp(ToolBase):
         try:
             with open(ass_path, "w", encoding="utf-8-sig") as fp:
                 fp.write(ass_content)
-            self._log(f"ASS 已写出: {os.path.basename(ass_path)}\n")
+            self._log(tr("tool.word_subtitle.log_ass_written", filename=os.path.basename(ass_path)))
         except Exception as e:
-            messagebox.showerror("ASS 写入失败", str(e))
+            messagebox.showerror(tr("tool.word_subtitle.error_ass_write_title"), str(e))
             return
 
         escaped_ass = escape_ffmpeg_path(ass_path)
@@ -588,8 +595,8 @@ class WordSubtitleApp(ToolBase):
         try:
             rc = _run(cmd)
             if rc != 0:
-                # -c:a copy 失败时回退为 AAC 重编码
-                self.master.after(0, self._log, "音频 copy 失败，重试（AAC 编码）...\n")
+                # -c:a copy fallback to AAC re-encode
+                self.master.after(0, self._log, tr("tool.word_subtitle.log_copy_retry"))
                 cmd2 = list(cmd)
                 idx = cmd2.index("copy")
                 cmd2[idx] = "aac"
@@ -599,15 +606,16 @@ class WordSubtitleApp(ToolBase):
 
             if rc == 0:
                 self.master.after(0, self._log,
-                                  f"完成！已保存: {os.path.basename(output_path)}\n")
-                logger.info(f"逐字字幕烧录完成 → {os.path.basename(output_path)}")
+                                  tr("tool.word_subtitle.log_complete",
+                                     filename=os.path.basename(output_path)))
+                logger.info(tr("tool.word_subtitle.log_done", filename=os.path.basename(output_path)))
                 self.set_done()
             else:
-                self.master.after(0, self._log, "错误：ffmpeg 执行失败。\n")
-                self.set_error(f"逐字字幕烧录失败: ffmpeg exit {rc}")
+                self.master.after(0, self._log, tr("tool.word_subtitle.log_ffmpeg_fail"))
+                self.set_error(tr("tool.word_subtitle.error_burn_ffmpeg", rc=rc))
         except Exception as e:
-            self.master.after(0, self._log, f"错误: {e}\n")
-            self.set_error(f"逐字字幕烧录异常: {e}")
+            self.master.after(0, self._log, tr("tool.word_subtitle.log_exception", e=e))
+            self.set_error(tr("tool.word_subtitle.error_burn_exception", e=e))
         finally:
             self.processing = False
             self.master.after(0, lambda: self.btn_start.config(state=tk.NORMAL))
@@ -621,7 +629,8 @@ class WordSubtitleApp(ToolBase):
             return f"{sec // 3600:02d}:{(sec % 3600) // 60:02d}:{sec % 60:02d}"
 
         self._progress_label.config(
-            text=f"{pct:.1f}%  已用 {_fmt(elapsed)}  剩余 {_fmt(remain)}")
+            text=tr("tool.word_subtitle.progress_label",
+                    pct=pct, elapsed=_fmt(elapsed), remain=_fmt(remain)))
 
 
 # ── 入口 ──────────────────────────────────────────────────────────────────────

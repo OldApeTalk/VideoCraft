@@ -1,4 +1,5 @@
 from tools.base import ToolBase
+from i18n import tr
 import os
 import re
 import threading
@@ -160,30 +161,30 @@ def split_video(video_path, segments, output_dir, progress_cb=None):
 class SplitVideoApp(ToolBase):
     def __init__(self, master, initial_file: str = None):
         self.master = master
-        master.title("视频分段切割工具")
+        master.title(tr("tool.split_video.title"))
         master.geometry("680x360")
         master.resizable(False, False)
 
         # Video file
-        tk.Label(master, text="视频文件:").grid(row=0, column=0, padx=10, pady=12, sticky="e")
+        tk.Label(master, text=tr("tool.split_video.label_video")).grid(row=0, column=0, padx=10, pady=12, sticky="e")
         self.video_path_var = tk.StringVar()
         tk.Entry(master, textvariable=self.video_path_var, width=60).grid(row=0, column=1, sticky="w")
-        tk.Button(master, text="浏览", command=self.select_video).grid(row=0, column=2, padx=10)
+        tk.Button(master, text=tr("tool.split_video.browse"), command=self.select_video).grid(row=0, column=2, padx=10)
 
         # Segment description file
-        tk.Label(master, text="分段描述文件:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(master, text=tr("tool.split_video.label_desc")).grid(row=1, column=0, padx=10, pady=10, sticky="e")
         self.desc_path_var = tk.StringVar()
         tk.Entry(master, textvariable=self.desc_path_var, width=60).grid(row=1, column=1, sticky="w")
-        tk.Button(master, text="浏览", command=self.select_desc).grid(row=1, column=2, padx=10)
+        tk.Button(master, text=tr("tool.split_video.browse"), command=self.select_desc).grid(row=1, column=2, padx=10)
 
         # Output directory
-        tk.Label(master, text="输出目录:").grid(row=2, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(master, text=tr("tool.split_video.label_output_dir")).grid(row=2, column=0, padx=10, pady=10, sticky="e")
         self.output_dir_var = tk.StringVar()
         tk.Entry(master, textvariable=self.output_dir_var, width=60).grid(row=2, column=1, sticky="w")
-        tk.Button(master, text="浏览", command=self.select_output_dir).grid(row=2, column=2, padx=10)
+        tk.Button(master, text=tr("tool.split_video.browse"), command=self.select_output_dir).grid(row=2, column=2, padx=10)
 
         # Start button
-        self._btn_start = tk.Button(master, text="开始切割", command=self.start_split, width=20)
+        self._btn_start = tk.Button(master, text=tr("tool.split_video.btn_start"), command=self.start_split, width=20)
         self._btn_start.grid(row=3, column=1, pady=16)
 
         # Progress bar
@@ -201,7 +202,7 @@ class SplitVideoApp(ToolBase):
 
     def select_video(self):
         path = filedialog.askopenfilename(
-            title="选择视频文件",
+            title=tr("tool.split_video.dialog_video"),
             filetypes=[("Video files", "*.mp4 *.mkv *.avi"), ("All files", "*.*")]
         )
         if path:
@@ -210,14 +211,14 @@ class SplitVideoApp(ToolBase):
 
     def select_desc(self):
         path = filedialog.askopenfilename(
-            title="选择分段描述文件",
+            title=tr("tool.split_video.dialog_desc"),
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
         )
         if path:
             self.desc_path_var.set(path)
 
     def select_output_dir(self):
-        path = filedialog.askdirectory(title="选择输出目录")
+        path = filedialog.askdirectory(title=tr("tool.split_video.dialog_output_dir"))
         if path:
             self.output_dir_var.set(path)
 
@@ -227,22 +228,22 @@ class SplitVideoApp(ToolBase):
         output_dir = self.output_dir_var.get()
 
         if not video_path or not os.path.exists(video_path):
-            self.status_var.set("⚠ 请选择有效的视频文件")
+            self.status_var.set(tr("tool.split_video.error_no_video"))
             return
         if not desc_path or not os.path.exists(desc_path):
-            self.status_var.set("⚠ 请选择有效的分段描述文件")
+            self.status_var.set(tr("tool.split_video.error_no_desc"))
             return
         if not output_dir:
-            self.status_var.set("⚠ 请选择输出目录")
+            self.status_var.set(tr("tool.split_video.error_no_output_dir"))
             return
 
         segments = parse_timestamps_and_titles(desc_path)
         if not segments:
-            self.status_var.set("⚠ 未找到有效的时间戳和标题")
+            self.status_var.set(tr("tool.split_video.error_no_timestamps"))
             return
 
         total = len(segments)
-        self.status_var.set(f"共 {total} 段，准备开始...")
+        self.status_var.set(tr("tool.split_video.status_prepared", total=total))
         self._progress["value"] = 0
         self._btn_start.config(state="disabled")
         self.set_busy()
@@ -252,9 +253,11 @@ class SplitVideoApp(ToolBase):
             def _update():
                 self._progress["value"] = pct
                 if done < total_:
-                    self.status_var.set(f"正在分割第 {done + 1}/{total_} 段...")
+                    self.status_var.set(tr("tool.split_video.status_progress",
+                                            done=done + 1, total=total_))
                 else:
-                    self.status_var.set(f"✓ 全部 {total_} 段切割完成！→ {output_dir}")
+                    self.status_var.set(tr("tool.split_video.status_done",
+                                            total=total_, output_dir=output_dir))
             self.master.after(0, _update)
 
         def _run():
@@ -263,8 +266,8 @@ class SplitVideoApp(ToolBase):
                 logger.info(f"Split complete: {len(segments)} segments ({os.path.basename(video_path)}) → {output_dir}")
                 self.set_done()
             except Exception as e:
-                self.master.after(0, lambda: self.status_var.set(f"✗ 切割失败: {e}"))
-                self.set_error(f"视频切割失败: {e}")
+                self.master.after(0, lambda: self.status_var.set(tr("tool.split_video.status_fail", e=e)))
+                self.set_error(tr("tool.split_video.error_split_failed", e=e))
             finally:
                 self.master.after(0, lambda: self._btn_start.config(state="normal"))
 

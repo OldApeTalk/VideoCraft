@@ -1,4 +1,5 @@
 from tools.base import ToolBase
+from i18n import tr
 import os
 import re
 import srt
@@ -347,11 +348,11 @@ def _ensure_dir(path):
 
 
 class SrtExtractSubtitlesApp(ToolBase):
-    """Tab 1：提取字幕文字 — 独立窗口版。"""
+    """Tab 1: Extract subtitle text — standalone window."""
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("提取字幕文字")
+        master.title(tr("tool.srt.extract_subs.title"))
         master.geometry("800x500")
 
         self.srt_var = tk.StringVar()
@@ -373,25 +374,25 @@ class SrtExtractSubtitlesApp(ToolBase):
         right = tk.Frame(master)
         right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 10), pady=10)
 
-        # 左侧控件
-        tk.Label(left, text="SRT字幕文件:").grid(row=0, column=0, padx=5, pady=10, sticky="e")
+        # Left column
+        tk.Label(left, text=tr("tool.srt.common.srt_file")).grid(row=0, column=0, padx=5, pady=10, sticky="e")
         tk.Entry(left, textvariable=self.srt_var, width=40).grid(row=0, column=1, sticky="w")
-        tk.Button(left, text="浏览", command=self._select_srt).grid(row=0, column=2, padx=10)
+        tk.Button(left, text=tr("tool.srt.common.browse"), command=self._select_srt).grid(row=0, column=2, padx=10)
 
-        tk.Label(left, text="输出文件:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        tk.Label(left, text=tr("tool.srt.common.output_file")).grid(row=1, column=0, padx=5, pady=5, sticky="e")
         tk.Entry(left, textvariable=self.output_var, width=40).grid(row=1, column=1, sticky="w")
-        tk.Button(left, text="浏览", command=self._select_output).grid(row=1, column=2, padx=10)
+        tk.Button(left, text=tr("tool.srt.common.browse"), command=self._select_output).grid(row=1, column=2, padx=10)
 
-        self._btn = tk.Button(left, text="提取字幕文字", command=self._run, width=20)
+        self._btn = tk.Button(left, text=tr("tool.srt.extract_subs.btn_run"), command=self._run, width=20)
         self._btn.grid(row=2, column=1, pady=25)
 
         tk.Label(left, textvariable=self.status_var, fg="blue").grid(row=3, column=0, columnspan=3, pady=10)
 
-        # 右侧预览
+        # Right preview
         hdr = tk.Frame(right)
         hdr.pack(fill=tk.X, pady=(0, 5))
-        tk.Label(hdr, text="提取的字幕内容:", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
-        tk.Button(hdr, text="拷贝内容", command=self._copy, width=12).pack(side=tk.RIGHT, padx=5)
+        tk.Label(hdr, text=tr("tool.srt.extract_subs.preview_label"), font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        tk.Button(hdr, text=tr("tool.srt.common.copy_btn"), command=self._copy, width=12).pack(side=tk.RIGHT, padx=5)
 
         tf = tk.Frame(right)
         tf.pack(fill=tk.BOTH, expand=True)
@@ -406,30 +407,32 @@ class SrtExtractSubtitlesApp(ToolBase):
         sx.config(command=self._text.xview)
 
     def _select_srt(self):
-        path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
+        path = filedialog.askopenfilename(title=tr("tool.srt.common.select_srt_title"),
+                                          filetypes=[(tr("tool.srt.common.filter.srt"), "*.srt")])
         if path:
             self.srt_var.set(path)
             self.output_var.set(os.path.join(os.path.dirname(path), "AllSubtitles.txt"))
 
     def _select_output(self):
-        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
-                                            filetypes=[("Text files", "*.txt")])
+        path = filedialog.asksaveasfilename(title=tr("tool.srt.common.select_output_title"),
+                                            defaultextension=".txt",
+                                            filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.output_var.set(path)
 
     def _run(self):
         srt_path = self.srt_var.get()
         if not srt_path or not os.path.exists(srt_path):
-            self.status_var.set("⚠ 请选择有效的SRT文件")
+            self.status_var.set(tr("tool.srt.common.error_no_srt"))
             return
         output_path = _resolve_output(srt_path, self.output_var, "AllSubtitles.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
+            self.status_var.set(tr("tool.srt.common.error_cannot_create_dir", e=e))
             return
 
-        self.status_var.set("正在提取...")
+        self.status_var.set(tr("tool.srt.extract_subs.status_extracting"))
         self._btn.config(state="disabled")
 
         def _work():
@@ -437,13 +440,14 @@ class SrtExtractSubtitlesApp(ToolBase):
                 text = extract_all_subtitles(srt_path)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(text)
-                self.status_var.set(f"✓ 完成: {os.path.basename(output_path)}")
+                self.status_var.set(tr("tool.srt.common.status_done_fmt",
+                                       filename=os.path.basename(output_path)))
                 self.master.after(0, lambda: (self._text.delete("1.0", tk.END),
                                               self._text.insert("1.0", text)))
                 self.set_done()
             except Exception as e:
-                self.status_var.set(f"失败: {e}")
-                self.set_error(f"提取全部字幕失败: {e}")
+                self.status_var.set(tr("tool.srt.common.status_fail_fmt", e=e))
+                self.set_error(tr("tool.srt.extract_subs.error_failed", e=e))
             finally:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
 
@@ -453,12 +457,12 @@ class SrtExtractSubtitlesApp(ToolBase):
     def _copy(self):
         content = self._text.get("1.0", tk.END).strip()
         if not content:
-            self.status_var.set("没有可拷贝的内容")
+            self.status_var.set(tr("tool.srt.common.copy_nothing"))
             return
         self.master.clipboard_clear()
         self.master.clipboard_append(content)
         self.master.update()
-        self.status_var.set("内容已拷贝到剪贴板 ✓")
+        self.status_var.set(tr("tool.srt.common.copy_done"))
 
 
 class SrtGenerateSegmentsApp(ToolBase):
@@ -493,7 +497,7 @@ xx:xx 标题
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("生成分段描述")
+        master.title(tr("tool.srt.gen_segments.title"))
         master.geometry("750x450")
 
         self.srt_var = tk.StringVar()
@@ -508,40 +512,39 @@ xx:xx 标题
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="AI 档位:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        tk.Label(f, text="高档 (Premium) — 最强模型", fg="#228B22",
-                 font=("Arial", 9)).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="AI Router 管理",
+        tk.Button(f, text=tr("tool.srt.common.router_btn"),
                   command=lambda: _open_router_manager_for(self.master)).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="SRT字幕文件:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.srt.common.srt_file")).grid(row=1, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.srt_var, width=50).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_srt).grid(row=1, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_srt).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(f, text=tr("tool.srt.common.prompt_label")).grid(row=2, column=0, padx=10, pady=5, sticky="ne")
         self._prompt = tk.Text(f, height=8, width=50, wrap=tk.WORD)
         self._prompt.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
         self._prompt.insert(tk.END, self._DEFAULT_PROMPT)
 
-        tk.Label(f, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.srt.common.output_file")).grid(row=3, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=3, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=3, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_output).grid(row=3, column=2, padx=10)
 
-        self._btn = tk.Button(f, text="生成分段描述", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.srt.gen_segments.btn_run"), command=self._run, width=20)
         self._btn.grid(row=4, column=1, pady=25)
 
         tk.Label(f, textvariable=self.status_var, fg="blue").grid(
             row=5, column=0, columnspan=3, pady=10)
 
     def _select_srt(self):
-        path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
+        path = filedialog.askopenfilename(title=tr("tool.srt.common.select_srt_title"),
+                                          filetypes=[(tr("tool.srt.common.filter.srt"), "*.srt")])
         if path:
             self.srt_var.set(path)
             self.output_var.set(os.path.join(os.path.dirname(path), "subs.txt"))
 
     def _select_output(self):
-        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
-                                            filetypes=[("Text files", "*.txt")])
+        path = filedialog.asksaveasfilename(title=tr("tool.srt.common.select_output_title"),
+                                            defaultextension=".txt",
+                                            filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.output_var.set(path)
 
@@ -549,19 +552,19 @@ xx:xx 标题
         srt_path = self.srt_var.get()
         prompt = self._prompt.get("1.0", tk.END).strip()
         if not srt_path or not os.path.exists(srt_path):
-            self.status_var.set("⚠ 请选择有效的SRT文件")
+            self.status_var.set(tr("tool.srt.common.error_no_srt"))
             return
         if not prompt:
-            self.status_var.set("⚠ 请输入Prompt提示语")
+            self.status_var.set(tr("tool.srt.common.error_no_prompt"))
             return
         output_path = _resolve_output(srt_path, self.output_var, "subs.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
+            self.status_var.set(tr("tool.srt.common.error_cannot_create_dir", e=e))
             return
 
-        self.status_var.set("正在生成分段描述...")
+        self.status_var.set(tr("tool.srt.gen_segments.status_running"))
         self._btn.config(state="disabled")
 
         def _work():
@@ -569,12 +572,12 @@ xx:xx 标题
                 result = srt_ops.generate_youtube_segments(srt_path, prompt=prompt)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
-                self.status_var.set("生成完成")
-                logger.info(f"分段描述已生成 → {os.path.basename(output_path)}")
+                self.status_var.set(tr("tool.srt.gen_segments.status_done"))
+                logger.info(tr("tool.srt.gen_segments.log_done", filename=os.path.basename(output_path)))
                 self.set_done()
             except Exception as e:
-                self.set_error(f"生成分段描述失败: {e}")
-                self.status_var.set("生成失败")
+                self.set_error(tr("tool.srt.gen_segments.error_failed", e=e))
+                self.status_var.set(tr("tool.srt.gen_segments.status_fail"))
             finally:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
 
@@ -587,7 +590,7 @@ class SrtExtractParagraphsApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("提取段落内容")
+        master.title(tr("tool.srt.extract_paragraphs.title"))
         master.geometry("750x300")
 
         self.srt_var = tk.StringVar()
@@ -603,39 +606,41 @@ class SrtExtractParagraphsApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="SRT字幕文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.srt.common.srt_file")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.srt_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_srt).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_srt).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="时间戳分割文件:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.srt.extract_paragraphs.segments_label")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.segments_var, width=50).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_segments).grid(row=1, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_segments).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="输出文件:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.srt.common.output_file")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=2, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=2, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_output).grid(row=2, column=2, padx=10)
 
-        self._btn = tk.Button(f, text="提取段落内容", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.srt.extract_paragraphs.btn_run"), command=self._run, width=20)
         self._btn.grid(row=3, column=1, pady=25)
 
         tk.Label(f, textvariable=self.status_var, fg="blue").grid(
             row=4, column=0, columnspan=3, pady=10)
 
     def _select_srt(self):
-        path = filedialog.askopenfilename(title="选择SRT文件", filetypes=[("SRT files", "*.srt")])
+        path = filedialog.askopenfilename(title=tr("tool.srt.common.select_srt_title"),
+                                          filetypes=[(tr("tool.srt.common.filter.srt"), "*.srt")])
         if path:
             self.srt_var.set(path)
             self.output_var.set(os.path.join(os.path.dirname(path), "subs-segment.txt"))
 
     def _select_segments(self):
-        path = filedialog.askopenfilename(title="选择时间戳分割文件",
-                                          filetypes=[("Text files", "*.txt")])
+        path = filedialog.askopenfilename(title=tr("tool.srt.common.select_output_title"),
+                                          filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.segments_var.set(path)
 
     def _select_output(self):
-        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
-                                            filetypes=[("Text files", "*.txt")])
+        path = filedialog.asksaveasfilename(title=tr("tool.srt.common.select_output_title"),
+                                            defaultextension=".txt",
+                                            filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.output_var.set(path)
 
@@ -643,19 +648,19 @@ class SrtExtractParagraphsApp(ToolBase):
         srt_path = self.srt_var.get()
         segments_path = self.segments_var.get()
         if not srt_path or not os.path.exists(srt_path):
-            self.status_var.set("⚠ 请选择有效的SRT文件")
+            self.status_var.set(tr("tool.srt.common.error_no_srt"))
             return
         if not segments_path or not os.path.exists(segments_path):
-            self.status_var.set("⚠ 请选择有效的时间戳分割文件")
+            self.status_var.set(tr("tool.srt.extract_paragraphs.error_no_segments"))
             return
         output_path = _resolve_output(srt_path, self.output_var, "subs-segment.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
+            self.status_var.set(tr("tool.srt.common.error_cannot_create_dir", e=e))
             return
 
-        self.status_var.set("正在提取段落内容...")
+        self.status_var.set(tr("tool.srt.extract_paragraphs.status_running"))
         self._btn.config(state="disabled")
 
         def _work():
@@ -663,12 +668,13 @@ class SrtExtractParagraphsApp(ToolBase):
                 result = srt_ops.extract_paragraphs_from_segments(srt_path, segments_path)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
-                self.status_var.set("提取完成")
-                logger.info(f"段落内容已提取 → {os.path.basename(output_path)}")
+                self.status_var.set(tr("tool.srt.extract_paragraphs.status_done"))
+                logger.info(tr("tool.srt.extract_paragraphs.log_done",
+                               filename=os.path.basename(output_path)))
                 self.set_done()
             except Exception as e:
-                self.set_error(f"提取段落失败: {e}")
-                self.status_var.set("提取失败")
+                self.set_error(tr("tool.srt.extract_paragraphs.error_failed", e=e))
+                self.status_var.set(tr("tool.srt.extract_paragraphs.status_fail"))
             finally:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
 
@@ -698,7 +704,7 @@ class SrtRefineSegmentsApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("精炼分段")
+        master.title(tr("tool.srt.refine.title"))
         master.geometry("750x430")
 
         self.input_var = tk.StringVar()
@@ -714,42 +720,40 @@ class SrtRefineSegmentsApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="段落内容文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.srt.refine.input_label")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.input_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_input).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_input).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="AI 档位:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        tk.Label(f, text="高档 (Premium) — 最强模型", fg="#228B22",
-                 font=("Arial", 9)).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="AI Router 管理",
+        tk.Button(f, text=tr("tool.srt.common.router_btn"),
                   command=lambda: _open_router_manager_for(self.master)).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(f, text=tr("tool.srt.common.prompt_label")).grid(row=2, column=0, padx=10, pady=5, sticky="ne")
         self._prompt = tk.Text(f, height=8, width=50, wrap=tk.WORD)
         self._prompt.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
         self._prompt.insert(tk.END, self._DEFAULT_PROMPT)
 
-        tk.Label(f, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.srt.common.output_file")).grid(row=3, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=3, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=3, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_output).grid(row=3, column=2, padx=10)
 
-        self._btn = tk.Button(f, text="精炼分段描述", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.srt.refine.btn_run"), command=self._run, width=20)
         self._btn.grid(row=4, column=1, pady=25)
 
         tk.Label(f, textvariable=self.status_var, fg="blue").grid(
             row=5, column=0, columnspan=3, pady=10)
 
     def _select_input(self):
-        path = filedialog.askopenfilename(title="选择段落内容文件",
-                                          filetypes=[("Text files", "*.txt")])
+        path = filedialog.askopenfilename(title=tr("tool.srt.common.select_output_title"),
+                                          filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.input_var.set(path)
             self.output_var.set(
                 os.path.join(os.path.dirname(path), "subs-segment-refined.txt"))
 
     def _select_output(self):
-        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
-                                            filetypes=[("Text files", "*.txt")])
+        path = filedialog.asksaveasfilename(title=tr("tool.srt.common.select_output_title"),
+                                            defaultextension=".txt",
+                                            filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.output_var.set(path)
 
@@ -757,19 +761,19 @@ class SrtRefineSegmentsApp(ToolBase):
         input_path = self.input_var.get()
         prompt = self._prompt.get("1.0", tk.END).strip()
         if not input_path or not os.path.exists(input_path):
-            self.status_var.set("⚠ 请选择有效的段落内容文件")
+            self.status_var.set(tr("tool.srt.refine.error_no_input"))
             return
         if not prompt:
-            self.status_var.set("⚠ 请输入Prompt提示语")
+            self.status_var.set(tr("tool.srt.common.error_no_prompt"))
             return
         output_path = _resolve_output(input_path, self.output_var, "subs-segment-refined.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
+            self.status_var.set(tr("tool.srt.common.error_cannot_create_dir", e=e))
             return
 
-        self.status_var.set("正在精炼分段描述...")
+        self.status_var.set(tr("tool.srt.refine.status_running"))
         self._btn.config(state="disabled")
 
         def _work():
@@ -777,12 +781,12 @@ class SrtRefineSegmentsApp(ToolBase):
                 result = srt_ops.refine_segment_descriptions(input_path, prompt)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
-                self.status_var.set("精炼完成")
-                logger.info(f"精炼分段内容已保存 → {os.path.basename(output_path)}")
+                self.status_var.set(tr("tool.srt.refine.status_done"))
+                logger.info(tr("tool.srt.refine.log_done", filename=os.path.basename(output_path)))
                 self.set_done()
             except Exception as e:
-                self.set_error(f"精炼分段失败: {e}")
-                self.status_var.set("精炼失败")
+                self.set_error(tr("tool.srt.refine.error_failed", e=e))
+                self.status_var.set(tr("tool.srt.refine.status_fail"))
             finally:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
 
@@ -803,7 +807,7 @@ class SrtGenerateTitlesApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("生成标题")
+        master.title(tr("tool.srt.gen_titles.title"))
         master.geometry("750x380")
 
         self.subs_var = tk.StringVar()
@@ -818,41 +822,39 @@ class SrtGenerateTitlesApp(ToolBase):
 
     def _build_ui(self):
         f = self.master
-        tk.Label(f, text="Subs文件:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(f, text=tr("tool.srt.gen_titles.subs_label")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         tk.Entry(f, textvariable=self.subs_var, width=50).grid(row=0, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_subs).grid(row=0, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_subs).grid(row=0, column=2, padx=10)
 
-        tk.Label(f, text="AI 档位:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        tk.Label(f, text="高档 (Premium) — 最强模型", fg="#228B22",
-                 font=("Arial", 9)).grid(row=1, column=1, sticky="w")
-        tk.Button(f, text="AI Router 管理",
+        tk.Button(f, text=tr("tool.srt.common.router_btn"),
                   command=lambda: _open_router_manager_for(self.master)).grid(row=1, column=2, padx=10)
 
-        tk.Label(f, text="Prompt提示语:").grid(row=2, column=0, padx=10, pady=5, sticky="ne")
+        tk.Label(f, text=tr("tool.srt.common.prompt_label")).grid(row=2, column=0, padx=10, pady=5, sticky="ne")
         self._prompt = tk.Text(f, height=6, width=50, wrap=tk.WORD)
         self._prompt.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
         self._prompt.insert(tk.END, self._DEFAULT_PROMPT)
 
-        tk.Label(f, text="输出文件:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(f, text=tr("tool.srt.common.output_file")).grid(row=3, column=0, padx=10, pady=5, sticky="e")
         tk.Entry(f, textvariable=self.output_var, width=50).grid(row=3, column=1, sticky="w")
-        tk.Button(f, text="浏览", command=self._select_output).grid(row=3, column=2, padx=10)
+        tk.Button(f, text=tr("tool.srt.common.browse"), command=self._select_output).grid(row=3, column=2, padx=10)
 
-        self._btn = tk.Button(f, text="生成标题", command=self._run, width=20)
+        self._btn = tk.Button(f, text=tr("tool.srt.gen_titles.btn_run"), command=self._run, width=20)
         self._btn.grid(row=4, column=1, pady=25)
 
         tk.Label(f, textvariable=self.status_var, fg="blue").grid(
             row=5, column=0, columnspan=3, pady=10)
 
     def _select_subs(self):
-        path = filedialog.askopenfilename(title="选择Subs文件",
-                                          filetypes=[("Text files", "*.txt")])
+        path = filedialog.askopenfilename(title=tr("tool.srt.common.select_output_title"),
+                                          filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.subs_var.set(path)
             self.output_var.set(os.path.join(os.path.dirname(path), "titles.txt"))
 
     def _select_output(self):
-        path = filedialog.asksaveasfilename(title="选择输出文件", defaultextension=".txt",
-                                            filetypes=[("Text files", "*.txt")])
+        path = filedialog.asksaveasfilename(title=tr("tool.srt.common.select_output_title"),
+                                            defaultextension=".txt",
+                                            filetypes=[(tr("tool.srt.common.filter.txt"), "*.txt")])
         if path:
             self.output_var.set(path)
 
@@ -860,19 +862,19 @@ class SrtGenerateTitlesApp(ToolBase):
         subs_path = self.subs_var.get()
         prompt = self._prompt.get("1.0", tk.END).strip()
         if not subs_path or not os.path.exists(subs_path):
-            self.status_var.set("⚠ 请选择有效的Subs文件")
+            self.status_var.set(tr("tool.srt.gen_titles.error_no_subs"))
             return
         if not prompt:
-            self.status_var.set("⚠ 请输入Prompt提示语")
+            self.status_var.set(tr("tool.srt.common.error_no_prompt"))
             return
         output_path = _resolve_output(subs_path, self.output_var, "titles.txt")
         try:
             _ensure_dir(output_path)
         except Exception as e:
-            self.status_var.set(f"⚠ 无法创建输出目录: {e}")
+            self.status_var.set(tr("tool.srt.common.error_cannot_create_dir", e=e))
             return
 
-        self.status_var.set("正在生成标题...")
+        self.status_var.set(tr("tool.srt.gen_titles.status_running"))
         self._btn.config(state="disabled")
 
         def _work():
@@ -880,12 +882,12 @@ class SrtGenerateTitlesApp(ToolBase):
                 result = srt_ops.generate_video_titles(subs_path, prompt)
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result)
-                self.status_var.set("生成完成")
-                logger.info(f"视频标题已生成 → {os.path.basename(output_path)}")
+                self.status_var.set(tr("tool.srt.gen_titles.status_done"))
+                logger.info(tr("tool.srt.gen_titles.log_done", filename=os.path.basename(output_path)))
                 self.set_done()
             except Exception as e:
-                self.set_error(f"生成标题失败: {e}")
-                self.status_var.set("生成失败")
+                self.set_error(tr("tool.srt.gen_titles.error_failed", e=e))
+                self.status_var.set(tr("tool.srt.gen_titles.status_fail"))
             finally:
                 self.master.after(0, lambda: self._btn.config(state="normal"))
 
