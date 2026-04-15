@@ -10,6 +10,8 @@
 | 优先级 | 状态 | 功能 | 说明 |
 |--------|------|------|------|
 | 🔴 P1 | [ ] | PPT 视频生成管线 | Claude 对话产出 slide（md/html）→ PPT 插件渲染 → Claude 写备注讲稿 → TTS（Edge TTS 免费档 / Fish Audio 发布档）→ PPT 每页导出 PNG → ffmpeg 按音频时长拼接 + 字幕烧录 → MP4。完整管线草案见 [docs/draft/PPT2Videopipeline.md](docs/draft/PPT2Videopipeline.md) |
+| 🔴 P1 | [ ] | 删除三个旧视频分割入口 | 综合视频分割工作台（`tools/video/split_workbench.py`）已 ship，可以清理被它取代的老入口：`splitvideo` (`tools/video/split_video.py` / `SplitVideoApp`)、`extract-clip`（`tools/video/video_tools.py::ExtractClipApp`）、`auto-split`（`tools/video/video_tools.py::AutoSplitApp`）。操作：从 `VideoCraftHub.py` 菜单注册中移除三个 tool_key，删除对应类/文件，同步 i18n 清理。已确认没有其他模块 import 这三个类，清理范围只涉及 Hub + tools/video 内部 |
+| 🔴 P1 | [ ] | 字幕处理综合工作台 | 对标 `split_workbench.py` 的做法，把字幕菜单下目前四个独立窗口合并为一个工作台：提取字幕文字（`srt_tools.py::SrtExtractSubtitlesApp`）、生成分段描述（`SrtGenerateSegmentsApp`）、提取段落内容（`SrtExtractParagraphsApp`）、精炼分段（`SrtRefineSegmentsApp`）。单一界面承载 SRT 载入 → 提取/分段/润色 串联工作流，避免用户在四个独立窗口间来回切换。老入口可先保留以便平滑迁移，稳定后再删 |
 
 ---
 
