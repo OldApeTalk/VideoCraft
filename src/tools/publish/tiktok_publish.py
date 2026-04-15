@@ -23,6 +23,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import requests
 
+from i18n import tr
 from tools.base import ToolBase
 
 # ── API 端点 ──────────────────────────────────────────────────────────────────
@@ -39,11 +40,13 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _KEYS_DIR = os.path.normpath(os.path.join(_HERE, "../../../keys"))
 _TOKEN_FILE = os.path.join(_KEYS_DIR, "tiktok_token.json")
 
-_PRIVACY_OPTIONS = [
-    ("公开", "PUBLIC_TO_EVERYONE"),
-    ("好友可见", "MUTUAL_FOLLOW_FRIENDS"),
-    ("仅自己", "SELF_ONLY"),
-]
+def _privacy_options():
+    """Build the privacy option list with current-locale labels."""
+    return [
+        (tr("tool.tiktok.privacy_public"),  "PUBLIC_TO_EVERYONE"),
+        (tr("tool.tiktok.privacy_friends"), "MUTUAL_FOLLOW_FRIENDS"),
+        (tr("tool.tiktok.privacy_self"),    "SELF_ONLY"),
+    ]
 
 
 # ── OAuth 回调服务器 ───────────────────────────────────────────────────────────
@@ -58,7 +61,7 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
             error = params.get("error", [None])[0]
             self.server._auth_code = code
             self.server._auth_error = error
-            body = b"<html><body><h2>\u6388\u6743\u5b8c\u6210\uff0c\u8bf7\u5173\u95ed\u6b64\u9875\u9762\u8fd4\u56de\u5e94\u7528\u3002</h2></body></html>"
+            body = f"<html><body><h2>{tr('tool.publish.common.oauth_done_page')}</h2></body></html>".encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -78,7 +81,7 @@ class TikTokPublishApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("TikTok 发布")
+        master.title(tr("tool.tiktok.title"))
         master.geometry("640x700")
 
         self._creds = {}          # 运行时凭证缓存
@@ -109,58 +112,62 @@ class TikTokPublishApp(ToolBase):
         root = self.master
         pad = {"padx": 10, "pady": 4}
 
-        # ── 账号区 ─────────────────────────────────────────────────────
-        acct_frame = ttk.LabelFrame(root, text="账号")
+        # ── Account ──
+        acct_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.account"))
         acct_frame.pack(fill="x", **pad)
 
         self._lbl_status = ttk.Label(acct_frame, text=self._status_text(), foreground=self._status_color())
         self._lbl_status.grid(row=0, column=0, sticky="w", padx=8, pady=6)
 
-        ttk.Button(acct_frame, text="授权登录", command=self._on_login).grid(row=0, column=1, padx=4)
-        ttk.Button(acct_frame, text="配置凭证", command=self._on_config_creds).grid(row=0, column=2, padx=4)
-        ttk.Button(acct_frame, text="注销", command=self._on_logout).grid(row=0, column=3, padx=4)
+        ttk.Button(acct_frame, text=tr("tool.publish.common.btn_login"),
+                   command=self._on_login).grid(row=0, column=1, padx=4)
+        ttk.Button(acct_frame, text=tr("tool.tiktok.btn_config_creds"),
+                   command=self._on_config_creds).grid(row=0, column=2, padx=4)
+        ttk.Button(acct_frame, text=tr("tool.publish.common.btn_logout"),
+                   command=self._on_logout).grid(row=0, column=3, padx=4)
 
-        # ── 视频信息区 ─────────────────────────────────────────────────
-        info_frame = ttk.LabelFrame(root, text="发布信息")
+        # ── Publish info ──
+        info_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.info"))
         info_frame.pack(fill="x", **pad)
         info_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(info_frame, text="视频文件").grid(row=0, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.publish.common.video_file")).grid(row=0, column=0, sticky="w", padx=8, pady=4)
         self._var_video = tk.StringVar()
         ttk.Entry(info_frame, textvariable=self._var_video).grid(row=0, column=1, sticky="ew", padx=4)
-        ttk.Button(info_frame, text="浏览", command=self._browse_video).grid(row=0, column=2, padx=4)
+        ttk.Button(info_frame, text=tr("tool.publish.common.browse"),
+                   command=self._browse_video).grid(row=0, column=2, padx=4)
 
-        ttk.Label(info_frame, text="标题").grid(row=1, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.publish.common.title_label")).grid(row=1, column=0, sticky="w", padx=8, pady=4)
         self._var_title = tk.StringVar()
         ttk.Entry(info_frame, textvariable=self._var_title).grid(row=1, column=1, columnspan=2, sticky="ew", padx=4)
 
-        ttk.Label(info_frame, text="话题标签").grid(row=2, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.tiktok.hashtags_label")).grid(row=2, column=0, sticky="w", padx=8, pady=4)
         self._var_tags = tk.StringVar()
         ttk.Entry(info_frame, textvariable=self._var_tags).grid(row=2, column=1, columnspan=2, sticky="ew", padx=4)
-        ttk.Label(info_frame, text="空格分隔，如: #travel #vlog", foreground="#888").grid(row=3, column=1, sticky="w", padx=4)
+        ttk.Label(info_frame, text=tr("tool.tiktok.hashtags_hint"), foreground="#888").grid(row=3, column=1, sticky="w", padx=4)
 
-        ttk.Label(info_frame, text="隐私设置").grid(row=4, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.tiktok.privacy_label")).grid(row=4, column=0, sticky="w", padx=8, pady=4)
         self._var_privacy = tk.StringVar(value="PUBLIC_TO_EVERYONE")
         priv_frame = ttk.Frame(info_frame)
         priv_frame.grid(row=4, column=1, columnspan=2, sticky="w", padx=4)
-        for label, value in _PRIVACY_OPTIONS:
+        for label, value in _privacy_options():
             ttk.Radiobutton(priv_frame, text=label, variable=self._var_privacy, value=value).pack(side="left", padx=6)
 
-        # ── 定时发布区 ─────────────────────────────────────────────────
-        sched_frame = ttk.LabelFrame(root, text="定时发布（需保持应用运行）")
+        # ── Schedule ──
+        sched_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.schedule"))
         sched_frame.pack(fill="x", **pad)
         sched_frame.columnconfigure(3, weight=1)
 
         self._var_sched_enable = tk.BooleanVar(value=False)
-        ttk.Checkbutton(sched_frame, text="启用", variable=self._var_sched_enable,
+        ttk.Checkbutton(sched_frame, text=tr("tool.publish.common.enable"), variable=self._var_sched_enable,
                         command=self._on_sched_toggle).grid(row=0, column=0, padx=8, pady=6)
 
-        ttk.Label(sched_frame, text="日期 (YYYY-MM-DD)").grid(row=0, column=1, padx=4)
+        ttk.Label(sched_frame, text=tr("tool.publish.common.date_label")).grid(row=0, column=1, padx=4)
         self._var_sched_date = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
         self._entry_date = ttk.Entry(sched_frame, textvariable=self._var_sched_date, width=12, state="disabled")
         self._entry_date.grid(row=0, column=2, padx=4)
 
-        ttk.Label(sched_frame, text="时间 (HH:MM)").grid(row=0, column=3, padx=4)
+        ttk.Label(sched_frame, text=tr("tool.publish.common.time_label")).grid(row=0, column=3, padx=4)
         self._var_sched_time = tk.StringVar(value="09:00")
         self._entry_time = ttk.Entry(sched_frame, textvariable=self._var_sched_time, width=8, state="disabled")
         self._entry_time.grid(row=0, column=4, padx=4)
@@ -168,15 +175,16 @@ class TikTokPublishApp(ToolBase):
         self._lbl_countdown = ttk.Label(sched_frame, text="", foreground="#555")
         self._lbl_countdown.grid(row=1, column=0, columnspan=5, sticky="w", padx=8, pady=2)
 
-        # ── 操作按钮 ───────────────────────────────────────────────────
+        # ── Action buttons ──
         btn_frame = ttk.Frame(root)
         btn_frame.pack(fill="x", padx=10, pady=6)
-        self._btn_publish = ttk.Button(btn_frame, text="立即发布", command=self._on_publish)
+        self._btn_publish = ttk.Button(btn_frame, text=tr("tool.publish.common.btn_publish_now"), command=self._on_publish)
         self._btn_publish.pack(side="left", padx=4)
-        self._btn_cancel_sched = ttk.Button(btn_frame, text="取消排队", command=self._on_cancel_sched, state="disabled")
+        self._btn_cancel_sched = ttk.Button(btn_frame, text=tr("tool.publish.common.btn_cancel_sched"),
+                                            command=self._on_cancel_sched, state="disabled")
         self._btn_cancel_sched.pack(side="left", padx=4)
 
-        # ── 进度条 ─────────────────────────────────────────────────────
+        # ── Progress ──
         prog_frame = ttk.Frame(root)
         prog_frame.pack(fill="x", padx=10, pady=2)
         self._progress = ttk.Progressbar(prog_frame, mode="determinate", maximum=100)
@@ -184,8 +192,8 @@ class TikTokPublishApp(ToolBase):
         self._lbl_prog = ttk.Label(prog_frame, text="")
         self._lbl_prog.pack(anchor="w")
 
-        # ── 日志区 ─────────────────────────────────────────────────────
-        log_frame = ttk.LabelFrame(root, text="日志")
+        # ── Log ──
+        log_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.log_frame"))
         log_frame.pack(fill="both", expand=True, **pad)
         self._log_text = tk.Text(log_frame, height=8, state="disabled", wrap="word",
                                  font=("Consolas", 9), bg="#1e1e1e", fg="#d4d4d4",
@@ -195,13 +203,14 @@ class TikTokPublishApp(ToolBase):
         scroll.pack(side="right", fill="y")
         self._log_text.pack(fill="both", expand=True)
 
-    # ── 状态辅助 ───────────────────────────────────────────────────────────
+    # ── Status helpers ──
     def _status_text(self) -> str:
         at = self._creds.get("access_token")
         oid = self._creds.get("open_id", "")
         if at:
-            return f"已登录  open_id: {oid[:12]}..." if oid else "已登录"
-        return "未登录"
+            return (tr("tool.tiktok.status_logged_in_openid", open_id=oid[:12]) if oid
+                    else tr("tool.publish.common.status_logged_in"))
+        return tr("tool.publish.common.status_not_logged_in")
 
     def _status_color(self) -> str:
         return "#228B22" if self._creds.get("access_token") else "#CC3333"
@@ -224,11 +233,12 @@ class TikTokPublishApp(ToolBase):
             self._lbl_prog.config(text=text)
         self.master.after(0, _update)
 
-    # ── 事件处理 ───────────────────────────────────────────────────────────
+    # ── Event handlers ──
     def _browse_video(self):
         path = filedialog.askopenfilename(
-            title="选择视频文件",
-            filetypes=[("视频文件", "*.mp4 *.mov *.webm"), ("所有文件", "*.*")]
+            title=tr("tool.publish.common.dialog_select_video"),
+            filetypes=[(tr("tool.publish.common.filter_video"), "*.mp4 *.mov *.webm"),
+                       (tr("tool.publish.common.filter_all"), "*.*")]
         )
         if path:
             self._var_video.set(path)
@@ -241,9 +251,9 @@ class TikTokPublishApp(ToolBase):
             self._lbl_countdown.config(text="")
 
     def _on_config_creds(self):
-        """弹出对话框填写 client_key / client_secret。"""
+        """Dialog to fill in client_key / client_secret."""
         dlg = tk.Toplevel(self.master)
-        dlg.title("配置 TikTok 开发者凭证")
+        dlg.title(tr("tool.tiktok.dialog_config_title"))
         dlg.grab_set()
         dlg.resizable(False, False)
 
@@ -255,26 +265,27 @@ class TikTokPublishApp(ToolBase):
         var_cs = tk.StringVar(value=self._creds.get("client_secret", ""))
         ttk.Entry(dlg, textvariable=var_cs, show="*", width=44).grid(row=1, column=1, padx=6)
 
-        ttk.Label(dlg, text="申请地址: developers.tiktok.com", foreground="#555").grid(
+        ttk.Label(dlg, text=tr("tool.tiktok.apply_hint"), foreground="#555").grid(
             row=2, column=0, columnspan=2, padx=10, pady=2, sticky="w")
 
         def _save():
             ck = var_ck.get().strip()
             cs = var_cs.get().strip()
             if not ck or not cs:
-                messagebox.showwarning("提示", "client_key 和 client_secret 均不能为空", parent=dlg)
+                messagebox.showwarning(tr("dialog.common.info"),
+                                       tr("tool.tiktok.warn_creds_empty"), parent=dlg)
                 return
             self._creds["client_key"] = ck
             self._creds["client_secret"] = cs
             self._save_credentials()
-            self._log_ui("开发者凭证已保存。")
+            self._log_ui(tr("tool.tiktok.log_creds_saved"))
             dlg.destroy()
 
-        ttk.Button(dlg, text="保存", command=_save).grid(row=3, column=0, columnspan=2, pady=10)
+        ttk.Button(dlg, text=tr("tool.tiktok.btn_save"), command=_save).grid(row=3, column=0, columnspan=2, pady=10)
 
     def _on_login(self):
         if not self._creds.get("client_key"):
-            messagebox.showinfo("提示", "请先点击「配置凭证」填写 client_key / client_secret。")
+            messagebox.showinfo(tr("dialog.common.info"), tr("tool.tiktok.warn_need_creds"))
             return
         threading.Thread(target=self._do_login, daemon=True).start()
 
@@ -283,15 +294,17 @@ class TikTokPublishApp(ToolBase):
             self._creds.pop(key, None)
         self._save_credentials()
         self._refresh_status_label()
-        self._log_ui("已注销。")
+        self._log_ui(tr("tool.tiktok.log_logout"))
 
     def _on_publish(self):
         video = self._var_video.get().strip()
         if not video or not os.path.isfile(video):
-            messagebox.showwarning("提示", "请先选择有效的视频文件。")
+            messagebox.showwarning(tr("dialog.common.info"),
+                                   tr("tool.publish.common.warn_no_video"))
             return
         if not self._ensure_token():
-            messagebox.showwarning("提示", "请先完成授权登录。")
+            messagebox.showwarning(tr("dialog.common.info"),
+                                   tr("tool.publish.common.warn_no_login"))
             return
 
         if self._var_sched_enable.get():
@@ -304,15 +317,15 @@ class TikTokPublishApp(ToolBase):
         if self._sched_timer:
             self._sched_timer.cancel()
             self._sched_timer = None
-        self._lbl_countdown.config(text="已取消排队。")
+        self._lbl_countdown.config(text=tr("tool.publish.common.sched_cancelled"))
         self._btn_cancel_sched.config(state="disabled")
         self._btn_publish.config(state="normal")
         self.set_idle()
-        self._log_ui("定时发布已取消。")
+        self._log_ui(tr("tool.publish.common.sched_cancelled_log"))
 
-    # ── OAuth PKCE 流 ──────────────────────────────────────────────────────
+    # ── OAuth PKCE flow ──
     def _do_login(self):
-        self._log_ui("开始 OAuth 授权流程...")
+        self._log_ui(tr("tool.tiktok.log_auth_start"))
         try:
             # 生成 PKCE
             verifier = urlsafe_b64encode(secrets.token_bytes(64)).rstrip(b"=").decode()
@@ -340,10 +353,10 @@ class TikTokPublishApp(ToolBase):
             server._auth_error = None
             server.timeout = 1
 
-            self._log_ui(f"正在打开浏览器授权页...")
+            self._log_ui(tr("tool.tiktok.log_opening_browser"))
             webbrowser.open(auth_url)
 
-            # 等待回调（最多 3 分钟）
+            # Wait for callback (max 3 minutes)
             deadline = time.time() + 180
             while time.time() < deadline:
                 server.handle_request()
@@ -353,14 +366,14 @@ class TikTokPublishApp(ToolBase):
             server.server_close()
 
             if server._auth_error:
-                self._log_ui(f"授权失败: {server._auth_error}")
+                self._log_ui(tr("tool.publish.common.auth_failed", e=server._auth_error))
                 return
             if not server._auth_code:
-                self._log_ui("授权超时，请重试。")
+                self._log_ui(tr("tool.publish.common.auth_timeout"))
                 return
 
-            # 换取 token
-            self._log_ui("正在换取 Access Token...")
+            # Exchange code for token
+            self._log_ui(tr("tool.tiktok.log_exchange_token"))
             resp = requests.post(_TOKEN_URL, json={
                 "client_key": self._creds["client_key"],
                 "client_secret": self._creds["client_secret"],
@@ -379,11 +392,11 @@ class TikTokPublishApp(ToolBase):
                 "expires_at": time.time() + data.get("expires_in", 86400) - 60,
             })
             self._save_credentials()
-            self._log_ui("授权成功！Access Token 已保存。")
+            self._log_ui(tr("tool.tiktok.log_auth_success"))
             self.master.after(0, self._refresh_status_label)
 
         except Exception as e:
-            self._log_ui(f"登录出错: {e}")
+            self._log_ui(tr("tool.tiktok.log_login_error", e=e))
             self.log_error(f"TikTok login error: {e}")
 
     # ── Token 刷新 ─────────────────────────────────────────────────────────
@@ -413,10 +426,10 @@ class TikTokPublishApp(ToolBase):
                 "expires_at": time.time() + data.get("expires_in", 86400) - 60,
             })
             self._save_credentials()
-            self._log_ui("Access Token 已自动刷新。")
+            self._log_ui(tr("tool.tiktok.log_token_refreshed"))
             return True
         except Exception as e:
-            self._log_ui(f"Token 刷新失败: {e}")
+            self._log_ui(tr("tool.tiktok.log_token_refresh_failed", e=e))
             return False
 
     # ── 分块上传 ───────────────────────────────────────────────────────────
@@ -447,8 +460,9 @@ class TikTokPublishApp(ToolBase):
         }
 
         try:
-            self._log_ui(f"初始化上传... 文件大小: {file_size / 1024 / 1024:.1f} MB, 共 {total_chunks} 块")
-            self._set_progress(0, "初始化上传...")
+            self._log_ui(tr("tool.tiktok.log_init_upload",
+                            size_mb=file_size / 1024 / 1024, total_chunks=total_chunks))
+            self._set_progress(0, tr("tool.tiktok.progress_init"))
 
             # Step 1: init
             init_payload = {
@@ -471,9 +485,9 @@ class TikTokPublishApp(ToolBase):
             init_data = resp.json()
 
             if init_data.get("error", {}).get("code") != "ok":
-                msg = init_data.get("error", {}).get("message", "未知错误")
-                self._log_ui(f"初始化失败: {msg}")
-                self.set_error(f"TikTok 上传初始化失败: {msg}")
+                msg = init_data.get("error", {}).get("message", tr("tool.tiktok.err_unknown"))
+                self._log_ui(tr("tool.tiktok.log_init_failed", msg=msg))
+                self.set_error(tr("tool.tiktok.error_init_failed", msg=msg))
                 return
 
             publish_id = init_data["data"]["publish_id"]
@@ -496,13 +510,13 @@ class TikTokPublishApp(ToolBase):
                     put_resp = requests.put(upload_url, headers=put_headers, data=data, timeout=120)
                     put_resp.raise_for_status()
 
-                    pct = int((i + 1) / total_chunks * 80)  # 上传占 80%
-                    self._set_progress(pct, f"上传第 {i+1}/{total_chunks} 块...")
-                    self._log_ui(f"已上传块 {i+1}/{total_chunks} ({content_range})")
+                    pct = int((i + 1) / total_chunks * 80)  # upload accounts for 80%
+                    self._set_progress(pct, tr("tool.tiktok.progress_chunk", i=i + 1, total=total_chunks))
+                    self._log_ui(tr("tool.tiktok.log_chunk_done", i=i + 1, total=total_chunks, content_range=content_range))
 
-            # Step 3: 轮询发布状态
-            self._log_ui("上传完成，等待 TikTok 处理...")
-            self._set_progress(85, "等待发布处理...")
+            # Step 3: poll publish status
+            self._log_ui(tr("tool.tiktok.log_upload_done_waiting"))
+            self._set_progress(85, tr("tool.tiktok.progress_waiting"))
             for attempt in range(30):
                 time.sleep(5)
                 status_resp = requests.get(
@@ -514,46 +528,48 @@ class TikTokPublishApp(ToolBase):
                 status_resp.raise_for_status()
                 st_data = status_resp.json()
                 status = st_data.get("data", {}).get("status", "")
-                self._log_ui(f"发布状态: {status}")
+                self._log_ui(tr("tool.tiktok.log_status_fmt", status=status))
 
                 if status == "PUBLISH_COMPLETE":
-                    self._set_progress(100, "发布成功！")
-                    self._log_ui("视频已成功发布到 TikTok！")
+                    self._set_progress(100, tr("tool.tiktok.progress_success"))
+                    self._log_ui(tr("tool.tiktok.log_publish_success"))
                     self.set_done()
                     return
                 elif status in ("FAILED", "PUBLISH_FAILED"):
                     fail_code = st_data.get("data", {}).get("fail_reason", "")
-                    self._log_ui(f"发布失败: {fail_code}")
-                    self.set_error(f"TikTok 发布失败: {fail_code}")
+                    self._log_ui(tr("tool.tiktok.log_publish_failed", fail_code=fail_code))
+                    self.set_error(tr("tool.tiktok.error_publish_failed", fail_code=fail_code))
                     return
 
             # Polling timed out without definitive success/failure — warn, not error.
-            self._log_ui("发布状态查询超时，请到 TikTok 后台确认。")
-            self.set_warning("TikTok 发布状态查询超时，请到后台确认结果")
+            self._log_ui(tr("tool.tiktok.log_poll_timeout"))
+            self.set_warning(tr("tool.tiktok.warning_poll_timeout"))
 
         except requests.HTTPError as e:
-            self._log_ui(f"HTTP 错误: {e.response.status_code} - {e.response.text[:200]}")
-            self.set_error(f"TikTok 上传 HTTP 错误: {e}")
+            self._log_ui(tr("tool.tiktok.log_http_error",
+                            code=e.response.status_code, text=e.response.text[:200]))
+            self.set_error(tr("tool.tiktok.error_http", e=e))
         except Exception as e:
-            self._log_ui(f"上传出错: {e}")
-            self.set_error(f"TikTok 上传失败: {e}")
+            self._log_ui(tr("tool.tiktok.log_upload_error", e=e))
+            self.set_error(tr("tool.tiktok.error_upload", e=e))
 
-    # ── 定时发布 ───────────────────────────────────────────────────────────
+    # ── Scheduled publish ──
     def _schedule_publish(self):
         date_str = self._var_sched_date.get().strip()
         time_str = self._var_sched_time.get().strip()
         try:
             target = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
         except ValueError:
-            messagebox.showwarning("提示", "日期格式应为 YYYY-MM-DD，时间格式应为 HH:MM。")
+            messagebox.showwarning(tr("dialog.common.info"), tr("tool.publish.common.warn_bad_date"))
             return
 
         delay = (target - datetime.now()).total_seconds()
         if delay <= 0:
-            messagebox.showwarning("提示", "定时时间必须晚于当前时间。")
+            messagebox.showwarning(tr("dialog.common.info"), tr("tool.publish.common.warn_past_time"))
             return
 
-        self._log_ui(f"已排队定时发布，将于 {target.strftime('%Y-%m-%d %H:%M')} 发布（{delay/60:.1f} 分钟后）。")
+        self._log_ui(tr("tool.publish.common.sched_queued",
+                        target=target.strftime('%Y-%m-%d %H:%M'), minutes=delay / 60))
         self._btn_publish.config(state="disabled")
         self._btn_cancel_sched.config(state="normal")
         self.set_busy()
@@ -565,24 +581,24 @@ class TikTokPublishApp(ToolBase):
 
     def _on_sched_fire(self):
         self._sched_timer = None
-        self._log_ui("定时发布触发！")
+        self._log_ui(tr("tool.publish.common.sched_triggered"))
         self.master.after(0, lambda: self._btn_cancel_sched.config(state="disabled"))
         self.master.after(0, lambda: self._btn_publish.config(state="normal"))
         self.master.after(0, lambda: self._lbl_countdown.config(text=""))
         self._do_upload()
 
     def _start_countdown(self, target: datetime):
-        """每秒更新倒计时 label（在主线程）。"""
+        """Update the countdown label every second (on the main thread)."""
         def _tick():
             remaining = (target - datetime.now()).total_seconds()
             if self._sched_timer is None:
                 return
             if remaining <= 0:
-                self._lbl_countdown.config(text="即将发布...")
+                self._lbl_countdown.config(text=tr("tool.publish.common.countdown_imminent"))
                 return
             h = int(remaining // 3600)
             m = int((remaining % 3600) // 60)
             s = int(remaining % 60)
-            self._lbl_countdown.config(text=f"距离发布: {h:02d}:{m:02d}:{s:02d}")
+            self._lbl_countdown.config(text=tr("tool.publish.common.countdown_fmt", h=h, m=m, s=s))
             self.master.after(1000, _tick)
         self.master.after(1000, _tick)

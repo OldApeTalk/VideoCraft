@@ -23,6 +23,7 @@ from tkinter import filedialog, messagebox, ttk
 import requests
 
 from hub_logger import logger
+from i18n import tr
 from tools.base import ToolBase
 
 # ── API 端点 ──────────────────────────────────────────────────────────────────
@@ -49,11 +50,13 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _KEYS_DIR = os.path.normpath(os.path.join(_HERE, "../../../keys"))
 _TOKEN_FILE = os.path.join(_KEYS_DIR, "youtube_token.json")
 
-_PRIVACY_OPTIONS = [
-    ("公开", "public"),
-    ("不公开列出", "unlisted"),
-    ("私享", "private"),
-]
+def _privacy_options():
+    """Build the visibility option list with current-locale labels."""
+    return [
+        (tr("tool.youtube.vis_public"),   "public"),
+        (tr("tool.youtube.vis_unlisted"), "unlisted"),
+        (tr("tool.youtube.vis_private"),  "private"),
+    ]
 
 
 # ── 读取 Google client_secret ──────────────────────────────────────────────────
@@ -83,7 +86,7 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
             params = urllib.parse.parse_qs(parsed.query)
             self.server._auth_code  = params.get("code",  [None])[0]
             self.server._auth_error = params.get("error", [None])[0]
-            body = "授权完成，请关闭此页面返回应用。".encode("utf-8")
+            body = tr("tool.publish.common.oauth_done_page").encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -134,7 +137,7 @@ class YouTubePublishApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("YouTube 发布")
+        master.title(tr("tool.youtube.title"))
         master.geometry("680x780")
 
         self._creds: dict = {}          # 运行时凭证缓存
@@ -175,8 +178,8 @@ class YouTubePublishApp(ToolBase):
         root = self.master
         pad = {"padx": 10, "pady": 4}
 
-        # ── 账号区 ─────────────────────────────────────────────────────
-        acct_frame = ttk.LabelFrame(root, text="账号")
+        # ── Account ──
+        acct_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.account"))
         acct_frame.pack(fill="x", **pad)
 
         self._lbl_status = ttk.Label(
@@ -184,50 +187,54 @@ class YouTubePublishApp(ToolBase):
         )
         self._lbl_status.grid(row=0, column=0, sticky="w", padx=8, pady=6)
 
-        ttk.Button(acct_frame, text="授权登录", command=self._on_login).grid(row=0, column=1, padx=4)
-        ttk.Button(acct_frame, text="注销", command=self._on_logout).grid(row=0, column=2, padx=4)
+        ttk.Button(acct_frame, text=tr("tool.publish.common.btn_login"),
+                   command=self._on_login).grid(row=0, column=1, padx=4)
+        ttk.Button(acct_frame, text=tr("tool.publish.common.btn_logout"),
+                   command=self._on_logout).grid(row=0, column=2, padx=4)
 
-        # 密钥文件行
-        ttk.Label(acct_frame, text="密钥文件").grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
+        # Client secret row
+        ttk.Label(acct_frame, text=tr("tool.youtube.secret_file_label")).grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
         self._lbl_secret = ttk.Label(acct_frame, text=self._secret_file_text(), foreground="#555")
         self._lbl_secret.grid(row=1, column=1, sticky="w", padx=4)
-        ttk.Button(acct_frame, text="选择…", command=self._on_choose_secret).grid(row=1, column=2, padx=4)
+        ttk.Button(acct_frame, text=tr("tool.youtube.btn_choose_secret"),
+                   command=self._on_choose_secret).grid(row=1, column=2, padx=4)
 
-        # ── 发布信息区 ─────────────────────────────────────────────────
-        info_frame = ttk.LabelFrame(root, text="发布信息")
+        # ── Publish info ──
+        info_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.info"))
         info_frame.pack(fill="x", **pad)
         info_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(info_frame, text="视频文件").grid(row=0, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.publish.common.video_file")).grid(row=0, column=0, sticky="w", padx=8, pady=4)
         self._var_video = tk.StringVar()
         ttk.Entry(info_frame, textvariable=self._var_video).grid(row=0, column=1, sticky="ew", padx=4)
-        ttk.Button(info_frame, text="浏览", command=self._browse_video).grid(row=0, column=2, padx=4)
+        ttk.Button(info_frame, text=tr("tool.publish.common.browse"),
+                   command=self._browse_video).grid(row=0, column=2, padx=4)
 
-        ttk.Label(info_frame, text="标题").grid(row=1, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.publish.common.title_label")).grid(row=1, column=0, sticky="w", padx=8, pady=4)
         self._var_title = tk.StringVar()
         ttk.Entry(info_frame, textvariable=self._var_title).grid(row=1, column=1, columnspan=2, sticky="ew", padx=4)
-        ttk.Label(info_frame, text="最多 100 字符", foreground="#888").grid(row=2, column=1, sticky="w", padx=4)
+        ttk.Label(info_frame, text=tr("tool.youtube.title_hint"), foreground="#888").grid(row=2, column=1, sticky="w", padx=4)
 
-        ttk.Label(info_frame, text="描述").grid(row=3, column=0, sticky="nw", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.youtube.desc_label")).grid(row=3, column=0, sticky="nw", padx=8, pady=4)
         self._txt_desc = tk.Text(info_frame, height=4, wrap="word", font=("Segoe UI", 9))
         self._txt_desc.grid(row=3, column=1, columnspan=2, sticky="ew", padx=4, pady=2)
 
-        ttk.Label(info_frame, text="标签").grid(row=4, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(info_frame, text=tr("tool.youtube.tags_label")).grid(row=4, column=0, sticky="w", padx=8, pady=4)
         self._var_tags = tk.StringVar()
         ttk.Entry(info_frame, textvariable=self._var_tags).grid(row=4, column=1, columnspan=2, sticky="ew", padx=4)
-        ttk.Label(info_frame, text="逗号分隔，如: travel,vlog,youtube", foreground="#888").grid(row=5, column=1, sticky="w", padx=4)
+        ttk.Label(info_frame, text=tr("tool.youtube.tags_hint"), foreground="#888").grid(row=5, column=1, sticky="w", padx=4)
 
-        # ── 可见性区 ───────────────────────────────────────────────────
-        vis_frame = ttk.LabelFrame(root, text="可见性")
+        # ── Visibility ──
+        vis_frame = ttk.LabelFrame(root, text=tr("tool.youtube.visibility_frame"))
         vis_frame.pack(fill="x", **pad)
         self._var_privacy = tk.StringVar(value="private")
-        for label, value in _PRIVACY_OPTIONS:
+        for label, value in _privacy_options():
             ttk.Radiobutton(vis_frame, text=label, variable=self._var_privacy, value=value).pack(
                 side="left", padx=12, pady=6
             )
 
-        # ── 播放列表区 ─────────────────────────────────────────────────
-        pl_frame = ttk.LabelFrame(root, text="添加到播放列表（可选，可多选）")
+        # ── Playlists ──
+        pl_frame = ttk.LabelFrame(root, text=tr("tool.youtube.playlist_frame"))
         pl_frame.pack(fill="x", **pad)
 
         pl_top = tk.Frame(pl_frame)
@@ -236,26 +243,26 @@ class YouTubePublishApp(ToolBase):
         self._pl_inner = _WrapFrame(pl_top)
         self._pl_inner.pack(side="left", fill="x", expand=True)
 
-        ttk.Button(pl_top, text="刷新", command=self._on_refresh_playlists).pack(
-            side="right", padx=4)
+        ttk.Button(pl_top, text=tr("tool.youtube.btn_refresh"),
+                   command=self._on_refresh_playlists).pack(side="right", padx=4)
 
         self._pl_vars: dict[str, tk.BooleanVar] = {}   # playlist_id → BooleanVar
 
-        # ── 定时发布区 ─────────────────────────────────────────────────
-        sched_frame = ttk.LabelFrame(root, text="定时发布（需保持应用运行）")
+        # ── Schedule ──
+        sched_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.schedule"))
         sched_frame.pack(fill="x", **pad)
         sched_frame.columnconfigure(3, weight=1)
 
         self._var_sched_enable = tk.BooleanVar(value=False)
-        ttk.Checkbutton(sched_frame, text="启用", variable=self._var_sched_enable,
+        ttk.Checkbutton(sched_frame, text=tr("tool.publish.common.enable"), variable=self._var_sched_enable,
                         command=self._on_sched_toggle).grid(row=0, column=0, padx=8, pady=6)
 
-        ttk.Label(sched_frame, text="日期 (YYYY-MM-DD)").grid(row=0, column=1, padx=4)
+        ttk.Label(sched_frame, text=tr("tool.publish.common.date_label")).grid(row=0, column=1, padx=4)
         self._var_sched_date = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
         self._entry_date = ttk.Entry(sched_frame, textvariable=self._var_sched_date, width=12, state="disabled")
         self._entry_date.grid(row=0, column=2, padx=4)
 
-        ttk.Label(sched_frame, text="时间 (HH:MM)").grid(row=0, column=3, padx=4)
+        ttk.Label(sched_frame, text=tr("tool.publish.common.time_label")).grid(row=0, column=3, padx=4)
         self._var_sched_time = tk.StringVar(value="09:00")
         self._entry_time = ttk.Entry(sched_frame, textvariable=self._var_sched_time, width=8, state="disabled")
         self._entry_time.grid(row=0, column=4, padx=4)
@@ -263,16 +270,17 @@ class YouTubePublishApp(ToolBase):
         self._lbl_countdown = ttk.Label(sched_frame, text="", foreground="#555")
         self._lbl_countdown.grid(row=1, column=0, columnspan=5, sticky="w", padx=8, pady=2)
 
-        # ── 操作按钮 ───────────────────────────────────────────────────
+        # ── Action buttons ──
         btn_frame = ttk.Frame(root)
         btn_frame.pack(fill="x", padx=10, pady=6)
-        self._btn_publish = ttk.Button(btn_frame, text="立即发布", command=self._on_publish)
+        self._btn_publish = ttk.Button(btn_frame, text=tr("tool.publish.common.btn_publish_now"),
+                                       command=self._on_publish)
         self._btn_publish.pack(side="left", padx=4)
-        self._btn_cancel_sched = ttk.Button(btn_frame, text="取消排队",
+        self._btn_cancel_sched = ttk.Button(btn_frame, text=tr("tool.publish.common.btn_cancel_sched"),
                                             command=self._on_cancel_sched, state="disabled")
         self._btn_cancel_sched.pack(side="left", padx=4)
 
-        # ── 进度条 ─────────────────────────────────────────────────────
+        # ── Progress ──
         prog_frame = ttk.Frame(root)
         prog_frame.pack(fill="x", padx=10, pady=2)
         self._progress = ttk.Progressbar(prog_frame, mode="determinate", maximum=100)
@@ -280,8 +288,8 @@ class YouTubePublishApp(ToolBase):
         self._lbl_prog = ttk.Label(prog_frame, text="")
         self._lbl_prog.pack(anchor="w")
 
-        # ── 日志区 ─────────────────────────────────────────────────────
-        log_frame = ttk.LabelFrame(root, text="日志")
+        # ── Log ──
+        log_frame = ttk.LabelFrame(root, text=tr("tool.publish.common.log_frame"))
         log_frame.pack(fill="both", expand=True, **pad)
         self._log_text = tk.Text(log_frame, height=8, state="disabled", wrap="word",
                                  font=("Consolas", 9), bg="#1e1e1e", fg="#d4d4d4",
@@ -291,42 +299,46 @@ class YouTubePublishApp(ToolBase):
         scroll.pack(side="right", fill="y")
         self._log_text.pack(fill="both", expand=True)
 
-    # ── 密钥文件选择 ───────────────────────────────────────────────────────
+    # ── Client secret selection ──
     def _secret_file_text(self) -> str:
         path = self._creds.get("client_secret_path", "")
         if path and os.path.isfile(path):
             return os.path.basename(path)
-        # 检查是否自动找到了文件
+        # Check if auto-detected
         if self._client.get("client_id"):
             matches = glob.glob(os.path.join(_KEYS_DIR, "client_secret_*.json"))
-            return os.path.basename(matches[0]) + "（自动）" if matches else "未选择"
-        return "未选择"
+            return (tr("tool.youtube.secret_auto", name=os.path.basename(matches[0]))
+                    if matches else tr("tool.youtube.secret_none"))
+        return tr("tool.youtube.secret_none")
 
     def _on_choose_secret(self):
         path = filedialog.askopenfilename(
-            title="选择 Google OAuth 密钥文件",
+            title=tr("tool.youtube.dialog_secret_title"),
             initialdir=_KEYS_DIR,
-            filetypes=[("JSON 密钥文件", "*.json"), ("所有文件", "*.*")],
+            filetypes=[(tr("tool.youtube.filter_json"), "*.json"),
+                       (tr("tool.publish.common.filter_all"), "*.*")],
         )
         if not path:
             return
         client = _load_client_secret(path)
         if not client.get("client_id"):
-            messagebox.showwarning("提示", "所选文件不是有效的 Google OAuth client_secret JSON。")
+            messagebox.showwarning(tr("dialog.common.info"),
+                                   tr("tool.youtube.warn_invalid_secret"))
             return
         self._client = client
         self._creds["client_secret_path"] = path
         self._save_credentials()
         self._lbl_secret.config(text=os.path.basename(path))
-        self._log_ui(f"已切换密钥文件: {os.path.basename(path)}")
+        self._log_ui(tr("tool.youtube.log_secret_switched", filename=os.path.basename(path)))
 
-    # ── 状态辅助 ───────────────────────────────────────────────────────────
+    # ── Status helpers ──
     def _status_text(self) -> str:
         at = self._creds.get("access_token")
         email = self._creds.get("email", "")
         if at:
-            return f"已登录  {email}" if email else "已登录"
-        return "未登录"
+            return (tr("tool.youtube.status_logged_in_email", email=email) if email
+                    else tr("tool.publish.common.status_logged_in"))
+        return tr("tool.publish.common.status_not_logged_in")
 
     def _status_color(self) -> str:
         return "#228B22" if self._creds.get("access_token") else "#CC3333"
@@ -351,8 +363,9 @@ class YouTubePublishApp(ToolBase):
     # ── 事件处理 ───────────────────────────────────────────────────────────
     def _browse_video(self):
         path = filedialog.askopenfilename(
-            title="选择视频文件",
-            filetypes=[("视频文件", "*.mp4 *.mov *.mkv *.webm *.avi"), ("所有文件", "*.*")]
+            title=tr("tool.publish.common.dialog_select_video"),
+            filetypes=[(tr("tool.publish.common.filter_video"), "*.mp4 *.mov *.mkv *.webm *.avi"),
+                       (tr("tool.publish.common.filter_all"), "*.*")]
         )
         if path:
             self._var_video.set(path)
@@ -366,11 +379,11 @@ class YouTubePublishApp(ToolBase):
 
     def _on_login(self):
         if not self._client.get("client_id"):
-            messagebox.showinfo("提示", "未找到 Google OAuth client_secret 文件，\n"
-                                "请将 client_secret_*.json 放入 keys/ 目录。")
+            messagebox.showinfo(tr("dialog.common.info"),
+                                tr("tool.youtube.warn_no_client_secret"))
             return
         if not self._login_lock.acquire(blocking=False):
-            self._log_ui("授权流程正在进行中，请稍候...")
+            self._log_ui(tr("tool.youtube.log_auth_in_progress"))
             return
         threading.Thread(target=self._do_login, daemon=True).start()
 
@@ -385,17 +398,19 @@ class YouTubePublishApp(ToolBase):
         self._save_credentials()
         self._playlists = []
         self.master.after(0, self._refresh_status_label)
-        self.master.after(0, lambda: self._cmb_playlist.configure(values=["（不添加）"]))
-        self.master.after(0, lambda: self._cmb_playlist.set("（不添加）"))
-        self._log_ui("已注销。")
+        self.master.after(0, lambda: self._cmb_playlist.configure(values=[tr("tool.youtube.playlist_none")]))
+        self.master.after(0, lambda: self._cmb_playlist.set(tr("tool.youtube.playlist_none")))
+        self._log_ui(tr("tool.youtube.log_logout"))
 
     def _on_publish(self):
         video = self._var_video.get().strip()
         if not video or not os.path.isfile(video):
-            messagebox.showwarning("提示", "请先选择有效的视频文件。")
+            messagebox.showwarning(tr("dialog.common.info"),
+                                   tr("tool.publish.common.warn_no_video"))
             return
         if not self._ensure_token():
-            messagebox.showwarning("提示", "请先完成授权登录。")
+            messagebox.showwarning(tr("dialog.common.info"),
+                                   tr("tool.publish.common.warn_no_login"))
             return
 
         if self._var_sched_enable.get():
@@ -408,21 +423,22 @@ class YouTubePublishApp(ToolBase):
         if self._sched_timer:
             self._sched_timer.cancel()
             self._sched_timer = None
-        self._lbl_countdown.config(text="已取消排队。")
+        self._lbl_countdown.config(text=tr("tool.publish.common.sched_cancelled"))
         self._btn_cancel_sched.config(state="disabled")
         self._btn_publish.config(state="normal")
         self.set_idle()
-        self._log_ui("定时发布已取消。")
+        self._log_ui(tr("tool.publish.common.sched_cancelled_log"))
 
     def _on_refresh_playlists(self):
         if not self._ensure_token():
-            messagebox.showwarning("提示", "请先登录。")
+            messagebox.showwarning(tr("dialog.common.info"),
+                                   tr("tool.youtube.warn_need_login"))
             return
         threading.Thread(target=self._fetch_playlists, daemon=True).start()
 
-    # ── OAuth 流 ───────────────────────────────────────────────────────────
+    # ── OAuth flow ──
     def _do_login(self):
-        self._log_ui("开始 Google OAuth 授权流程...")
+        self._log_ui(tr("tool.youtube.log_auth_start"))
         try:
             state = secrets.token_hex(16)
             redirect_uri = f"http://127.0.0.1:{_CALLBACK_PORT}{_CALLBACK_PATH}"
@@ -446,10 +462,10 @@ class YouTubePublishApp(ToolBase):
             srv_thread = threading.Thread(target=server.serve_forever, daemon=True)
             srv_thread.start()
 
-            self._log_ui("正在打开浏览器授权页...")
+            self._log_ui(tr("tool.youtube.log_opening_browser"))
             webbrowser.open(auth_url)
 
-            # 等待回调（最多 3 分钟）
+            # Wait for callback (max 3 minutes)
             deadline = time.time() + 180
             while time.time() < deadline:
                 if server._auth_code or server._auth_error:
@@ -459,14 +475,14 @@ class YouTubePublishApp(ToolBase):
             server.server_close()
 
             if server._auth_error:
-                self._log_ui(f"授权失败: {server._auth_error}")
+                self._log_ui(tr("tool.publish.common.auth_failed", e=server._auth_error))
                 return
             if not server._auth_code:
-                self._log_ui("授权超时，请重试。")
+                self._log_ui(tr("tool.publish.common.auth_timeout"))
                 return
 
-            # 换取 token
-            self._log_ui("正在换取 Access Token...")
+            # Exchange code for token
+            self._log_ui(tr("tool.youtube.log_exchange_token"))
             resp = requests.post(_TOKEN_URL, data={
                 "code": server._auth_code,
                 "client_id": self._client["client_id"],
@@ -489,14 +505,15 @@ class YouTubePublishApp(ToolBase):
                 self._creds["email"] = info_resp.json().get("email", "")
 
             self._save_credentials()
-            self._log_ui(f"授权成功！已登录为 {self._creds.get('email', '（未知）')}")
+            self._log_ui(tr("tool.youtube.log_auth_success",
+                            email=self._creds.get('email') or tr("tool.youtube.email_unknown")))
             self.master.after(0, self._refresh_status_label)
 
-            # 登录完成后拉取播放列表
+            # Fetch playlists after login
             self._fetch_playlists()
 
         except Exception as e:
-            self._log_ui(f"登录出错: {e}")
+            self._log_ui(tr("tool.youtube.log_login_error", e=e))
             self.log_error(f"YouTube login error: {e}")
         finally:
             self._login_lock.release()
@@ -525,10 +542,10 @@ class YouTubePublishApp(ToolBase):
                 "expires_at": time.time() + data.get("expires_in", 3600) - 60,
             })
             self._save_credentials()
-            self._log_ui("Access Token 已自动刷新。")
+            self._log_ui(tr("tool.youtube.log_token_refreshed"))
             return True
         except Exception as e:
-            self._log_ui(f"Token 刷新失败: {e}")
+            self._log_ui(tr("tool.youtube.log_token_refresh_failed", e=e))
             return False
 
     def _auth_headers(self) -> dict:
@@ -544,23 +561,24 @@ class YouTubePublishApp(ToolBase):
                 timeout=30,
             )
             if not resp.ok:
-                self._log_ui(f"拉取播放列表失败: HTTP {resp.status_code} - {resp.json().get('error', {}).get('message', resp.text[:100])}")
+                msg = resp.json().get('error', {}).get('message', resp.text[:100])
+                self._log_ui(tr("tool.youtube.log_playlists_failed_http", code=resp.status_code, msg=msg))
                 return
             items = resp.json().get("items", [])
             self._playlists = [
                 (it["snippet"]["title"], it["id"]) for it in items
             ]
             self.master.after(0, self._rebuild_playlist_checkboxes)
-            self._log_ui(f"已加载 {len(self._playlists)} 个播放列表。")
+            self._log_ui(tr("tool.youtube.log_playlists_loaded", count=len(self._playlists)))
         except Exception as e:
-            self._log_ui(f"拉取播放列表失败: {e}")
+            self._log_ui(tr("tool.youtube.log_playlists_failed", e=e))
 
     def _rebuild_playlist_checkboxes(self):
         for widget in self._pl_inner.winfo_children():
             widget.destroy()
         self._pl_vars.clear()
         if not self._playlists:
-            tk.Label(self._pl_inner, text="（暂无播放列表）", foreground="#888").place(x=0, y=4)
+            tk.Label(self._pl_inner, text=tr("tool.youtube.playlist_empty"), foreground="#888").place(x=0, y=4)
             self._pl_inner.configure(height=28)
             return
         for title, pid in self._playlists:
@@ -596,10 +614,10 @@ class YouTubePublishApp(ToolBase):
         }
 
         try:
-            self._log_ui(f"初始化 Resumable Upload... 文件大小: {file_size / 1024 / 1024:.1f} MB")
-            self._set_progress(0, "初始化上传...")
+            self._log_ui(tr("tool.youtube.log_init_upload", size_mb=file_size / 1024 / 1024))
+            self._set_progress(0, tr("tool.youtube.progress_init"))
 
-            # Step 1: 初始化 resumable upload，获取 upload URI
+            # Step 1: init resumable upload, get upload URI
             init_resp = requests.post(
                 _YT_UPLOAD_URL,
                 params={"uploadType": "resumable", "part": "snippet,status"},
@@ -615,12 +633,12 @@ class YouTubePublishApp(ToolBase):
             init_resp.raise_for_status()
             upload_uri = init_resp.headers.get("Location")
             if not upload_uri:
-                self._log_ui("未获取到上传 URI，初始化失败。")
+                self._log_ui(tr("tool.youtube.log_no_upload_uri"))
                 self.set_idle()
                 return
-            self._log_ui("上传 URI 已获取，开始分块上传...")
+            self._log_ui(tr("tool.youtube.log_upload_uri_ok"))
 
-            # Step 2: 分块上传
+            # Step 2: chunked upload
             video_id = None
             with open(video_path, "rb") as f:
                 offset = 0
@@ -645,43 +663,46 @@ class YouTubePublishApp(ToolBase):
                     )
 
                     if put_resp.status_code in (200, 201):
-                        # 上传完成
+                        # Upload complete
                         resp_json = put_resp.json()
                         video_id = resp_json.get("id")
-                        self._set_progress(95, "上传完成，处理中...")
-                        self._log_ui(f"视频上传完成！video_id: {video_id}")
+                        self._set_progress(95, tr("tool.youtube.progress_complete"))
+                        self._log_ui(tr("tool.youtube.log_upload_complete", video_id=video_id))
                         break
                     elif put_resp.status_code == 308:
-                        # 继续上传
+                        # Continue uploading
                         chunk_num += 1
                         pct = int(min(offset + len(chunk), file_size) / file_size * 90)
-                        self._set_progress(pct, f"上传块 {chunk_num}/{total_chunks}...")
-                        self._log_ui(f"已上传至 {end + 1}/{file_size} 字节")
+                        self._set_progress(pct, tr("tool.youtube.progress_chunk",
+                                                   chunk=chunk_num, total=total_chunks))
+                        self._log_ui(tr("tool.youtube.log_chunk_done", end=end + 1, total=file_size))
                         offset += len(chunk)
                     else:
-                        self._log_ui(f"上传出错: HTTP {put_resp.status_code} - {put_resp.text[:200]}")
+                        self._log_ui(tr("tool.youtube.log_upload_error_http",
+                                        code=put_resp.status_code, text=put_resp.text[:200]))
                         self.set_idle()
                         return
 
             if not video_id:
-                self._log_ui("未获取到 video_id，请检查上传状态。")
+                self._log_ui(tr("tool.youtube.log_no_video_id"))
                 self.set_idle()
                 return
 
-            # Step 3: 添加到播放列表（可选，多选）
+            # Step 3: add to playlists (optional, multi-select)
             for playlist_id in self._get_selected_playlist_ids():
                 self._add_to_playlist(video_id, playlist_id)
 
-            self._set_progress(100, "发布成功！")
-            self._log_ui(f"视频已成功发布！YouTube 链接: https://youtu.be/{video_id}")
+            self._set_progress(100, tr("tool.youtube.progress_success"))
+            self._log_ui(tr("tool.youtube.log_publish_success", video_id=video_id))
             self.set_done()
 
         except requests.HTTPError as e:
-            self._log_ui(f"HTTP 错误: {e.response.status_code} - {e.response.text[:300]}")
-            self.set_error(f"YouTube 上传 HTTP 错误: {e}")
+            self._log_ui(tr("tool.youtube.log_http_error",
+                            code=e.response.status_code, text=e.response.text[:300]))
+            self.set_error(tr("tool.youtube.error_http", e=e))
         except Exception as e:
-            self._log_ui(f"上传出错: {e}")
-            self.set_error(f"YouTube 上传失败: {e}")
+            self._log_ui(tr("tool.youtube.log_upload_error", e=e))
+            self.set_error(tr("tool.youtube.error_upload", e=e))
 
     def _add_to_playlist(self, video_id: str, playlist_id: str):
         try:
@@ -698,11 +719,11 @@ class YouTubePublishApp(ToolBase):
                 timeout=30,
             )
             if resp.ok:
-                self._log_ui("已添加到播放列表。")
+                self._log_ui(tr("tool.youtube.log_pl_added"))
             else:
-                self._log_ui(f"添加到播放列表失败: {resp.status_code}")
+                self._log_ui(tr("tool.youtube.log_pl_add_failed_http", code=resp.status_code))
         except Exception as e:
-            self._log_ui(f"添加播放列表出错: {e}")
+            self._log_ui(tr("tool.youtube.log_pl_add_failed", e=e))
 
     # ── 定时发布 ───────────────────────────────────────────────────────────
     def _schedule_publish(self):
@@ -711,15 +732,16 @@ class YouTubePublishApp(ToolBase):
         try:
             target = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
         except ValueError:
-            messagebox.showwarning("提示", "日期格式应为 YYYY-MM-DD，时间格式应为 HH:MM。")
+            messagebox.showwarning(tr("dialog.common.info"), tr("tool.publish.common.warn_bad_date"))
             return
 
         delay = (target - datetime.now()).total_seconds()
         if delay <= 0:
-            messagebox.showwarning("提示", "定时时间必须晚于当前时间。")
+            messagebox.showwarning(tr("dialog.common.info"), tr("tool.publish.common.warn_past_time"))
             return
 
-        self._log_ui(f"已排队定时发布，将于 {target.strftime('%Y-%m-%d %H:%M')} 发布（{delay/60:.1f} 分钟后）。")
+        self._log_ui(tr("tool.publish.common.sched_queued",
+                        target=target.strftime('%Y-%m-%d %H:%M'), minutes=delay / 60))
         self._btn_publish.config(state="disabled")
         self._btn_cancel_sched.config(state="normal")
         self.set_busy()
@@ -731,7 +753,7 @@ class YouTubePublishApp(ToolBase):
 
     def _on_sched_fire(self):
         self._sched_timer = None
-        self._log_ui("定时发布触发！")
+        self._log_ui(tr("tool.publish.common.sched_triggered"))
         self.master.after(0, lambda: self._btn_cancel_sched.config(state="disabled"))
         self.master.after(0, lambda: self._btn_publish.config(state="normal"))
         self.master.after(0, lambda: self._lbl_countdown.config(text=""))
@@ -743,11 +765,11 @@ class YouTubePublishApp(ToolBase):
             if self._sched_timer is None:
                 return
             if remaining <= 0:
-                self._lbl_countdown.config(text="即将发布...")
+                self._lbl_countdown.config(text=tr("tool.publish.common.countdown_imminent"))
                 return
             h = int(remaining // 3600)
             m = int((remaining % 3600) // 60)
             s = int(remaining % 60)
-            self._lbl_countdown.config(text=f"距离发布: {h:02d}:{m:02d}:{s:02d}")
+            self._lbl_countdown.config(text=tr("tool.publish.common.countdown_fmt", h=h, m=m, s=s))
             self.master.after(1000, _tick)
         self.master.after(1000, _tick)
