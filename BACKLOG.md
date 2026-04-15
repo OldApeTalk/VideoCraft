@@ -9,7 +9,7 @@
 
 | 优先级 | 状态 | 功能 | 说明 |
 |--------|------|------|------|
-| 🔴 P1 | [ ] | 视频分割综合管理页 | 合并 `split_video` / 自动分段 / 视频片段提取 到单一界面，支持视频预览 review 后再执行分段操作；当前多个工具分散，交互混乱。与需求池"综合视频分割工作台"同一件事，现提升为 P1 |
+| 🔴 P1 | [~] | 视频分割综合管理页 | 新工作台 `tools/video/split_workbench.py` 已落地：加载视频 + `subs.txt`，列表 review/增删改、嵌入 VLC 预览、分段导出、跨段合并导出。旧 `splitvideo` / `extract-clip` / `auto-split` 入口保留不动。预览依赖 VLC 64-bit + `pip install python-vlc`；待端到端回归验证 |
 
 ---
 
