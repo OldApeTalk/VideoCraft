@@ -8,6 +8,7 @@ text2Video.py - 文字转视频工具集
 """
 
 from tools.base import ToolBase
+from i18n import tr
 import os
 import tkinter as tk
 from tkinter import filedialog, ttk
@@ -32,7 +33,7 @@ from router_manager import open_router_manager
 class TTSApp(ToolBase):
     def __init__(self, master):
         self.master = master
-        master.title("VideoCraft - 文字合成语音")
+        master.title(tr("tool.tts.title"))
         master.geometry("820x680")
         master.resizable(True, True)
 
@@ -48,67 +49,67 @@ class TTSApp(ToolBase):
 
         row = 0
         tk.Label(tab, text="Fish Audio:").grid(row=row, column=0, padx=10, pady=8, sticky="e")
-        self.api_status_var = tk.StringVar(value="未配置")
+        self.api_status_var = tk.StringVar(value=tr("tool.tts.api_status_unknown"))
         self.api_status_lbl = tk.Label(tab, textvariable=self.api_status_var, fg="red", width=32, anchor="w")
         self.api_status_lbl.grid(row=row, column=1, sticky="w")
-        tk.Button(tab, text="Router 管理",
+        tk.Button(tab, text=tr("tool.tts.router_btn"),
                   command=lambda: open_router_manager(self.master)).grid(row=row, column=2, padx=10)
 
         row += 1
-        mode_frame = tk.LabelFrame(tab, text="模式", padx=8, pady=6)
+        mode_frame = tk.LabelFrame(tab, text=tr("tool.tts.mode_frame"), padx=8, pady=6)
         mode_frame.grid(row=row, column=0, columnspan=3, padx=10, pady=6, sticky="ew")
         self.mode_var = tk.StringVar(value="single")
-        tk.Radiobutton(mode_frame, text="单角色朗读", variable=self.mode_var,
+        tk.Radiobutton(mode_frame, text=tr("tool.tts.mode_single"), variable=self.mode_var,
                        value="single", command=self._on_mode_change).pack(side=tk.LEFT, padx=15)
-        tk.Radiobutton(mode_frame, text="多角色对话（访谈/剧本）", variable=self.mode_var,
+        tk.Radiobutton(mode_frame, text=tr("tool.tts.mode_multi"), variable=self.mode_var,
                        value="multi", command=self._on_mode_change).pack(side=tk.LEFT, padx=15)
 
         # 单角色
-        self.single_frame = tk.LabelFrame(tab, text="单角色朗读", padx=10, pady=8)
+        self.single_frame = tk.LabelFrame(tab, text=tr("tool.tts.single_frame"), padx=10, pady=8)
         self.single_frame.grid(row=2, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
         self.single_frame.columnconfigure(1, weight=1)
         tk.Label(self.single_frame, text="Voice ID:").grid(row=0, column=0, padx=5, pady=6, sticky="e")
         self.voice_id_var = tk.StringVar()
         tk.Entry(self.single_frame, textvariable=self.voice_id_var, width=45).grid(row=0, column=1, sticky="ew", padx=5)
-        tk.Label(self.single_frame, text="在 fish.audio 社区搜索音色，复制 model ID 填入",
+        tk.Label(self.single_frame, text=tr("tool.tts.single_hint"),
                  fg="gray", font=("Arial", 8)).grid(row=1, column=1, sticky="w", padx=5)
-        tk.Label(self.single_frame, text="输入文本:").grid(row=2, column=0, padx=5, pady=6, sticky="ne")
+        tk.Label(self.single_frame, text=tr("tool.tts.input_text")).grid(row=2, column=0, padx=5, pady=6, sticky="ne")
         self.single_text = tk.Text(self.single_frame, height=8, width=55, wrap=tk.WORD)
         self.single_text.grid(row=2, column=1, columnspan=2, sticky="ew", padx=5)
-        self.single_text.insert(tk.END, "请在此输入要朗读的文本内容。")
+        self.single_text.insert(tk.END, tr("tool.tts.single_placeholder"))
 
         # 多角色
-        self.multi_frame = tk.LabelFrame(tab, text="多角色对话", padx=10, pady=8)
+        self.multi_frame = tk.LabelFrame(tab, text=tr("tool.tts.multi_frame"), padx=10, pady=8)
         self.multi_frame.grid(row=3, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
         self.multi_frame.columnconfigure(1, weight=1)
         hdr = tk.Frame(self.multi_frame)
         hdr.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 4))
-        tk.Label(hdr, text="角色名", width=12, font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=4)
-        tk.Label(hdr, text="Voice ID（fish.audio model ID）", font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=4)
+        tk.Label(hdr, text=tr("tool.tts.role_name_hdr"), width=12, font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=4)
+        tk.Label(hdr, text=tr("tool.tts.voice_id_hdr") + " (fish.audio model ID)",
+                 font=("Arial", 9, "bold")).pack(side=tk.LEFT, padx=4)
         self.roles = []
         self.roles_frame = tk.Frame(self.multi_frame)
         self.roles_frame.grid(row=1, column=0, columnspan=4, sticky="ew")
-        self._add_role("主持人", "")
-        self._add_role("嘉宾", "")
-        tk.Button(self.multi_frame, text="＋ 添加角色",
+        self._add_role(tr("tool.tts.default_role1"), "")
+        self._add_role(tr("tool.tts.default_role2"), "")
+        tk.Button(self.multi_frame, text=tr("tool.tts.add_role"),
                   command=lambda: self._add_role("", "")).grid(row=2, column=0, pady=6, sticky="w")
-        tk.Label(self.multi_frame, text="对话文本:").grid(row=3, column=0, padx=5, pady=6, sticky="ne")
+        tk.Label(self.multi_frame, text=tr("tool.tts.dialog_text")).grid(row=3, column=0, padx=5, pady=6, sticky="ne")
         self.multi_text = tk.Text(self.multi_frame, height=8, width=55, wrap=tk.WORD)
         self.multi_text.grid(row=3, column=1, columnspan=3, sticky="ew", padx=5)
-        self.multi_text.insert(tk.END,
-            "主持人：欢迎收看今天的节目。\n嘉宾：谢谢邀请，很高兴来到这里。\n主持人：请问您对这个话题怎么看？")
-        tk.Label(self.multi_frame, text='格式：每行 "角色名：台词"，角色名须与上方一致',
+        self.multi_text.insert(tk.END, tr("tool.tts.dialog_placeholder"))
+        tk.Label(self.multi_frame, text=tr("tool.tts.dialog_hint"),
                  fg="gray", font=("Arial", 8)).grid(row=4, column=1, sticky="w", padx=5)
 
         # 公共参数
         row = 4
         common = tk.Frame(tab)
         common.grid(row=row, column=0, columnspan=3, padx=10, pady=4, sticky="ew")
-        tk.Label(common, text="输出格式:").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Label(common, text=tr("tool.tts.output_format")).pack(side=tk.LEFT, padx=(0, 4))
         self.audio_format_var = tk.StringVar(value="mp3")
         ttk.Combobox(common, textvariable=self.audio_format_var,
                      values=["mp3", "wav", "opus"], state="readonly", width=8).pack(side=tk.LEFT, padx=(0, 20))
-        tk.Label(common, text="语速:").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Label(common, text=tr("tool.tts.speed")).pack(side=tk.LEFT, padx=(0, 4))
         self.speed_var = tk.DoubleVar(value=1.0)
         tk.Scale(common, variable=self.speed_var, from_=0.5, to=2.0, resolution=0.1,
                  orient=tk.HORIZONTAL, length=160).pack(side=tk.LEFT)
@@ -117,18 +118,18 @@ class TTSApp(ToolBase):
         self.speed_var.trace('w', lambda *_: self.speed_lbl.config(text=f"{self.speed_var.get():.1f}x"))
 
         row = 5
-        tk.Label(tab, text="输出文件:").grid(row=row, column=0, padx=10, pady=6, sticky="e")
+        tk.Label(tab, text=tr("tool.tts.output_file")).grid(row=row, column=0, padx=10, pady=6, sticky="e")
         self.output_path_var = tk.StringVar(value="output.mp3")
         tk.Entry(tab, textvariable=self.output_path_var, width=50).grid(row=row, column=1, sticky="ew")
-        tk.Button(tab, text="浏览", command=self._select_output).grid(row=row, column=2, padx=10)
+        tk.Button(tab, text=tr("tool.tts.browse"), command=self._select_output).grid(row=row, column=2, padx=10)
 
         row = 6
         btn_frame = tk.Frame(tab)
         btn_frame.grid(row=row, column=0, columnspan=3, pady=10)
-        self.generate_btn = tk.Button(btn_frame, text="生成语音", command=self.start_generation,
+        self.generate_btn = tk.Button(btn_frame, text=tr("tool.tts.btn_generate"), command=self.start_generation,
                                       width=18, bg="#2196F3", fg="white", font=("Arial", 10, "bold"))
         self.generate_btn.pack(side=tk.LEFT, padx=8)
-        self.stop_btn = tk.Button(btn_frame, text="停止", command=self._stop_generation,
+        self.stop_btn = tk.Button(btn_frame, text=tr("tool.tts.btn_stop"), command=self._stop_generation,
                                   width=8, state="disabled")
         self.stop_btn.pack(side=tk.LEFT, padx=4)
 
@@ -171,7 +172,7 @@ class TTSApp(ToolBase):
     def _select_output(self):
         fmt = self.audio_format_var.get()
         path = filedialog.asksaveasfilename(
-            title="选择输出文件",
+            title=tr("tool.tts.dialog_select_output"),
             defaultextension=f".{fmt}",
             filetypes=[(f"{fmt.upper()} files", f"*.{fmt}"), ("All files", "*.*")]
         )
@@ -182,24 +183,24 @@ class TTSApp(ToolBase):
         key = router.get_tts_key("fish_audio")
         if key:
             masked = key[:6] + "****" + key[-4:]
-            self.api_status_var.set(f"已配置 ({masked})")
+            self.api_status_var.set(tr("tool.tts.api_configured", masked=masked))
             self.api_status_lbl.config(fg="green")
         else:
-            self.api_status_var.set("未配置 — 请在 Router 管理中设置")
+            self.api_status_var.set(tr("tool.tts.api_not_configured"))
             self.api_status_lbl.config(fg="red")
 
     def start_generation(self):
         if not FISH_AUDIO_AVAILABLE:
-            self._show_error("请先安装 Fish Audio SDK：\npip install fish-audio-sdk")
+            self._show_error(tr("tool.tts.error_no_sdk"))
             return
         if not router.get_tts_key("fish_audio"):
-            self._show_error("Fish Audio API Key 未配置，请点击「Router 管理」→ TTS Providers 设置")
+            self._show_error(tr("tool.tts.error_no_apikey"))
             return
         self._stop_flag = False
         self.generate_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
-        self.status_var.set("正在准备...")
+        self.status_var.set(tr("tool.tts.status_preparing"))
         self.set_busy()
         t = threading.Thread(
             target=self._run_single if self.mode_var.get() == "single" else self._run_multi,
@@ -208,7 +209,7 @@ class TTSApp(ToolBase):
 
     def _stop_generation(self):
         self._stop_flag = True
-        self.status_var.set("正在停止...")
+        self.status_var.set(tr("tool.tts.status_stopping"))
 
     def _finish_generation(self):
         """Re-enable the action buttons. Tab status is set by the _run_* caller
@@ -222,13 +223,13 @@ class TTSApp(ToolBase):
             text = self.single_text.get("1.0", tk.END).strip()
             output = self.output_path_var.get().strip()
             if not voice_id:
-                self._show_error("请填写 Voice ID"); return
+                self._show_error(tr("tool.tts.error_no_voice_id")); return
             if not text:
-                self._show_error("请输入文本"); return
+                self._show_error(tr("tool.tts.error_no_text")); return
             if not output:
-                self._show_error("请指定输出文件路径"); return
+                self._show_error(tr("tool.tts.error_no_output")); return
 
-            self.status_var.set("正在调用 Fish Audio API...")
+            self.status_var.set(tr("tool.tts.status_calling_api"))
             self.progress_var.set(10)
             session = Session(router.get_tts_key("fish_audio"))
             with session.tts(TTSRequest(
@@ -238,17 +239,17 @@ class TTSApp(ToolBase):
                     total = 0
                     for chunk in resp.iter_bytes():
                         if self._stop_flag:
-                            self.status_var.set("已停止"); return
+                            self.status_var.set(tr("tool.tts.status_stopped")); return
                         f.write(chunk)
                         total += len(chunk)
                         self.progress_var.set(min(90, 10 + total // 1024))
             self._last_output = output
             self.progress_var.set(100)
-            self.status_var.set(f"完成！已保存：{output}")
+            self.status_var.set(tr("tool.tts.status_done_single", output=output))
             self.set_done()
         except Exception as e:
-            self.status_var.set(f"失败：{e}")
-            self.set_error(f"TTS 单角色生成失败: {e}")
+            self.status_var.set(tr("tool.tts.status_fail", e=e))
+            self.set_error(tr("tool.tts.error_tts_single_failed", e=e))
         finally:
             self._finish_generation()
 
@@ -258,23 +259,23 @@ class TTSApp(ToolBase):
                         for nv, vv, _ in self.roles
                         if nv.get().strip() and vv.get().strip()}
             if not role_map:
-                self._show_error("请为至少一个角色填写名称和 Voice ID"); return
+                self._show_error(tr("tool.tts.error_no_role_voice")); return
             raw = self.multi_text.get("1.0", tk.END).strip()
             segments = self._parse_dialogue(raw, role_map)
             if not segments:
-                self._show_error('未识别到有效台词。\n格式：每行以"角色名："开头，角色名须与上方定义一致。'); return
+                self._show_error(tr("tool.tts.error_no_valid_dialog")); return
             output = self.output_path_var.get().strip()
             if not output:
-                self._show_error("请指定输出文件路径"); return
+                self._show_error(tr("tool.tts.error_no_output")); return
 
             session = Session(router.get_tts_key("fish_audio"))
             total = len(segments)
             tmp_files = []
             for i, (role, text) in enumerate(segments):
                 if self._stop_flag:
-                    self.status_var.set("已停止")
+                    self.status_var.set(tr("tool.tts.status_stopped"))
                     self._cleanup_temps(tmp_files); return
-                self.status_var.set(f"生成第 {i+1}/{total} 段（{role}）...")
+                self.status_var.set(tr("tool.tts.status_generating_seg", i=i+1, total=total, role=role))
                 self.progress_var.set(int(i / total * 85))
                 fmt = self.audio_format_var.get()
                 tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{fmt}")
@@ -286,21 +287,21 @@ class TTSApp(ToolBase):
                     with open(tmp.name, "wb") as f:
                         for chunk in resp.iter_bytes():
                             if self._stop_flag:
-                                self.status_var.set("已停止")
+                                self.status_var.set(tr("tool.tts.status_stopped"))
                                 self._cleanup_temps(tmp_files); return
                             f.write(chunk)
 
-            self.status_var.set("正在合并音频...")
+            self.status_var.set(tr("tool.tts.status_merging"))
             self.progress_var.set(90)
             self._concat_audio(tmp_files, output)
             self._cleanup_temps(tmp_files)
             self._last_output = output
             self.progress_var.set(100)
-            self.status_var.set(f"完成！{total} 段已合并：{output}")
+            self.status_var.set(tr("tool.tts.status_done_multi", total=total, output=output))
             self.set_done()
         except Exception as e:
-            self.status_var.set(f"失败：{e}")
-            self.set_error(f"TTS 多角色生成失败: {e}")
+            self.status_var.set(tr("tool.tts.status_fail", e=e))
+            self.set_error(tr("tool.tts.error_tts_multi_failed", e=e))
         finally:
             self._finish_generation()
 
@@ -341,7 +342,7 @@ class TTSApp(ToolBase):
 
     def _show_error(self, msg):
         self.master.after(0, lambda: __import__('tkinter').messagebox.showerror(
-            "错误", msg, parent=self.master))
+            tr("dialog.common.error"), msg, parent=self.master))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -356,7 +357,7 @@ class SRTFromTextApp(ToolBase):
 
     def __init__(self, master):
         self.master = master
-        master.title("VideoCraft - 生成字幕 SRT")
+        master.title(tr("tool.tts_srt.title"))
         master.geometry("780x620")
         master.resizable(True, True)
         self._build_ui()
@@ -366,11 +367,11 @@ class SRTFromTextApp(ToolBase):
         tab.columnconfigure(1, weight=1)
 
         row = 0
-        tk.Label(tab, text="音频文件:").grid(row=row, column=0, padx=10, pady=8, sticky="e")
+        tk.Label(tab, text=tr("tool.tts_srt.audio_label")).grid(row=row, column=0, padx=10, pady=8, sticky="e")
         self.audio_var = tk.StringVar()
         tk.Entry(tab, textvariable=self.audio_var, width=50, state='readonly').grid(
             row=row, column=1, sticky="ew")
-        tk.Button(tab, text="选择", command=self._select_audio).grid(row=row, column=2, padx=10)
+        tk.Button(tab, text=tr("tool.tts_srt.btn_pick"), command=self._select_audio).grid(row=row, column=2, padx=10)
 
         row += 1
         self.duration_var = tk.StringVar(value="")
@@ -378,39 +379,38 @@ class SRTFromTextApp(ToolBase):
                  font=("Arial", 8)).grid(row=row, column=1, sticky="w", padx=4)
 
         row += 1
-        tk.Label(tab, text="文本内容:").grid(row=row, column=0, padx=10, pady=8, sticky="ne")
+        tk.Label(tab, text=tr("tool.tts_srt.text_label")).grid(row=row, column=0, padx=10, pady=8, sticky="ne")
         self.text_box = tk.Text(tab, height=12, width=55, wrap=tk.WORD)
         self.text_box.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(0, 10))
-        self.text_box.insert(tk.END,
-            "主持人：欢迎收看今天的节目。\n嘉宾：谢谢邀请，很高兴来到这里。\n主持人：请问您对这个话题怎么看？")
+        self.text_box.insert(tk.END, tr("tool.tts.dialog_placeholder"))
 
         row += 1
         hint_frame = tk.Frame(tab)
         hint_frame.grid(row=row, column=1, sticky="w", padx=4, pady=2)
-        tk.Label(hint_frame, text='支持 "角色名：台词" 格式（多角色）或纯文本（单角色）',
+        tk.Label(hint_frame, text=tr("tool.tts_srt.text_hint"),
                  fg="gray", font=("Arial", 8)).pack(side=tk.LEFT)
 
         row += 1
-        opt_frame = tk.LabelFrame(tab, text="分段设置", padx=10, pady=6)
+        opt_frame = tk.LabelFrame(tab, text=tr("tool.tts_srt.segment_frame"), padx=10, pady=6)
         opt_frame.grid(row=row, column=0, columnspan=3, padx=10, pady=6, sticky="ew")
 
-        tk.Label(opt_frame, text="每段最大字符数:").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Label(opt_frame, text=tr("tool.tts_srt.max_chars")).pack(side=tk.LEFT, padx=(0, 4))
         self.max_chars_var = tk.IntVar(value=30)
         tk.Spinbox(opt_frame, textvariable=self.max_chars_var, from_=10, to=100,
                    width=6).pack(side=tk.LEFT, padx=(0, 20))
-        tk.Label(opt_frame, text="段间停顿(秒):").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Label(opt_frame, text=tr("tool.tts_srt.gap")).pack(side=tk.LEFT, padx=(0, 4))
         self.gap_var = tk.DoubleVar(value=0.3)
         tk.Spinbox(opt_frame, textvariable=self.gap_var, from_=0.0, to=2.0,
                    increment=0.1, format="%.1f", width=6).pack(side=tk.LEFT)
 
         row += 1
-        tk.Label(tab, text="输出 SRT:").grid(row=row, column=0, padx=10, pady=8, sticky="e")
+        tk.Label(tab, text=tr("tool.tts_srt.output_label")).grid(row=row, column=0, padx=10, pady=8, sticky="e")
         self.output_var = tk.StringVar(value="output.srt")
         tk.Entry(tab, textvariable=self.output_var, width=50).grid(row=row, column=1, sticky="ew")
-        tk.Button(tab, text="浏览", command=self._select_output).grid(row=row, column=2, padx=10)
+        tk.Button(tab, text=tr("tool.tts_srt.browse"), command=self._select_output).grid(row=row, column=2, padx=10)
 
         row += 1
-        tk.Button(tab, text="生成 SRT", command=self._generate,
+        tk.Button(tab, text=tr("tool.tts_srt.btn_generate"), command=self._generate,
                   bg="#FF9800", fg="white", width=18, font=("Arial", 10, "bold")).grid(
             row=row, column=0, columnspan=3, pady=14)
 
@@ -421,20 +421,21 @@ class SRTFromTextApp(ToolBase):
 
     def _select_audio(self):
         path = filedialog.askopenfilename(
-            title="选择音频文件",
-            filetypes=[("音频文件", "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"), ("所有文件", "*.*")]
+            title=tr("tool.tts_srt.dialog_select_audio"),
+            filetypes=[(tr("tool.tts_srt.filter_audio"), "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"),
+                       (tr("tool.tts_srt.filter_all"), "*.*")]
         )
         if path:
             self.audio_var.set(path)
             dur = self._get_duration(path)
             if dur > 0:
-                self.duration_var.set(f"时长：{dur:.2f} 秒")
+                self.duration_var.set(tr("tool.tts_srt.duration_fmt", dur=dur))
             else:
-                self.duration_var.set("无法读取时长")
+                self.duration_var.set(tr("tool.tts_srt.duration_unavailable"))
 
     def _select_output(self):
         path = filedialog.asksaveasfilename(
-            title="保存 SRT 文件", defaultextension=".srt",
+            title=tr("tool.tts_srt.dialog_save_srt"), defaultextension=".srt",
             filetypes=[("SRT files", "*.srt"), ("All files", "*.*")]
         )
         if path:
@@ -453,23 +454,23 @@ class SRTFromTextApp(ToolBase):
     def _generate(self):
         audio = self.audio_var.get().strip()
         if not audio or not os.path.exists(audio):
-            self.status_var.set("请先选择有效的音频文件")
+            self.status_var.set(tr("tool.tts_srt.error_no_audio"))
             return
         raw = self.text_box.get("1.0", tk.END).strip()
         if not raw:
-            self.status_var.set("请输入文本内容")
+            self.status_var.set(tr("tool.tts_srt.error_no_text"))
             return
         output = self.output_var.get().strip()
         if not output:
-            self.status_var.set("请指定输出 SRT 路径")
+            self.status_var.set(tr("tool.tts_srt.error_no_output"))
             return
 
         self.set_busy()
         try:
             duration = self._get_duration(audio)
             if duration <= 0:
-                self.set_error("无法获取音频时长，请检查 ffprobe 是否可用")
-                self.status_var.set("无法获取音频时长，请检查 ffprobe 是否可用")
+                self.set_error(tr("tool.tts_srt.error_cannot_get_duration"))
+                self.status_var.set(tr("tool.tts_srt.error_cannot_get_duration"))
                 return
 
             segments = self._split_to_segments(raw, self.max_chars_var.get())
@@ -478,11 +479,11 @@ class SRTFromTextApp(ToolBase):
             with open(output, 'w', encoding='utf-8') as f:
                 f.write(srt_content)
 
-            self.status_var.set(f"完成！共 {len(segments)} 条字幕 → {output}")
+            self.status_var.set(tr("tool.tts_srt.status_done", count=len(segments), output=output))
             self.set_done()
         except Exception as e:
-            self.set_error(f"SRT 生成失败: {e}")
-            self.status_var.set(f"✗ 失败：{e}")
+            self.set_error(tr("tool.tts_srt.error_srt_failed", e=e))
+            self.status_var.set(tr("tool.tts_srt.status_fail", e=e))
 
     def _split_to_segments(self, raw, max_chars):
         """将文本分割为字幕段落（支持角色格式和纯文本）"""
@@ -559,7 +560,7 @@ class AudioVideoApp(ToolBase):
 
     def __init__(self, master):
         self.master = master
-        master.title("VideoCraft - 多章节音频合成视频")
+        master.title(tr("tool.audio_video.title"))
         master.geometry("1180x860")
         master.resizable(True, True)
         self.chapters = []          # list of chapter dicts
@@ -583,8 +584,8 @@ class AudioVideoApp(ToolBase):
 
         hdr = tk.Frame(left)
         hdr.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 4))
-        tk.Label(hdr, text="章节列表", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
-        tk.Button(hdr, text="＋ 添加章节", command=self._add_chapter,
+        tk.Label(hdr, text=tr("tool.audio_video.chapter_list"), font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        tk.Button(hdr, text=tr("tool.audio_video.add_chapter"), command=self._add_chapter,
                   bg="#2196F3", fg="white", width=14).pack(side=tk.RIGHT, padx=4)
 
         # 可滚动容器
@@ -607,11 +608,11 @@ class AudioVideoApp(ToolBase):
         # 输出文件
         out_f = tk.Frame(left)
         out_f.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 2))
-        tk.Label(out_f, text="输出视频:").pack(side=tk.LEFT, padx=4)
+        tk.Label(out_f, text=tr("tool.audio_video.output_video_label")).pack(side=tk.LEFT, padx=4)
         self.video_output_var = tk.StringVar(value="output.mp4")
         tk.Entry(out_f, textvariable=self.video_output_var, width=38).pack(
             side=tk.LEFT, padx=4, fill=tk.X, expand=True)
-        tk.Button(out_f, text="浏览", command=self._select_video_output,
+        tk.Button(out_f, text=tr("tool.audio_video.browse"), command=self._select_video_output,
                   width=6).pack(side=tk.LEFT, padx=4)
 
         # ── 右侧：全局设置 ──
@@ -626,11 +627,11 @@ class AudioVideoApp(ToolBase):
 
         btn_row = tk.Frame(bottom)
         btn_row.grid(row=0, column=0)
-        self.generate_btn = tk.Button(btn_row, text="合成视频", command=self._start,
+        self.generate_btn = tk.Button(btn_row, text=tr("tool.audio_video.btn_compose"), command=self._start,
                                       width=22, height=2, bg="#4CAF50", fg="white",
                                       font=("Arial", 11, "bold"))
         self.generate_btn.pack(side=tk.LEFT, padx=10)
-        self.stop_btn = tk.Button(btn_row, text="停止", command=self._stop,
+        self.stop_btn = tk.Button(btn_row, text=tr("tool.audio_video.btn_stop"), command=self._stop,
                                   width=8, height=2, state="disabled")
         self.stop_btn.pack(side=tk.LEFT, padx=4)
 
@@ -647,27 +648,27 @@ class AudioVideoApp(ToolBase):
 
     def _build_right_panel(self, right):
         # 视频配置
-        cfg = tk.LabelFrame(right, text="视频配置", padx=8, pady=8)
+        cfg = tk.LabelFrame(right, text=tr("tool.audio_video.video_config"), padx=8, pady=8)
         cfg.pack(fill="x", padx=4, pady=4)
 
-        tk.Label(cfg, text="视频方向:", font=("Arial", 9, "bold")).grid(
+        tk.Label(cfg, text=tr("tool.audio_video.orientation"), font=("Arial", 9, "bold")).grid(
             row=0, column=0, padx=4, pady=4, sticky="w")
         self.orientation_var = tk.StringVar(value="horizontal")
         ori_f = tk.Frame(cfg)
         ori_f.grid(row=0, column=1, columnspan=2, sticky="w", padx=4)
-        tk.Radiobutton(ori_f, text="横屏 (16:9)", variable=self.orientation_var,
+        tk.Radiobutton(ori_f, text=tr("tool.audio_video.horizontal"), variable=self.orientation_var,
                        value="horizontal", command=self._on_orientation).pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(ori_f, text="竖屏 (9:16)", variable=self.orientation_var,
+        tk.Radiobutton(ori_f, text=tr("tool.audio_video.vertical"), variable=self.orientation_var,
                        value="vertical", command=self._on_orientation).pack(side=tk.LEFT, padx=5)
 
-        tk.Label(cfg, text="分辨率:").grid(row=1, column=0, padx=4, pady=4, sticky="e")
+        tk.Label(cfg, text=tr("tool.audio_video.resolution")).grid(row=1, column=0, padx=4, pady=4, sticky="e")
         self.resolution_var = tk.StringVar(value="1920x1080 (1080p)")
         self.resolution_combo = ttk.Combobox(cfg, textvariable=self.resolution_var,
                                               state="readonly", width=26)
         self._update_resolution()
         self.resolution_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=4)
 
-        tk.Label(cfg, text="背景填充色:").grid(row=2, column=0, padx=4, pady=4, sticky="e")
+        tk.Label(cfg, text=tr("tool.audio_video.bg_fill")).grid(row=2, column=0, padx=4, pady=4, sticky="e")
         bg_f = tk.Frame(cfg)
         bg_f.grid(row=2, column=1, columnspan=2, sticky="w", padx=4)
         self.bg_color_var = tk.StringVar(value="#000000")
@@ -675,43 +676,43 @@ class AudioVideoApp(ToolBase):
         self.bg_preview = tk.Canvas(bg_f, width=22, height=18, bg="#000000",
                                     relief=tk.SUNKEN, borderwidth=1)
         self.bg_preview.pack(side=tk.LEFT, padx=2)
-        tk.Button(bg_f, text="选择", command=self._choose_bg, width=7).pack(side=tk.LEFT, padx=2)
+        tk.Button(bg_f, text=tr("tool.audio_video.pick"), command=self._choose_bg, width=7).pack(side=tk.LEFT, padx=2)
 
-        tk.Label(cfg, text="帧率:").grid(row=3, column=0, padx=4, pady=4, sticky="e")
+        tk.Label(cfg, text=tr("tool.audio_video.fps")).grid(row=3, column=0, padx=4, pady=4, sticky="e")
         self.fps_var = tk.StringVar(value="30")
         ttk.Combobox(cfg, textvariable=self.fps_var, values=["24", "25", "30", "60"],
                      state="readonly", width=8).grid(row=3, column=1, sticky="w", padx=4)
 
-        tk.Label(cfg, text="视频编码:").grid(row=4, column=0, padx=4, pady=4, sticky="e")
+        tk.Label(cfg, text=tr("tool.audio_video.codec")).grid(row=4, column=0, padx=4, pady=4, sticky="e")
         self.codec_var = tk.StringVar(value="libx264")
         ttk.Combobox(cfg, textvariable=self.codec_var,
                      values=["libx264 (H.264)", "libx265 (H.265/HEVC)", "mpeg4"],
                      state="readonly", width=22).grid(row=4, column=1, columnspan=2, sticky="w", padx=4)
 
         # 字幕设置（全局）
-        sub_frame = tk.LabelFrame(right, text="字幕设置（全局）", padx=8, pady=8)
+        sub_frame = tk.LabelFrame(right, text=tr("tool.audio_video.sub_frame"), padx=8, pady=8)
         sub_frame.pack(fill="x", padx=4, pady=4)
         sub_frame.columnconfigure(1, weight=1)
 
         self.sub_split_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(sub_frame, text="自动换行分割 SRT",
+        tk.Checkbutton(sub_frame, text=tr("tool.audio_video.sub_split"),
                        variable=self.sub_split_var,
                        font=("Arial", 9, "bold")).grid(
             row=0, column=0, columnspan=3, sticky="w", pady=(0, 4))
 
-        tk.Label(sub_frame, text="每行最大字符:").grid(row=1, column=0, padx=4, pady=5, sticky="e")
+        tk.Label(sub_frame, text=tr("tool.audio_video.max_chars_label")).grid(row=1, column=0, padx=4, pady=5, sticky="e")
         self.sub_max_chars_var = tk.IntVar(value=20)
         tk.Spinbox(sub_frame, textvariable=self.sub_max_chars_var,
                    from_=5, to=80, width=6).grid(row=1, column=1, sticky="w", padx=4)
-        tk.Label(sub_frame, text="(横屏推荐 20，竖屏推荐 10)",
+        tk.Label(sub_frame, text=tr("tool.audio_video.chars_hint"),
                  fg="gray", font=("Arial", 8)).grid(row=1, column=2, sticky="w")
 
         self.sub_is_chinese_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(sub_frame, text="中文断句优先（按标点）",
+        tk.Checkbutton(sub_frame, text=tr("tool.audio_video.zh_priority"),
                        variable=self.sub_is_chinese_var).grid(
             row=2, column=0, columnspan=3, sticky="w", padx=4, pady=2)
 
-        tk.Label(sub_frame, text="字幕颜色:").grid(row=3, column=0, padx=4, pady=5, sticky="e")
+        tk.Label(sub_frame, text=tr("tool.audio_video.sub_color")).grid(row=3, column=0, padx=4, pady=5, sticky="e")
         sub_color_f = tk.Frame(sub_frame)
         sub_color_f.grid(row=3, column=1, columnspan=2, sticky="w", padx=4)
         self.sub_color_var = tk.StringVar(value="#FFFFFF")
@@ -719,38 +720,38 @@ class AudioVideoApp(ToolBase):
         self.sub_color_preview = tk.Canvas(sub_color_f, width=22, height=18, bg="#FFFFFF",
                                             relief=tk.SUNKEN, borderwidth=1)
         self.sub_color_preview.pack(side=tk.LEFT, padx=2)
-        tk.Button(sub_color_f, text="选择", command=self._choose_sub_color, width=7).pack(side=tk.LEFT, padx=2)
+        tk.Button(sub_color_f, text=tr("tool.audio_video.pick"), command=self._choose_sub_color, width=7).pack(side=tk.LEFT, padx=2)
 
-        tk.Label(sub_frame, text="字幕字号:").grid(row=4, column=0, padx=4, pady=5, sticky="e")
+        tk.Label(sub_frame, text=tr("tool.audio_video.sub_fontsize")).grid(row=4, column=0, padx=4, pady=5, sticky="e")
         self.sub_fontsize_var = tk.IntVar(value=28)
         tk.Spinbox(sub_frame, textvariable=self.sub_fontsize_var,
                    from_=10, to=72, width=6).grid(row=4, column=1, sticky="w", padx=4)
-        tk.Label(sub_frame, text="(横屏 28，竖屏 20)",
+        tk.Label(sub_frame, text=tr("tool.audio_video.fontsize_hint"),
                  fg="gray", font=("Arial", 8)).grid(row=4, column=2, sticky="w")
 
-        tk.Label(sub_frame, text="底部边距:").grid(row=5, column=0, padx=4, pady=5, sticky="e")
+        tk.Label(sub_frame, text=tr("tool.audio_video.margin_v")).grid(row=5, column=0, padx=4, pady=5, sticky="e")
         self.sub_margin_v_var = tk.IntVar(value=80)
         tk.Spinbox(sub_frame, textvariable=self.sub_margin_v_var,
                    from_=10, to=300, width=6).grid(row=5, column=1, sticky="w", padx=4)
-        tk.Label(sub_frame, text="像素 (横 80，竖 60)",
+        tk.Label(sub_frame, text=tr("tool.audio_video.margin_hint"),
                  fg="gray", font=("Arial", 8)).grid(row=5, column=2, sticky="w")
 
         # 水印设置
-        wm_frame = tk.LabelFrame(right, text="水印设置", padx=8, pady=8)
+        wm_frame = tk.LabelFrame(right, text=tr("tool.audio_video.wm_frame"), padx=8, pady=8)
         wm_frame.pack(fill="x", padx=4, pady=4)
         wm_frame.columnconfigure(1, weight=1)
 
         self.watermark_enabled_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(wm_frame, text="启用水印", variable=self.watermark_enabled_var,
+        tk.Checkbutton(wm_frame, text=tr("tool.audio_video.wm_enabled"), variable=self.watermark_enabled_var,
                        font=("Arial", 9, "bold")).grid(
             row=0, column=0, columnspan=3, sticky="w", pady=(0, 4))
 
-        tk.Label(wm_frame, text="水印文字:").grid(row=1, column=0, padx=4, pady=5, sticky="e")
+        tk.Label(wm_frame, text=tr("tool.audio_video.wm_text_label")).grid(row=1, column=0, padx=4, pady=5, sticky="e")
         self.watermark_text_var = tk.StringVar(value="老猿世界观察")
         tk.Entry(wm_frame, textvariable=self.watermark_text_var, width=26).grid(
             row=1, column=1, columnspan=2, sticky="ew", padx=4)
 
-        tk.Label(wm_frame, text="文字颜色:").grid(row=2, column=0, padx=4, pady=5, sticky="e")
+        tk.Label(wm_frame, text=tr("tool.audio_video.wm_color_label")).grid(row=2, column=0, padx=4, pady=5, sticky="e")
         wm_color_f = tk.Frame(wm_frame)
         wm_color_f.grid(row=2, column=1, columnspan=2, sticky="w", padx=4)
         self.watermark_color_var = tk.StringVar(value="#80ffff")
@@ -758,19 +759,21 @@ class AudioVideoApp(ToolBase):
         self.wm_color_preview = tk.Canvas(wm_color_f, width=22, height=18, bg="#80ffff",
                                            relief=tk.SUNKEN, borderwidth=1)
         self.wm_color_preview.pack(side=tk.LEFT, padx=2)
-        tk.Button(wm_color_f, text="选择", command=self._choose_wm_color, width=7).pack(side=tk.LEFT, padx=2)
+        tk.Button(wm_color_f, text=tr("tool.audio_video.pick"), command=self._choose_wm_color, width=7).pack(side=tk.LEFT, padx=2)
 
-        tk.Label(wm_frame, text="透明度:").grid(row=3, column=0, padx=4, pady=5, sticky="e")
+        tk.Label(wm_frame, text=tr("tool.audio_video.wm_alpha")).grid(row=3, column=0, padx=4, pady=5, sticky="e")
         self.watermark_opacity_var = tk.DoubleVar(value=0.5)
         tk.Scale(wm_frame, from_=0.1, to=1.0, resolution=0.1, orient=tk.HORIZONTAL,
                  variable=self.watermark_opacity_var, length=180).grid(
             row=3, column=1, columnspan=2, sticky="ew", padx=4)
 
-        tk.Label(wm_frame, text="位置:").grid(row=4, column=0, padx=4, pady=5, sticky="e")
-        self.watermark_position_var = tk.StringVar(value="右上角 (topright)")
+        tk.Label(wm_frame, text=tr("tool.audio_video.wm_position")).grid(row=4, column=0, padx=4, pady=5, sticky="e")
+        self.watermark_position_var = tk.StringVar(value=tr("tool.audio_video.wm_pos_topright"))
         ttk.Combobox(wm_frame, textvariable=self.watermark_position_var,
-                     values=["右上角 (topright)", "左上角 (topleft)",
-                             "右下角 (bottomright)", "左下角 (bottomleft)"],
+                     values=[tr("tool.audio_video.wm_pos_topright"),
+                             tr("tool.audio_video.wm_pos_topleft"),
+                             tr("tool.audio_video.wm_pos_bottomright"),
+                             tr("tool.audio_video.wm_pos_bottomleft")],
                      state="readonly", width=24).grid(row=4, column=1, columnspan=2, sticky="ew", padx=4)
 
     # ── 章节管理 ─────────────────────────────────────────────────────────────
@@ -787,38 +790,39 @@ class AudioVideoApp(ToolBase):
             'frame': None,
         }
         idx = len(self.chapters) + 1
-        frame = tk.LabelFrame(self._chap_inner, text=f"章节 {idx}",
+        frame = tk.LabelFrame(self._chap_inner, text=tr("tool.audio_video.chapter_fmt", idx=idx),
                               padx=8, pady=6, font=("Arial", 9, "bold"))
         frame.pack(fill="x", padx=6, pady=4)
         frame.columnconfigure(1, weight=1)
         chap['frame'] = frame
 
-        AUDIO_FT = [("音频文件", "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"), ("所有文件", "*.*")]
-        SRT_FT   = [("SRT字幕",  "*.srt"), ("所有文件", "*.*")]
-        IMG_FT   = [("图片文件", "*.jpg *.jpeg *.png *.bmp *.webp"), ("所有文件", "*.*")]
-        VID_FT   = [("视频文件", "*.mp4 *.avi *.mov *.mkv *.webm"), ("所有文件", "*.*")]
+        all_files = tr("tool.audio_video.filter_all")
+        AUDIO_FT = [(tr("tool.audio_video.filter_audio"), "*.mp3 *.wav *.m4a *.aac *.ogg *.flac"), (all_files, "*.*")]
+        SRT_FT   = [(tr("tool.audio_video.filter_srt"),  "*.srt"), (all_files, "*.*")]
+        IMG_FT   = [(tr("tool.audio_video.filter_image"), "*.jpg *.jpeg *.png *.bmp *.webp"), (all_files, "*.*")]
+        VID_FT   = [(tr("tool.audio_video.filter_video"), "*.mp4 *.avi *.mov *.mkv *.webm"), (all_files, "*.*")]
 
         rows = [
-            (0, "音频:",   chap['audio'], AUDIO_FT, ""),
-            (1, "字幕:",   chap['srt'],   SRT_FT,   "（可选）"),
-            (2, "背景图:", chap['image'], IMG_FT,   "（可选）"),
-            (3, "背景视频:", chap['video'], VID_FT, "（可选，在背景图之上）"),
+            (0, tr("tool.audio_video.audio_label"),  chap['audio'], AUDIO_FT, ""),
+            (1, tr("tool.audio_video.srt_label"),    chap['srt'],   SRT_FT,   tr("tool.audio_video.optional")),
+            (2, tr("tool.audio_video.image_label"),  chap['image'], IMG_FT,   tr("tool.audio_video.optional")),
+            (3, tr("tool.audio_video.video_label"),  chap['video'], VID_FT,   tr("tool.audio_video.optional_on_image")),
         ]
         for r, lbl, var, ft, hint in rows:
-            tk.Label(frame, text=lbl, width=8, anchor="e").grid(
+            tk.Label(frame, text=lbl, width=10, anchor="e").grid(
                 row=r, column=0, padx=4, pady=3, sticky="e")
             tk.Entry(frame, textvariable=var, width=34, state='readonly').grid(
                 row=r, column=1, sticky="ew", padx=4)
-            tk.Button(frame, text="选择", width=5,
+            tk.Button(frame, text=tr("tool.audio_video.pick_short"), width=5,
                       command=lambda v=var, f=ft: self._pick_file(v, f)).grid(
                 row=r, column=2, padx=2)
-            tk.Button(frame, text="清除", width=4,
+            tk.Button(frame, text=tr("tool.audio_video.clear_short"), width=4,
                       command=lambda v=var: v.set("")).grid(row=r, column=3, padx=2)
             if hint:
                 tk.Label(frame, text=hint, fg="gray", font=("Arial", 7)).grid(
                     row=r, column=4, sticky="w", padx=2)
 
-        tk.Button(frame, text="✕ 删除本章节", fg="red", font=("Arial", 8),
+        tk.Button(frame, text=tr("tool.audio_video.delete_chapter"), fg="red", font=("Arial", 8),
                   command=lambda c=chap: self._remove_chapter(c)).grid(
             row=4, column=0, columnspan=5, pady=(6, 2))
 
@@ -830,7 +834,7 @@ class AudioVideoApp(ToolBase):
         chap['frame'].destroy()
         self.chapters.remove(chap)
         for i, c in enumerate(self.chapters):
-            c['frame'].config(text=f"章节 {i + 1}")
+            c['frame'].config(text=tr("tool.audio_video.chapter_fmt", idx=i + 1))
 
     def _pick_file(self, var, file_types):
         path = filedialog.askopenfilename(filetypes=file_types)
@@ -841,8 +845,9 @@ class AudioVideoApp(ToolBase):
 
     def _select_video_output(self):
         path = filedialog.asksaveasfilename(
-            title="输出视频", defaultextension=".mp4",
-            filetypes=[("MP4 files", "*.mp4"), ("所有文件", "*.*")])
+            title=tr("tool.audio_video.output_dialog_title"), defaultextension=".mp4",
+            filetypes=[(tr("tool.audio_video.filter_mp4"), "*.mp4"),
+                       (tr("tool.audio_video.filter_all"), "*.*")])
         if path:
             self.video_output_var.set(path)
 
@@ -859,28 +864,31 @@ class AudioVideoApp(ToolBase):
             opts = ["1920x1080 (1080p)", "1280x720 (720p)", "3840x2160 (4K)", "2560x1440 (2K)"]
             default = "1920x1080 (1080p)"
         else:
-            opts = ["1080x1920 (竖屏1080p)", "720x1280 (竖屏720p)",
-                    "2160x3840 (竖屏4K)", "1440x2560 (竖屏2K)"]
-            default = "1080x1920 (竖屏1080p)"
+            opts = ["1080x1920 (1080p)", "720x1280 (720p)",
+                    "2160x3840 (4K)", "1440x2560 (2K)"]
+            default = "1080x1920 (1080p)"
         self.resolution_combo['values'] = opts
         if self.resolution_var.get() not in opts:
             self.resolution_var.set(default)
 
     def _choose_bg(self):
         from tkinter import colorchooser
-        c = colorchooser.askcolor(title="背景填充色", initialcolor=self.bg_color_var.get())
+        c = colorchooser.askcolor(title=tr("tool.audio_video.bg_color_title"),
+                                  initialcolor=self.bg_color_var.get())
         if c[1]:
             self.bg_color_var.set(c[1]); self.bg_preview.config(bg=c[1])
 
     def _choose_sub_color(self):
         from tkinter import colorchooser
-        c = colorchooser.askcolor(title="字幕颜色", initialcolor=self.sub_color_var.get())
+        c = colorchooser.askcolor(title=tr("tool.audio_video.sub_color_title"),
+                                  initialcolor=self.sub_color_var.get())
         if c[1]:
             self.sub_color_var.set(c[1]); self.sub_color_preview.config(bg=c[1])
 
     def _choose_wm_color(self):
         from tkinter import colorchooser
-        c = colorchooser.askcolor(title="水印颜色", initialcolor=self.watermark_color_var.get())
+        c = colorchooser.askcolor(title=tr("tool.audio_video.wm_color_title"),
+                                  initialcolor=self.watermark_color_var.get())
         if c[1]:
             self.watermark_color_var.set(c[1]); self.wm_color_preview.config(bg=c[1])
 
@@ -891,17 +899,18 @@ class AudioVideoApp(ToolBase):
         for i, c in enumerate(self.chapters):
             audio = c['audio'].get().strip()
             if not audio or not os.path.exists(audio):
-                mb.showerror("错误", f"章节 {i + 1}：请选择有效的音频文件")
+                mb.showerror(tr("dialog.common.error"),
+                             tr("tool.audio_video.error_no_audio_chapter", idx=i + 1))
                 return
         output = self.video_output_var.get().strip()
         if not output:
-            mb.showerror("错误", "请指定输出视频文件路径")
+            mb.showerror(tr("dialog.common.error"), tr("tool.audio_video.error_no_output"))
             return
         self._stop_flag = False
         self.generate_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
-        self.status_var.set("正在准备...")
+        self.status_var.set(tr("tool.audio_video.status_preparing"))
         self.set_busy()
         threading.Thread(target=self._generate, args=(output,), daemon=True).start()
 
@@ -909,7 +918,7 @@ class AudioVideoApp(ToolBase):
         self._stop_flag = True
         if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
             self._ffmpeg_proc.terminate()
-        self.status_var.set("正在停止...")
+        self.status_var.set(tr("tool.audio_video.status_stopping"))
 
     def _generate(self, output):
         import re as _re
@@ -935,9 +944,9 @@ class AudioVideoApp(ToolBase):
             total = len(self.chapters)
             for i, chap in enumerate(self.chapters):
                 if self._stop_flag:
-                    self.status_var.set("已停止"); return
+                    self.status_var.set(tr("tool.audio_video.status_stopped")); return
 
-                self.status_var.set(f"正在合成章节 {i + 1}/{total}...")
+                self.status_var.set(tr("tool.audio_video.status_chapter_progress", i=i + 1, total=total))
                 base_pct = i / total * 95
 
                 audio = chap['audio'].get().strip()
@@ -947,9 +956,9 @@ class AudioVideoApp(ToolBase):
 
                 duration = self._get_duration(audio)
                 if duration <= 0:
-                    raise RuntimeError(f"章节 {i + 1}：无法获取音频时长")
+                    raise RuntimeError(tr("tool.audio_video.error_chapter_duration", i=i + 1))
 
-                # 处理字幕换行分割
+                # Handle subtitle line wrap split
                 burn_srt = None
                 if srt and os.path.exists(srt):
                     burn_srt = srt
@@ -963,7 +972,7 @@ class AudioVideoApp(ToolBase):
                             burn_srt = tmp_srt
                             tmp_srts.append(tmp_srt)
                         except Exception as e:
-                            self.status_var.set(f"章节 {i + 1} 字幕分割失败，用原始 SRT：{e}")
+                            self.status_var.set(tr("tool.audio_video.error_chapter_split", i=i + 1, e=e))
 
                 # 临时输出文件
                 tmp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
@@ -989,7 +998,7 @@ class AudioVideoApp(ToolBase):
                 for line in self._ffmpeg_proc.stderr:
                     if self._stop_flag:
                         self._ffmpeg_proc.terminate()
-                        self.status_var.set("已停止"); return
+                        self.status_var.set(tr("tool.audio_video.status_stopped")); return
                     m = _re.search(r'time=(\d+):(\d+):([\d.]+)', line)
                     if m and duration > 0:
                         elapsed = (int(m.group(1)) * 3600 +
@@ -999,29 +1008,33 @@ class AudioVideoApp(ToolBase):
 
                 self._ffmpeg_proc.wait()
                 if self._ffmpeg_proc.returncode != 0:
-                    raise RuntimeError(f"章节 {i + 1} ffmpeg 返回非零退出码")
+                    raise RuntimeError(tr("tool.audio_video.error_chapter_ffmpeg", i=i + 1))
 
             if self._stop_flag:
                 return
 
-            # 合并所有章节
+            # Merge all chapters
             if len(tmp_segments) == 1:
                 import shutil
                 shutil.copy2(tmp_segments[0], output)
             else:
-                self.status_var.set(f"正在合并 {total} 个章节...")
+                self.status_var.set(tr("tool.audio_video.status_merging", total=total))
                 self.progress_var.set(96)
                 self._concat_videos(tmp_segments, output)
 
             self.progress_var.set(100)
-            self.status_var.set(f"完成！共 {total} 个章节 → {output}")
+            self.status_var.set(tr("tool.audio_video.status_done", total=total, output=output))
             self.set_done()
-            __import__('tkinter').messagebox.showinfo("成功", f"视频已保存到：\n{output}")
+            __import__('tkinter').messagebox.showinfo(
+                tr("tool.audio_video.success_title"),
+                tr("tool.audio_video.success_msg", output=output))
 
         except Exception as e:
-            self.status_var.set("生成失败")
-            self.set_error(f"视频生成失败: {e}")
-            __import__('tkinter').messagebox.showerror("错误", f"视频生成失败：\n{e}")
+            self.status_var.set(tr("tool.audio_video.status_fail"))
+            self.set_error(tr("tool.audio_video.error_compose_failed", e=e))
+            __import__('tkinter').messagebox.showerror(
+                tr("dialog.common.error"),
+                tr("tool.audio_video.error_dialog_compose", e=e))
         finally:
             self.master.after(0, lambda: self.generate_btn.config(state="normal"))
             self.master.after(0, lambda: self.stop_btn.config(state="disabled"))
@@ -1029,8 +1042,8 @@ class AudioVideoApp(ToolBase):
             for f in tmp_segments:
                 try: os.unlink(f)
                 except Exception as cleanup_e:
-                    logger.error(f"清理临时文件失败 {f}: {cleanup_e}")
-            # 分割后的 SRT 作为中间文件保留，不删除
+                    logger.error(f"Failed to clean up temp file {f}: {cleanup_e}")
+            # Split SRTs are kept as intermediate artifacts (not removed)
 
     def _build_chapter_cmd(self, audio, image, bg_video, srt, width, height,
                             fps, codec, bg_hex, duration, subtitle_style,
@@ -1198,11 +1211,11 @@ class DailyNewsApp(ToolBase):
 
     def __init__(self, master, initial_file=None):
         self.master = master
-        master.title("每日要闻合成")
+        master.title(tr("tool.daily_news.title"))
         master.geometry("700x640")
         self._ffmpeg_proc = None
         self.progress_var = tk.DoubleVar(value=0)
-        self.status_var   = tk.StringVar(value="就绪")
+        self.status_var   = tk.StringVar(value=tr("tool.daily_news.status_ready"))
         self._build_ui()
         if initial_file and os.path.exists(initial_file):
             self.audio_path_var.set(initial_file)
@@ -1211,27 +1224,27 @@ class DailyNewsApp(ToolBase):
         f = self.master
         pad = {"padx": 8, "pady": 4}
 
-        # ── 文件选择 ──
-        files = tk.LabelFrame(f, text="文件选择", padx=8, pady=6)
+        # ── File selection ──
+        files = tk.LabelFrame(f, text=tr("tool.daily_news.files_frame"), padx=8, pady=6)
         files.pack(fill="x", **pad)
         files.columnconfigure(1, weight=1)
 
         def file_row(parent, row, label, var, cmd):
             tk.Label(parent, text=label).grid(row=row, column=0, sticky="e", padx=4, pady=5)
             tk.Entry(parent, textvariable=var, width=44).grid(row=row, column=1, sticky="ew", padx=4)
-            tk.Button(parent, text="浏览", width=6, command=cmd).grid(row=row, column=2, padx=4)
+            tk.Button(parent, text=tr("tool.daily_news.browse"), width=6, command=cmd).grid(row=row, column=2, padx=4)
 
         self.audio_path_var  = tk.StringVar()
         self.image_path_var  = tk.StringVar()
         self.script_path_var = tk.StringVar()
         self.output_var      = tk.StringVar(value="daily_news.mp4")
-        file_row(files, 0, "音频文件:", self.audio_path_var,  self._sel_audio)
-        file_row(files, 1, "背景图片:", self.image_path_var,  self._sel_image)
-        file_row(files, 2, "稿子(.txt):", self.script_path_var, self._sel_script)
-        file_row(files, 3, "输出视频:", self.output_var,      self._sel_output)
+        file_row(files, 0, tr("tool.daily_news.audio_file"),   self.audio_path_var,  self._sel_audio)
+        file_row(files, 1, tr("tool.daily_news.bg_image"),     self.image_path_var,  self._sel_image)
+        file_row(files, 2, tr("tool.daily_news.script_file"),  self.script_path_var, self._sel_script)
+        file_row(files, 3, tr("tool.daily_news.output_video"), self.output_var,      self._sel_output)
 
-        # ── 稿子预览 ──
-        preview = tk.LabelFrame(f, text="稿子预览", padx=6, pady=4)
+        # ── Script preview ──
+        preview = tk.LabelFrame(f, text=tr("tool.daily_news.preview_frame"), padx=6, pady=4)
         preview.pack(fill="both", expand=True, **pad)
         vsb = tk.Scrollbar(preview)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
@@ -1242,46 +1255,46 @@ class DailyNewsApp(ToolBase):
         self.script_preview.pack(fill="both", expand=True)
         vsb.config(command=self.script_preview.yview)
 
-        # ── 排版参数 ──
-        cfg = tk.LabelFrame(f, text="排版参数", padx=8, pady=6)
+        # ── Layout settings ──
+        cfg = tk.LabelFrame(f, text=tr("tool.daily_news.layout_frame"), padx=8, pady=6)
         cfg.pack(fill="x", **pad)
         cfg.columnconfigure(1, weight=1)
         cfg.columnconfigure(3, weight=1)
 
-        # 方向 + 分辨率
-        tk.Label(cfg, text="视频方向:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        # Orientation + resolution
+        tk.Label(cfg, text=tr("tool.daily_news.orientation")).grid(row=0, column=0, sticky="e", padx=4, pady=4)
         ori_f = tk.Frame(cfg)
         ori_f.grid(row=0, column=1, sticky="w", padx=4)
         self.orientation_var = tk.StringVar(value="vertical")
-        tk.Radiobutton(ori_f, text="横屏 16:9", variable=self.orientation_var,
+        tk.Radiobutton(ori_f, text=tr("tool.daily_news.horizontal_label"), variable=self.orientation_var,
                        value="horizontal", command=self._on_orientation).pack(side=tk.LEFT)
-        tk.Radiobutton(ori_f, text="竖屏 9:16", variable=self.orientation_var,
+        tk.Radiobutton(ori_f, text=tr("tool.daily_news.vertical_label"), variable=self.orientation_var,
                        value="vertical", command=self._on_orientation).pack(side=tk.LEFT, padx=8)
 
-        tk.Label(cfg, text="分辨率:").grid(row=0, column=2, sticky="e", padx=4)
+        tk.Label(cfg, text=tr("tool.daily_news.resolution")).grid(row=0, column=2, sticky="e", padx=4)
         self.resolution_var = tk.StringVar(value=_NEWS_RESOLUTIONS["vertical"][0])
         self.resolution_combo = ttk.Combobox(cfg, textvariable=self.resolution_var,
                                              values=_NEWS_RESOLUTIONS["vertical"],
                                              state="readonly", width=18)
         self.resolution_combo.grid(row=0, column=3, sticky="w", padx=4)
 
-        tk.Label(cfg, text="帧率:").grid(row=1, column=0, sticky="e", padx=4, pady=4)
+        tk.Label(cfg, text=tr("tool.daily_news.fps")).grid(row=1, column=0, sticky="e", padx=4, pady=4)
         self.fps_var = tk.StringVar(value="30")
         ttk.Combobox(cfg, textvariable=self.fps_var, values=["24", "25", "30"],
                      state="readonly", width=6).grid(row=1, column=1, sticky="w", padx=4)
 
-        tk.Label(cfg, text="字体大小:").grid(row=1, column=2, sticky="e", padx=4)
+        tk.Label(cfg, text=tr("tool.daily_news.fontsize")).grid(row=1, column=2, sticky="e", padx=4)
         self.fontsize_var = tk.IntVar(value=48)
         tk.Spinbox(cfg, textvariable=self.fontsize_var, from_=16, to=80,
                    width=6).grid(row=1, column=3, sticky="w", padx=4)
 
-        tk.Label(cfg, text="行间距(px):").grid(row=2, column=0, sticky="e", padx=4, pady=4)
+        tk.Label(cfg, text=tr("tool.daily_news.line_gap")).grid(row=2, column=0, sticky="e", padx=4, pady=4)
         self.line_spacing_var = tk.IntVar(value=12)
         tk.Spinbox(cfg, textvariable=self.line_spacing_var, from_=0, to=60,
                    width=6).grid(row=2, column=1, sticky="w", padx=4)
 
-        # 字体颜色
-        tk.Label(cfg, text="字体颜色:").grid(row=2, column=2, sticky="e", padx=4)
+        # Font color
+        tk.Label(cfg, text=tr("tool.daily_news.font_color")).grid(row=2, column=2, sticky="e", padx=4)
         color_f = tk.Frame(cfg)
         color_f.grid(row=2, column=3, sticky="w", padx=4)
         self.font_color_var = tk.StringVar(value="#FF8C00")
@@ -1290,11 +1303,11 @@ class DailyNewsApp(ToolBase):
         self._color_preview.pack(side=tk.LEFT, padx=2)
         tk.Entry(color_f, textvariable=self.font_color_var, width=9,
                  state='readonly').pack(side=tk.LEFT)
-        tk.Button(color_f, text="选择", width=5,
+        tk.Button(color_f, text=tr("tool.daily_news.pick"), width=5,
                   command=self._choose_color).pack(side=tk.LEFT, padx=4)
 
-        # 背景填充色
-        tk.Label(cfg, text="背景填充色:").grid(row=3, column=0, sticky="e", padx=4, pady=4)
+        # Background fill
+        tk.Label(cfg, text=tr("tool.daily_news.bg_fill")).grid(row=3, column=0, sticky="e", padx=4, pady=4)
         bg_f = tk.Frame(cfg)
         bg_f.grid(row=3, column=1, sticky="w", padx=4)
         self.bg_color_var = tk.StringVar(value="#000000")
@@ -1303,11 +1316,11 @@ class DailyNewsApp(ToolBase):
         self._bg_preview.pack(side=tk.LEFT, padx=2)
         tk.Entry(bg_f, textvariable=self.bg_color_var, width=9,
                  state='readonly').pack(side=tk.LEFT)
-        tk.Button(bg_f, text="选择", width=5,
+        tk.Button(bg_f, text=tr("tool.daily_news.pick"), width=5,
                   command=self._choose_bg).pack(side=tk.LEFT, padx=4)
 
-        # 文字背景色 + 透明度
-        tk.Label(cfg, text="文字背景色:").grid(row=3, column=2, sticky="e", padx=4, pady=4)
+        # Text background + alpha
+        tk.Label(cfg, text=tr("tool.daily_news.text_bg")).grid(row=3, column=2, sticky="e", padx=4, pady=4)
         txtbg_f = tk.Frame(cfg)
         txtbg_f.grid(row=3, column=3, sticky="w", padx=4)
         self.text_bg_color_var = tk.StringVar(value="#AAAAAA")
@@ -1316,48 +1329,48 @@ class DailyNewsApp(ToolBase):
         self._text_bg_preview.pack(side=tk.LEFT, padx=2)
         tk.Entry(txtbg_f, textvariable=self.text_bg_color_var, width=9,
                  state='readonly').pack(side=tk.LEFT)
-        tk.Button(txtbg_f, text="选择", width=5,
+        tk.Button(txtbg_f, text=tr("tool.daily_news.pick"), width=5,
                   command=self._choose_text_bg).pack(side=tk.LEFT, padx=4)
 
-        tk.Label(cfg, text="文字背景透明度:").grid(row=4, column=0, sticky="e", padx=4, pady=4)
+        tk.Label(cfg, text=tr("tool.daily_news.text_bg_alpha")).grid(row=4, column=0, sticky="e", padx=4, pady=4)
         alpha_f = tk.Frame(cfg)
         alpha_f.grid(row=4, column=1, columnspan=3, sticky="w", padx=4)
         self.text_bg_alpha_var = tk.IntVar(value=50)
         tk.Scale(alpha_f, variable=self.text_bg_alpha_var, from_=0, to=100,
                  orient=tk.HORIZONTAL, length=160, resolution=5).pack(side=tk.LEFT)
-        tk.Label(alpha_f, text="% (0=完全透明，100=不透明)",
+        tk.Label(alpha_f, text=tr("tool.daily_news.alpha_hint"),
                  fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=6)
 
-        # 水印
-        tk.Label(cfg, text="水印文字:").grid(row=5, column=0, sticky="e", padx=4, pady=4)
+        # Watermark
+        tk.Label(cfg, text=tr("tool.daily_news.wm_text")).grid(row=5, column=0, sticky="e", padx=4, pady=4)
         wm_left = tk.Frame(cfg)
         wm_left.grid(row=5, column=1, columnspan=3, sticky="w", padx=4)
         self.watermark_var = tk.StringVar(value="DailyLeaders")
         tk.Entry(wm_left, textvariable=self.watermark_var, width=20).pack(side=tk.LEFT, padx=2)
-        tk.Label(wm_left, text="颜色:", fg="gray").pack(side=tk.LEFT, padx=(10, 2))
+        tk.Label(wm_left, text=tr("tool.daily_news.wm_color_label"), fg="gray").pack(side=tk.LEFT, padx=(10, 2))
         self.wm_color_var = tk.StringVar(value="#ADD8E6")
         self._wm_preview  = tk.Canvas(wm_left, width=22, height=18, bg="#ADD8E6",
                                       relief=tk.SUNKEN, borderwidth=1)
         self._wm_preview.pack(side=tk.LEFT, padx=2)
         tk.Entry(wm_left, textvariable=self.wm_color_var, width=9,
                  state='readonly').pack(side=tk.LEFT)
-        tk.Button(wm_left, text="选择", width=5,
+        tk.Button(wm_left, text=tr("tool.daily_news.pick"), width=5,
                   command=self._choose_wm_color).pack(side=tk.LEFT, padx=4)
-        tk.Label(wm_left, text="字号:", fg="gray").pack(side=tk.LEFT, padx=(10, 2))
+        tk.Label(wm_left, text=tr("tool.daily_news.wm_fontsize"), fg="gray").pack(side=tk.LEFT, padx=(10, 2))
         self.wm_fontsize_var = tk.IntVar(value=72)
         tk.Spinbox(wm_left, textvariable=self.wm_fontsize_var,
                    from_=16, to=200, width=5).pack(side=tk.LEFT)
-        tk.Label(wm_left, text="（右上角，黑色描边）",
+        tk.Label(wm_left, text=tr("tool.daily_news.wm_hint"),
                  fg="gray", font=("Arial", 8)).pack(side=tk.LEFT, padx=4)
 
-        # ── 进度 + 按钮 ──
+        # ── Progress + buttons ──
         ctrl = tk.Frame(f)
         ctrl.pack(fill="x", padx=8, pady=4)
-        self.generate_btn = tk.Button(ctrl, text="开始合成", bg="#0078d4", fg="white",
+        self.generate_btn = tk.Button(ctrl, text=tr("tool.daily_news.btn_start"), bg="#0078d4", fg="white",
                                       font=("Arial", 10, "bold"), width=12,
                                       command=self._start)
         self.generate_btn.pack(side=tk.LEFT, padx=4)
-        self.stop_btn = tk.Button(ctrl, text="停止", width=8, state="disabled",
+        self.stop_btn = tk.Button(ctrl, text=tr("tool.daily_news.btn_stop"), width=8, state="disabled",
                                   command=self._stop)
         self.stop_btn.pack(side=tk.LEFT, padx=4)
         tk.Label(ctrl, textvariable=self.status_var, fg="gray").pack(side=tk.LEFT, padx=8)
@@ -1378,7 +1391,7 @@ class DailyNewsApp(ToolBase):
 
     def _sel_audio(self):
         p = filedialog.askopenfilename(
-            title="选择音频",
+            title=tr("tool.daily_news.dialog_audio"),
             filetypes=[("Audio", "*.mp3;*.wav;*.m4a;*.aac"), ("All", "*.*")])
         if p:
             self.audio_path_var.set(p)
@@ -1387,14 +1400,14 @@ class DailyNewsApp(ToolBase):
 
     def _sel_image(self):
         p = filedialog.askopenfilename(
-            title="选择背景图片",
+            title=tr("tool.daily_news.dialog_image"),
             filetypes=[("Image", "*.jpg;*.jpeg;*.png;*.bmp"), ("All", "*.*")])
         if p:
             self.image_path_var.set(p)
 
     def _sel_script(self):
         p = filedialog.askopenfilename(
-            title="选择稿子文件",
+            title=tr("tool.daily_news.dialog_script"),
             filetypes=[("Text", "*.txt"), ("All", "*.*")])
         if p:
             self.script_path_var.set(p)
@@ -1411,35 +1424,39 @@ class DailyNewsApp(ToolBase):
 
     def _sel_output(self):
         p = filedialog.asksaveasfilename(
-            title="保存视频", defaultextension=".mp4",
+            title=tr("tool.daily_news.dialog_save"), defaultextension=".mp4",
             filetypes=[("MP4", "*.mp4")])
         if p:
             self.output_var.set(p)
 
     def _choose_color(self):
         from tkinter import colorchooser
-        c = colorchooser.askcolor(color=self.font_color_var.get(), title="字体颜色")[1]
+        c = colorchooser.askcolor(color=self.font_color_var.get(),
+                                  title=tr("tool.daily_news.dialog_font_color"))[1]
         if c:
             self.font_color_var.set(c)
             self._color_preview.configure(bg=c)
 
     def _choose_bg(self):
         from tkinter import colorchooser
-        c = colorchooser.askcolor(color=self.bg_color_var.get(), title="背景填充色")[1]
+        c = colorchooser.askcolor(color=self.bg_color_var.get(),
+                                  title=tr("tool.daily_news.dialog_bg_fill"))[1]
         if c:
             self.bg_color_var.set(c)
             self._bg_preview.configure(bg=c)
 
     def _choose_text_bg(self):
         from tkinter import colorchooser
-        c = colorchooser.askcolor(color=self.text_bg_color_var.get(), title="文字背景色")[1]
+        c = colorchooser.askcolor(color=self.text_bg_color_var.get(),
+                                  title=tr("tool.daily_news.dialog_text_bg"))[1]
         if c:
             self.text_bg_color_var.set(c)
             self._text_bg_preview.configure(bg=c)
 
     def _choose_wm_color(self):
         from tkinter import colorchooser
-        c = colorchooser.askcolor(color=self.wm_color_var.get(), title="水印颜色")[1]
+        c = colorchooser.askcolor(color=self.wm_color_var.get(),
+                                  title=tr("tool.daily_news.dialog_wm_color"))[1]
         if c:
             self.wm_color_var.set(c)
             self._wm_preview.configure(bg=c)
@@ -1453,14 +1470,14 @@ class DailyNewsApp(ToolBase):
         output      = self.output_var.get().strip()
         mb = __import__('tkinter').messagebox
         if not audio or not os.path.exists(audio):
-            mb.showerror("错误", "请选择有效的音频文件"); return
+            mb.showerror(tr("dialog.common.error"), tr("tool.daily_news.error_no_audio")); return
         if not image or not os.path.exists(image):
-            mb.showerror("错误", "请选择有效的背景图片"); return
+            mb.showerror(tr("dialog.common.error"), tr("tool.daily_news.error_no_image")); return
         if not script_path or not os.path.exists(script_path):
-            mb.showerror("错误", "请选择稿子文件（.txt）"); return
+            mb.showerror(tr("dialog.common.error"), tr("tool.daily_news.error_no_script")); return
         if not output:
-            mb.showerror("错误", "请指定输出视频路径"); return
-        # 读取稿子
+            mb.showerror(tr("dialog.common.error"), tr("tool.daily_news.error_no_output")); return
+        # Read script
         try:
             with open(script_path, encoding='utf-8') as fh:
                 script = fh.read().strip()
@@ -1468,11 +1485,11 @@ class DailyNewsApp(ToolBase):
             with open(script_path, encoding='gbk', errors='replace') as fh:
                 script = fh.read().strip()
         if not script:
-            mb.showerror("错误", "稿子文件内容为空"); return
+            mb.showerror(tr("dialog.common.error"), tr("tool.daily_news.error_empty_script")); return
         self.generate_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
-        self.status_var.set("正在准备...")
+        self.status_var.set(tr("tool.daily_news.status_preparing"))
         self.set_busy()
         threading.Thread(target=self._generate,
                          args=(audio, image, output, script), daemon=True).start()
@@ -1480,7 +1497,7 @@ class DailyNewsApp(ToolBase):
     def _stop(self):
         if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
             self._ffmpeg_proc.terminate()
-            self.status_var.set("已停止")
+            self.status_var.set(tr("tool.daily_news.status_stopped"))
 
     def _get_duration(self, path):
         try:
@@ -1627,7 +1644,7 @@ class DailyNewsApp(ToolBase):
 
             total_dur = self._get_duration(audio)
             if total_dur <= 0:
-                raise RuntimeError("无法获取音频时长，请检查文件格式")
+                raise RuntimeError(tr("tool.daily_news.error_no_duration"))
 
             text_bg_color = self.text_bg_color_var.get().lstrip('#')
             text_bg_alpha = self.text_bg_alpha_var.get()
@@ -1635,8 +1652,8 @@ class DailyNewsApp(ToolBase):
             wm_color      = self.wm_color_var.get()
             wm_fontsize   = self.wm_fontsize_var.get()
 
-            # 用 PIL 渲染文字图层
-            self.status_var.set("正在渲染文字图层...")
+            # Render text layer via PIL
+            self.status_var.set(tr("tool.daily_news.status_rendering_layer"))
             tmp_png, text_h = self._render_scroll_image(
                 script, width, fontsize, line_gap, font_color,
                 text_bg_hex=text_bg_color, text_bg_alpha=text_bg_alpha)
@@ -1685,7 +1702,7 @@ class DailyNewsApp(ToolBase):
                 '-movflags', '+faststart', '-y', output,
             ]
 
-            self.status_var.set("正在合成视频...")
+            self.status_var.set(tr("tool.daily_news.status_composing"))
             import re as _re
             self._ffmpeg_proc = subprocess.Popen(
                 cmd, stderr=subprocess.PIPE, text=True,
@@ -1699,17 +1716,21 @@ class DailyNewsApp(ToolBase):
                     self.progress_var.set(min(99, elapsed / total_dur * 100))
             self._ffmpeg_proc.wait()
             if self._ffmpeg_proc.returncode != 0:
-                raise RuntimeError("ffmpeg 返回非零退出码，请检查参数")
+                raise RuntimeError(tr("tool.daily_news.error_ffmpeg_exit"))
 
             self.progress_var.set(100)
-            self.status_var.set(f"完成！{output}")
+            self.status_var.set(tr("tool.daily_news.status_done", output=output))
             self.set_done()
-            __import__('tkinter').messagebox.showinfo("完成", f"视频已保存：\n{output}")
+            __import__('tkinter').messagebox.showinfo(
+                tr("tool.daily_news.dialog_done_title"),
+                tr("tool.daily_news.dialog_done_msg", output=output))
 
         except Exception as e:
-            self.status_var.set("生成失败")
-            self.set_error(f"每日要闻合成失败: {e}")
-            __import__('tkinter').messagebox.showerror("错误", f"合成失败：\n{e}")
+            self.status_var.set(tr("tool.daily_news.status_fail"))
+            self.set_error(tr("tool.daily_news.error_compose_failed", e=e))
+            __import__('tkinter').messagebox.showerror(
+                tr("dialog.common.error"),
+                tr("tool.daily_news.error_dialog_compose", e=e))
         finally:
             self.master.after(0, lambda: self.generate_btn.config(state="normal"))
             self.master.after(0, lambda: self.stop_btn.config(state="disabled"))
@@ -1718,7 +1739,7 @@ class DailyNewsApp(ToolBase):
                 try:
                     os.unlink(tmp_png)
                 except Exception as cleanup_e:
-                    logger.error(f"清理临时 PNG 失败 {tmp_png}: {cleanup_e}")
+                    logger.error(f"Failed to clean up temp PNG {tmp_png}: {cleanup_e}")
 
 
 # ── 兼容旧入口（Hub 直接引用 Text2VideoApp 时不报错）──────────────────────────
