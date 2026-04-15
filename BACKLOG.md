@@ -7,9 +7,7 @@
 
 ## 第一批：基础可用性（先修再上线）
 
-| 优先级 | 状态 | 功能 | 说明 |
-|--------|------|------|------|
-| 🔴 P1 | [~] | 视频分割综合管理页 | 新工作台 `tools/video/split_workbench.py` 已落地：加载视频 + `subs.txt`，列表 review/增删改、嵌入 VLC 预览、分段导出、跨段合并导出。旧 `splitvideo` / `extract-clip` / `auto-split` 入口保留不动。预览依赖 VLC 64-bit + `pip install python-vlc`；待端到端回归验证 |
+_本批次已清空，完成的条目见下方「已完成」。_
 
 ---
 
@@ -40,6 +38,7 @@
 
 | 完成时间 | 功能 | 备注 |
 |---------|------|------|
+| 2026-04 | 视频分割综合管理工作台 | `tools/video/split_workbench.py`：加载视频 + `subs.txt`，Treeview 列表 review + 增删改 + 就地编辑起始时间/标题；嵌入 VLC 播放器，单击跳转、双击播放；分段导出（stream copy）与跨段合并导出（重编码 + concat demuxer）。核心抽出到 `core/segment_model.py` 与 `core/video_concat.py`；VLC 封装在 `ui/vlc_player.py`，缺失时优雅降级。旧 `splitvideo` / `extract-clip` / `auto-split` 入口保留不动 |
 | 2026-04 | 中英双语 i18n 全链路（Phase 1-7） | `tr()` + `src/i18n/{zh,en}.json` 806 keys；File > Preferences > Language 切换（重启生效）；工厂默认 English；覆盖 Hub + 全部工具 UI |
 | 2026-04 | 统一错误提示 | 所有工具 `except` 捕获后显示真实报错，不再静默失败或只说"操作失败" |
 | 2026-04 | text2video TTS 重构（Fish Audio） | Fish Audio 集成、单/多角色对话、SRT 生成（字符比例时轴）、多章节视频合成+字幕烧录、分割逻辑抽离 core 层；探索方向（音效叠加/AI排版/CLI驱动）保留为 parked 项 |

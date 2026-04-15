@@ -10,9 +10,11 @@
 ```
 src/core/
 ├── __init__.py
-├── srt_ops.py       ← SRT 字幕处理（统计 / 分段 / YouTube chapters / AI 精炼）
-├── subtitle_ops.py  ← 字幕烧录相关（分割 / 样式构建 / ffmpeg 路径 escape）
-└── video_ops.py     ← FFmpeg 视频/音频操作（基础工具函数）
+├── srt_ops.py        ← SRT 字幕处理（统计 / 分段 / YouTube chapters / AI 精炼）
+├── subtitle_ops.py   ← 字幕烧录相关（分割 / 样式构建 / ffmpeg 路径 escape）
+├── video_ops.py      ← FFmpeg 视频/音频操作（基础工具函数）
+├── segment_model.py  ← 分段模型：Segment dataclass + 加载/保存 subs.txt + 校验
+└── video_concat.py   ← 分段切割 / 跨段合并（ffmpeg concat demuxer）
 ```
 
 ## 设计原则
@@ -54,6 +56,8 @@ def _work():
 | `core/srt_ops.py` | ✅ 已完成（SRT 解析、统计、YouTube 分段、段落提取、AI 精炼、标题生成） |
 | `core/subtitle_ops.py` | ✅ 已完成（`split_srt_to_file`、`build_subtitle_style`、`escape_ffmpeg_path`、`hex_color_to_ass` 等） |
 | `core/video_ops.py` | ⚠️ 部分抽取——主要的 ffmpeg utilities 目前仍定义在 [tools/video/video_tools.py](../../src/tools/video/video_tools.py) 顶部（`extract_audio_to_mp3` 等），与 UI 类同文件但已是无 tkinter 依赖的纯函数。未来可能迁到 `core/video_ops.py` |
+| `core/segment_model.py` | ✅ 已完成（`Segment` dataclass、`parse_timestamp`/`format_timestamp`、`load_from_file`/`save_to_file`、`end_of`/`duration_of`、`validate`、`safe_filename`）。为分段综合工作台服务，兼容 AI 生成的 `subs.txt` 格式 |
+| `core/video_concat.py` | ✅ 已完成（`concat_videos` = ffmpeg concat demuxer；`split_segments` = 按选中行 stream copy 切片；`merge_segments` = 重编码每段到临时文件再 concat，支持跨段跳跃合并）。进度通过 `progress_cb(done, total)` 上报 |
 
 ## 与 core/ 并列的共享基础设施
 

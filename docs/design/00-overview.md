@@ -60,7 +60,12 @@ src/
 ├── core/                         # 纯逻辑层（无 tkinter 依赖）
 │   ├── srt_ops.py
 │   ├── video_ops.py
-│   └── subtitle_ops.py
+│   ├── subtitle_ops.py
+│   ├── segment_model.py          # 分段模型（解析/保存 subs.txt + 校验）
+│   └── video_concat.py           # 分段切割 + 跨段合并（concat demuxer）
+│
+├── ui/                           # 可复用 UI 组件（跨工具共享）
+│   └── vlc_player.py             # 嵌入式 VLC 播放器 Frame（缺失时优雅降级）
 │
 └── tools/                        # UI 层，按类别分包
     ├── base.py                   # ToolBase mixin：set_busy/done/error/warning
@@ -69,7 +74,7 @@ src/
     ├── translate/   translate_srt.py
     ├── subtitle/    subtitle_tool.py, word_subtitle.py, srt_tools.py,
     │                split_subtitles.py, presets.py
-    ├── video/       video_tools.py, split_video.py
+    ├── video/       video_tools.py, split_video.py, split_workbench.py
     ├── text2video/  text2video.py            # TTS/SRT/AudioVideo/DailyNews
     ├── publish/     youtube_publish.py, tiktok_publish.py
     └── preferences/ preferences.py           # 首选项面板（Tab 工具）
