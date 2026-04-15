@@ -25,6 +25,27 @@ except ImportError:
     AudioSegment = None
     PYDUB_AVAILABLE = False
 
+# JSON Schema used by router.complete_json() for batch translation.
+# Models are constrained to return {"translations": [{"index": int, "text": str}, ...]}
+# where index matches the 【N】 marker in the prompt input (1-based).
+_TRANSLATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "translations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "text":  {"type": "string"},
+                },
+                "required": ["index", "text"],
+            },
+        },
+    },
+    "required": ["translations"],
+}
+
 # 支持的语言列表 (语言代码 -> (英文名, 中文名))
 # 与 Speech2Text-lemonfoxAPI-Online.py 中的 language_dict 保持一致
 # UN官方语言优先：ar, zh, en, fr, ru, es
@@ -280,27 +301,19 @@ class TranslateApp(ToolBase):
         tk.Label(master, text=tr("tool.translate.prompt_label")).grid(row=5, column=0, padx=10, pady=5, sticky="ne")
         self.translate_prompt_text = tk.Text(master, height=10, width=50, wrap=tk.WORD)
         self.translate_prompt_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0, 10))
-        default_translate_prompt = """You are a professional SRT subtitle translator. Your task is to translate the following SRT subtitles from {source_lang_name} to {target_lang_name}.
+        default_translate_prompt = """You are a professional SRT subtitle translator. Translate the following subtitles from {source_lang_name} to {target_lang_name}.
 
-The subtitles are provided in a special numbered format with 【number】 markers (【1】subtitle, 【2】subtitle, etc.). You must return the translated subtitles in the EXACT SAME special numbered format.
+The input is a batch of {batch_size} subtitles, each prefixed with a 【number】 marker to identify its position. Use the marker's number as the `index` in your response.
 
-CRITICAL REQUIREMENTS:
-1. Translate EACH AND EVERY subtitle individually and separately
-2. Return the EXACT SAME NUMBER of subtitles as input ({{batch_size}} subtitles)
-3. Maintain the special numbered format: "【1】translated text", "【2】translated text", etc.
-4. DO NOT split any single subtitle into multiple subtitles
-5. DO NOT merge multiple subtitles into one subtitle
-6. DO NOT change the numbering or add/remove any subtitles
-7. DO NOT remove the 【】markers - they are essential for identification
-8. Preserve the original line breaks and formatting within each subtitle
-9. Output ONLY the numbered subtitles with 【】markers, no explanations, comments, or additional text
-10. Do NOT add quotation marks around translated text unless they are part of the original meaning
-11. Ensure translation quality and natural language
+Rules:
+1. Translate each subtitle independently. Do NOT merge, split, add, or remove subtitles — return exactly {batch_size} items.
+2. Preserve line breaks and punctuation within each subtitle.
+3. Do not wrap translations in quotation marks unless quotes are part of the original meaning.
+4. Ensure natural, fluent {target_lang_name}.
 
-Input subtitles ({{batch_size}} subtitles):
-{{numbered_input}}
-
-Return the translated subtitles in the same special 【number】 format with {{batch_size}} subtitles:"""
+Input subtitles (batch size = {batch_size}):
+{numbered_input}
+"""
         self.translate_prompt_text.insert(tk.END, default_translate_prompt)
 
         # ── Row 6: 翻译按钮 ────────────────────────────────────────────────────
@@ -394,76 +407,48 @@ Return the translated subtitles in the same special 【number】 format with {{b
                 prompt = prompt.replace("{batch_size}", str(cur_batch_size))
                 prompt = prompt.replace("{numbered_input}", numbered_input)
 
-                translated_batch = router.complete(prompt, tier=tier)
-
-                # Strip markdown code-fence wrappers that some models add
-                if translated_batch.startswith('```'):
-                    lines = translated_batch.split('\n')
-                    start_idx = next((i for i, l in enumerate(lines) if l.strip() and not l.startswith('```')), 0)
-                    end_idx = next((i for i in range(len(lines)-1, -1, -1) if lines[i].strip() and not lines[i].startswith('```')), len(lines)-1) + 1
-                    translated_batch = '\n'.join(lines[start_idx:end_idx]).strip()
-
-                # Parse 【N】 numbered response back into a dict keyed by 0-based index
                 try:
-                    parsed_subs = {}
-                    current_num = None
-                    current_content = []
-
-                    for line in translated_batch.split('\n'):
-                        line = line.strip()
-                        if not line:
-                            continue
-                        match = re.match(r'^【(\d+)】\s*(.*)$', line)
-                        if match:
-                            if current_num is not None and current_content:
-                                parsed_subs[current_num] = '\n'.join(current_content).strip()
-                            current_num = int(match.group(1)) - 1
-                            current_content = [match.group(2)]
-                        elif current_num is not None:
-                            current_content.append(line)
-
-                    if current_num is not None and current_content:
-                        parsed_subs[current_num] = '\n'.join(current_content).strip()
-
-                    actual_size = min(cur_batch_size, len(parsed_subs))
-                    if len(parsed_subs) != cur_batch_size:
-                        print(f"  ⚠️  批次 {batch_idx+1} 字幕数量不匹配: 期望 {cur_batch_size}, 实际 {len(parsed_subs)}")
-                    else:
-                        print(f"  ✅ 批次 {batch_idx+1} 编号解析成功: {actual_size} 条字幕")
-
-                    for i in range(actual_size):
-                        global_idx = batch_start_idx + i
-                        if global_idx in parsed_subs:
-                            content = parsed_subs[global_idx]
-                            if isinstance(content, str):
-                                original = content
-                                while (len(content) > 1 and
-                                       content.startswith('"') and content.endswith('"')):
-                                    cleaned = content[1:-1]
-                                    if cleaned.strip():
-                                        content = cleaned
-                                    else:
-                                        break
-                                if content != original:
-                                    print(f"  🧹 清理字幕 {global_idx} 的多余引号")
-                            translated_subs[global_idx] = content
-
-                    print(f"  📍 批次 {batch_idx+1} 处理完成 (全局索引 {batch_start_idx}-{batch_start_idx+actual_size-1})")
-
+                    parsed = router.complete_json(prompt, schema=_TRANSLATE_SCHEMA, tier=tier)
                 except Exception as e:
-                    print(f"  ❌ 批次 {batch_idx+1} 编号解析失败: {e}")
-                    print(f"  📄 原始响应: {translated_batch[:200]}...")
+                    print(f"  ❌ 批次 {batch_idx+1} JSON 调用失败: {e}")
+                    # Fall back to original text so the overall translation task keeps going.
+                    for i, original_line in enumerate(batch_contents):
+                        # Strip the 【N】 marker from the original to leave plain text.
+                        text_only = re.sub(r'^【\d+】\s*', '', original_line)
+                        translated_subs[batch_start_idx + i] = text_only
+                    if batch_idx < len(batches) - 1:
+                        time.sleep(0.5)
+                    continue
 
-                    valid_lines = [l.strip() for l in translated_batch.split('\n')
-                                   if l.strip() and not l.startswith('```')]
-                    if len(valid_lines) >= cur_batch_size:
-                        print(f"  🔄 使用后备解析方法...")
-                        for i in range(cur_batch_size):
-                            if i < len(valid_lines):
-                                translated_subs[batch_start_idx + i] = valid_lines[i]
-                        print(f"  ✅ 后备解析完成: {cur_batch_size} 条字幕")
-                    else:
-                        print(f"  ❌ 后备解析也失败: 只有 {len(valid_lines)} 行可用文本")
+                items = parsed.get("translations", []) if isinstance(parsed, dict) else []
+                if len(items) != cur_batch_size:
+                    print(f"  ⚠️  批次 {batch_idx+1} 字幕数量不匹配: 期望 {cur_batch_size}, 实际 {len(items)}")
+                else:
+                    print(f"  ✅ 批次 {batch_idx+1} JSON 解析成功: {cur_batch_size} 条字幕")
+
+                matched = 0
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        local_idx = int(item.get("index", 0)) - 1
+                    except (TypeError, ValueError):
+                        continue
+                    text = item.get("text", "")
+                    if not isinstance(text, str):
+                        continue
+                    if 0 <= local_idx < cur_batch_size:
+                        translated_subs[batch_start_idx + local_idx] = text
+                        matched += 1
+
+                # Fill any holes with the original line so output stays dense.
+                for i in range(cur_batch_size):
+                    global_idx = batch_start_idx + i
+                    if global_idx not in translated_subs:
+                        text_only = re.sub(r'^【\d+】\s*', '', batch_contents[i])
+                        translated_subs[global_idx] = text_only
+
+                print(f"  📍 批次 {batch_idx+1} 处理完成 (匹配 {matched}/{cur_batch_size})")
 
                 if batch_idx < len(batches) - 1:
                     print("  ⏳ 等待0.5秒...")

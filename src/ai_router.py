@@ -22,6 +22,7 @@ ai_router.py - VideoCraft 统一 AI 路由层
 import os
 import json
 import copy
+import subprocess
 import threading
 from datetime import datetime
 
@@ -52,32 +53,12 @@ _DEFAULT_PROVIDERS = {
             TIER_ECONOMY:  "gemini-2.5-flash-lite",
         },
     },
-    "Groq": {
-        "type":     "openai_compatible",
-        "base_url": "https://api.groq.com/openai/v1",
-        "key_file": "Groq.key",
-        "enabled":  True,
-        "priority": 2,
-        "models": [
-            "openai/gpt-oss-120b",
-            "llama-3.3-70b-versatile",
-            "openai/gpt-oss-20b",
-            "qwen/qwen3-32b",
-            "meta-llama/llama-4-scout-17b-16e-instruct",
-            "llama-3.1-8b-instant",
-        ],
-        "tiers": {
-            TIER_PREMIUM:  "openai/gpt-oss-120b",
-            TIER_STANDARD: "llama-3.3-70b-versatile",
-            TIER_ECONOMY:  "llama-3.1-8b-instant",
-        },
-    },
     "DeepSeek": {
         "type":     "openai_compatible",
         "base_url": "https://api.deepseek.com",
         "key_file": "DeepSeek.key",
         "enabled":  True,
-        "priority": 3,
+        "priority": 2,
         "models": [
             "deepseek-chat",
             "deepseek-reasoner",
@@ -92,13 +73,33 @@ _DEFAULT_PROVIDERS = {
         "type":     "openai_compatible",
         "base_url": "",
         "key_file": "Custom.key",
-        "enabled":  False,      # 默认关闭，用户在管理界面填写 base_url 后手动启用
+        "enabled":  False,      # Disabled by default; user fills in base_url via UI first
         "priority": 4,
         "models":   [],
         "tiers": {
             TIER_PREMIUM:  "",
             TIER_STANDARD: "",
             TIER_ECONOMY:  "",
+        },
+    },
+    "ClaudeCode": {
+        "type":       "claude_code",
+        "key_file":   "",           # No API key — the local `claude` CLI handles auth itself
+        "enabled":    False,        # Off by default; user must tick Enable in the Router Manager
+        "priority":   3,            # Between DeepSeek(2) and Custom(4): auto-fallback candidate
+                                    # once explicitly enabled by the user
+        "executable": "claude",     # CLI binary name or full path
+        "extra_args": [],           # Advanced: additional flags to pass through to `claude -p`
+        "timeout_sec": 600,
+        "models": [
+            "sonnet",
+            "opus",
+            "haiku",
+        ],
+        "tiers": {
+            TIER_PREMIUM:  "opus",
+            TIER_STANDARD: "sonnet",
+            TIER_ECONOMY:  "haiku",
         },
     },
 }
@@ -202,6 +203,43 @@ class AIRouter:
         else:
             return self._complete_by_tier(tier, model, prompt)
 
+    def complete_json(self, prompt: str, *,
+                      schema: dict,
+                      tier: str = TIER_STANDARD,
+                      provider: str = None,
+                      model: str = None) -> dict:
+        """Structured JSON completion. The model is constrained to return a
+        JSON object matching the given schema; the router parses it and returns
+        a plain dict.
+
+        Args:
+            prompt:   The user prompt. The schema is injected by the router as
+                      a system hint or native response_schema flag, so callers
+                      should NOT manually repeat schema instructions in prompt.
+            schema:   JSON Schema dict (OpenAPI-style) describing the expected
+                      structure.
+            tier:     "premium" | "standard" | "economy".
+            provider: Optional explicit provider name.
+            model:    Optional explicit model ID.
+
+        Returns:
+            Parsed JSON response as a dict.
+
+        Raises:
+            RuntimeError: API call failed, response was not valid JSON, or
+                          none of the candidate providers succeeded.
+        """
+        if tier not in TIERS:
+            raise ValueError(f"tier 必须是 {TIERS} 之一，收到: {tier!r}")
+        if not isinstance(schema, dict):
+            raise ValueError(f"schema 必须是 dict，收到: {type(schema).__name__}")
+
+        if provider:
+            provider = _COMPAT_NAMES.get(provider, provider)
+            return self._complete_json_explicit(provider, tier, model, prompt, schema)
+        else:
+            return self._complete_json_by_tier(tier, model, prompt, schema)
+
     def get_stats(self) -> dict:
         """返回当前调用统计的深拷贝（线程安全）。"""
         with self._lock:
@@ -230,12 +268,14 @@ class AIRouter:
         return self._providers.get(provider, {}).get("models", [])
 
     def get_available_providers(self, tier: str = None) -> list:
-        """返回当前可用的 provider 列表（已启用且 key 文件存在）。"""
+        """Return providers that are enabled AND have valid auth for their type.
+        For claude_code, the local `claude` CLI handles its own auth, so no key
+        file is required — presence of the entry + enabled flag is enough."""
         result = []
         for name, cfg in self._providers.items():
             if not cfg.get("enabled", True):
                 continue
-            if self._read_key(cfg) is None:
+            if not self._has_auth(cfg):
                 continue
             model_id = cfg["tiers"].get(tier) if tier else None
             if tier and not model_id:
@@ -333,7 +373,7 @@ class AIRouter:
 
         示例：
             router.update_provider("Custom", base_url="http://...", enabled=True)
-            router.update_provider("Groq", models=["model-a", "model-b"])
+            router.update_provider("DeepSeek", models=["deepseek-chat", "deepseek-reasoner"])
         """
         provider = _COMPAT_NAMES.get(provider, provider)
         if provider not in self._providers:
@@ -391,6 +431,49 @@ class AIRouter:
             f"所有 tier={tier!r} 的 provider 均失败。最后错误: {last_err}"
         )
 
+    def _complete_json_explicit(self, provider: str, tier: str, model: str,
+                                 prompt: str, schema: dict) -> dict:
+        """JSON variant of _complete_explicit."""
+        cfg = self._providers.get(provider)
+        if cfg is None:
+            raise RuntimeError(f"未知 provider: {provider!r}，请检查 providers.json")
+        resolved_model = model or cfg["tiers"].get(tier) or cfg["tiers"].get(TIER_STANDARD)
+        if not resolved_model:
+            raise RuntimeError(f"provider {provider!r} 在 tier={tier!r} 下没有配置模型")
+        return self._call_json(provider, cfg, resolved_model, prompt, schema)
+
+    def _complete_json_by_tier(self, tier: str, model: str,
+                                prompt: str, schema: dict) -> dict:
+        """JSON variant of _complete_by_tier."""
+        routing = self._tier_routing.get(tier, {})
+        r_provider = routing.get("provider", "")
+        r_model    = model or routing.get("model", "")
+
+        if r_provider and r_model:
+            cfg = self._providers.get(r_provider)
+            if cfg and cfg.get("enabled", True) and self._read_key(cfg) is not None:
+                try:
+                    return self._call_json(r_provider, cfg, r_model, prompt, schema)
+                except Exception:
+                    pass
+
+        candidates = self._get_candidates(tier)
+        if not candidates:
+            raise RuntimeError(
+                f"没有可用的 provider 支持 tier={tier!r}，"
+                "请在 AI Router 管理界面配置 API Key。"
+            )
+        last_err = None
+        for name, cfg, mid in candidates:
+            try:
+                return self._call_json(name, cfg, model or mid, prompt, schema)
+            except Exception as e:
+                last_err = e
+
+        raise RuntimeError(
+            f"所有 tier={tier!r} 的 provider 均失败。最后错误: {last_err}"
+        )
+
     def _get_candidates(self, tier: str) -> list:
         """返回按 priority 排序的 (name, cfg, model_id) 列表，跳过不可用项。"""
         result = []
@@ -400,21 +483,33 @@ class AIRouter:
             model_id = cfg["tiers"].get(tier, "")
             if not model_id:
                 continue
-            if self._read_key(cfg) is None:
+            if not self._has_auth(cfg):
                 continue
             result.append((name, cfg, model_id, cfg.get("priority", 99)))
         result.sort(key=lambda x: x[3])
         return [(n, c, m) for n, c, m, _ in result]
 
+    @staticmethod
+    def _has_auth(cfg: dict) -> bool:
+        """Return True if the provider has the credentials needed to run.
+        claude_code providers rely on the local CLI's own login state, so
+        presence of the entry is sufficient; all other types require a
+        non-empty key file."""
+        if cfg.get("type") == "claude_code":
+            return True
+        return AIRouter._read_key(cfg) is not None
+
     # ── Provider 调用层 ───────────────────────────────────────────────────────
 
     def _call(self, name: str, cfg: dict, model_id: str, prompt: str) -> str:
         """调用指定 provider，记录统计。失败时抛出异常（调用方决定是否降级）。"""
-        api_key = self._read_key(cfg)
-        if api_key is None:
-            raise RuntimeError(f"API Key 未配置: {cfg.get('key_file', '?')}")
-
         ptype = cfg.get("type")
+        api_key = None
+        if ptype != "claude_code":
+            api_key = self._read_key(cfg)
+            if api_key is None:
+                raise RuntimeError(f"API Key 未配置: {cfg.get('key_file', '?')}")
+
         try:
             if ptype == "gemini":
                 result = self._call_gemini(api_key, model_id, prompt)
@@ -423,6 +518,8 @@ class AIRouter:
                 if not base_url:
                     raise RuntimeError(f"provider {name!r} 的 base_url 未配置")
                 result = self._call_openai(api_key, base_url, model_id, prompt)
+            elif ptype == "claude_code":
+                result = self._call_claude_code(cfg, model_id, prompt)
             else:
                 raise RuntimeError(f"不支持的 provider 类型: {ptype!r}")
 
@@ -448,6 +545,200 @@ class AIRouter:
             messages=[{"role": "user", "content": prompt}],
         )
         return response.choices[0].message.content.strip()
+
+    # ── Provider 调用层（JSON）────────────────────────────────────────────────
+
+    def _call_json(self, name: str, cfg: dict, model_id: str,
+                   prompt: str, schema: dict) -> dict:
+        """Structured JSON dispatch. Mirrors _call() but routes to JSON-capable
+        provider implementations. Records stats; raises on failure."""
+        ptype = cfg.get("type")
+        api_key = None
+        if ptype != "claude_code":
+            api_key = self._read_key(cfg)
+            if api_key is None:
+                raise RuntimeError(f"API Key 未配置: {cfg.get('key_file', '?')}")
+
+        try:
+            if ptype == "gemini":
+                result = self._call_gemini_json(api_key, model_id, prompt, schema)
+            elif ptype == "openai_compatible":
+                base_url = cfg.get("base_url", "")
+                if not base_url:
+                    raise RuntimeError(f"provider {name!r} 的 base_url 未配置")
+                result = self._call_openai_json(api_key, base_url, model_id, prompt, schema)
+            elif ptype == "claude_code":
+                result = self._call_claude_code_json(cfg, model_id, prompt, schema)
+            else:
+                raise RuntimeError(f"不支持的 JSON provider 类型: {ptype!r}")
+
+            self._record(name, success=True)
+            return result
+
+        except Exception as e:
+            self._record(name, success=False, error=str(e))
+            raise
+
+    def _call_gemini_json(self, api_key: str, model_id: str,
+                           prompt: str, schema: dict) -> dict:
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_id,
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": schema,
+            },
+        )
+        response = model.generate_content(prompt)
+        raw = (response.text or "").strip()
+        return self._parse_json_response(raw, provider_hint="Gemini")
+
+    def _call_openai_json(self, api_key: str, base_url: str, model_id: str,
+                           prompt: str, schema: dict) -> dict:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        schema_hint = (
+            "You must respond with a single JSON object that strictly matches "
+            "this JSON Schema:\n"
+            f"{json.dumps(schema, ensure_ascii=False, indent=2)}\n"
+            "Return only the JSON object. No markdown fences. No prose. No explanations."
+        )
+        response = client.chat.completions.create(
+            model=model_id,
+            messages=[
+                {"role": "system", "content": schema_hint},
+                {"role": "user",   "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        return self._parse_json_response(raw, provider_hint="OpenAI-compatible")
+
+    @staticmethod
+    def _strip_json_fence(raw: str) -> str:
+        """Strip ```json ... ``` or ``` ... ``` fences some models wrap JSON in.
+        Returns the inner content trimmed. Leaves non-fenced input untouched."""
+        s = raw.strip()
+        if not s.startswith("```"):
+            return s
+        # Drop opening fence (optionally with language tag) and closing fence.
+        lines = s.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        return "\n".join(lines).strip()
+
+    @classmethod
+    def _parse_json_response(cls, raw: str, *, provider_hint: str) -> dict:
+        """Clean markdown fences and json.loads. Raises RuntimeError with a
+        short snippet of the raw output on failure so callers can debug."""
+        cleaned = cls._strip_json_fence(raw)
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            snippet = cleaned[:300].replace("\n", "\\n")
+            raise RuntimeError(
+                f"{provider_hint} returned non-JSON output: {e}. "
+                f"Raw (first 300 chars): {snippet!r}"
+            )
+        if not isinstance(parsed, dict):
+            raise RuntimeError(
+                f"{provider_hint} returned non-object JSON "
+                f"(type={type(parsed).__name__}): {str(parsed)[:200]!r}"
+            )
+        return parsed
+
+    # ── Provider 调用层（Claude Code CLI）─────────────────────────────────────
+
+    def _call_claude_code(self, cfg: dict, model_id: str, prompt: str) -> str:
+        """Run the local `claude` CLI headless and return plain text stdout.
+
+        The prompt is piped over stdin to avoid Windows' ~32KB command-line
+        length ceiling. --permission-mode bypassPermissions is safe here
+        because we never ask the model to use Write/Edit; we only consume
+        its text output."""
+        cmd = self._claude_code_cmd(cfg, model_id, output_format="text")
+        return self._run_claude_subprocess(cmd, cfg, prompt)
+
+    def _call_claude_code_json(self, cfg: dict, model_id: str,
+                                prompt: str, schema: dict) -> dict:
+        """Run the local `claude` CLI and parse structured JSON out of it.
+
+        Uses --output-format json, which wraps the model's text in a result
+        envelope: {"type":"result","subtype":"success","result":"...","cost_usd":...}.
+        The envelope's `result` field is the model's raw text; since we ask
+        the model to emit JSON, we have to parse that string a second time."""
+        cmd = self._claude_code_cmd(cfg, model_id, output_format="json")
+        full_prompt = (
+            f"{prompt}\n\n"
+            "Respond with ONLY a single JSON object that strictly matches "
+            "this JSON Schema:\n"
+            f"{json.dumps(schema, ensure_ascii=False, indent=2)}\n"
+            "No prose. No markdown. No code fences. Just the JSON object."
+        )
+        envelope_raw = self._run_claude_subprocess(cmd, cfg, full_prompt)
+
+        try:
+            envelope = json.loads(envelope_raw)
+        except json.JSONDecodeError:
+            raise RuntimeError(
+                f"ClaudeCode CLI returned non-JSON stdout: {envelope_raw[:300]!r}"
+            )
+        inner_text = envelope.get("result", "")
+        if not inner_text:
+            raise RuntimeError(
+                f"ClaudeCode result envelope missing 'result' field: "
+                f"{str(envelope)[:200]!r}"
+            )
+        return self._parse_json_response(inner_text, provider_hint="ClaudeCode")
+
+    @staticmethod
+    def _claude_code_cmd(cfg: dict, model_id: str, *, output_format: str) -> list:
+        """Build the argv list for a headless `claude -p` invocation."""
+        executable = cfg.get("executable") or "claude"
+        cmd = [
+            executable, "-p",
+            "--output-format", output_format,
+            "--permission-mode", "bypassPermissions",
+        ]
+        if model_id:
+            cmd += ["--model", model_id]
+        extra = cfg.get("extra_args") or []
+        if extra:
+            cmd += list(extra)
+        return cmd
+
+    @staticmethod
+    def _run_claude_subprocess(cmd: list, cfg: dict, prompt: str) -> str:
+        """Spawn the Claude CLI subprocess with prompt on stdin, return stdout.
+        Raises RuntimeError on missing binary, timeout, or non-zero exit."""
+        executable = cmd[0] if cmd else "claude"
+        try:
+            result = subprocess.run(
+                cmd,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=int(cfg.get("timeout_sec", 600)),
+            )
+        except FileNotFoundError:
+            raise RuntimeError(
+                f"Claude Code CLI not found: {executable!r}. "
+                "Install from https://claude.com/claude-code and ensure it "
+                "is on PATH, or set a full path in the Router Manager."
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                f"Claude Code CLI timed out after {cfg.get('timeout_sec')}s"
+            )
+        if result.returncode != 0:
+            tail = (result.stderr or "").strip().splitlines()[-10:]
+            raise RuntimeError("claude code failed: " + " | ".join(tail))
+        return (result.stdout or "").strip()
 
     # ── 统计 ──────────────────────────────────────────────────────────────────
 
@@ -481,6 +772,8 @@ class AIRouter:
             self._tier_routing   = copy.deepcopy(_DEFAULT_TIER_ROUTING)
             self._save_config()     # 首次运行写出默认配置
 
+        self._migrate_removed_providers()
+        self._normalize_providers()
         self._normalize_asr_providers()
 
         # 初始化统计条目
@@ -501,6 +794,50 @@ class AIRouter:
                 "asr_providers": self._asr_providers,
                 "tts_providers": self._tts_providers,
             }, f, ensure_ascii=False, indent=2)
+
+    def _migrate_removed_providers(self):
+        """Clean up providers that were removed in newer versions.
+
+        Groq was removed because its Llama/gpt-oss/qwen models did not meet
+        VideoCraft's NLP quality bar. If an old providers.json still has it,
+        drop the entry and rewrite any tier_routing that pointed at it back to
+        the default (Gemini).
+        """
+        removed = ["Groq"]
+        dirty = False
+        for name in removed:
+            if name in self._providers:
+                self._providers.pop(name, None)
+                dirty = True
+            if name in self._stats:
+                self._stats.pop(name, None)
+
+        default_routing = _DEFAULT_TIER_ROUTING
+        for tier, routing in list(self._tier_routing.items()):
+            if routing.get("provider") in removed:
+                self._tier_routing[tier] = copy.deepcopy(
+                    default_routing.get(tier, {"provider": "Gemini", "model": ""})
+                )
+                dirty = True
+
+        if dirty:
+            self._save_config()
+
+    def _normalize_providers(self):
+        """Backfill provider entries that are missing from an older providers.json.
+
+        When a new release adds a provider to _DEFAULT_PROVIDERS (e.g. ClaudeCode),
+        users upgrading from a previous version would otherwise not see it in
+        their Router Manager because the existing providers.json only carries
+        the providers known at creation time. We insert any missing defaults
+        verbatim and persist."""
+        dirty = False
+        for name, default_cfg in _DEFAULT_PROVIDERS.items():
+            if name not in self._providers:
+                self._providers[name] = copy.deepcopy(default_cfg)
+                dirty = True
+        if dirty:
+            self._save_config()
 
     def _normalize_asr_providers(self):
         """回填 ASR provider 缺失字段，保证旧 providers.json 向后兼容。"""

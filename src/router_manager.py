@@ -279,12 +279,19 @@ class RouterManagerWindow:
         return f"✅ {masked}", "#228B22"
 
     def _open_edit_dialog(self, name, cfg):
+        is_claude = cfg.get("type") == "claude_code"
         dlg = tk.Toplevel(self.win)
         dlg.title(tr("tool.router.edit_dialog_title", name=name))
         dlg.geometry("500x340")
         dlg.resizable(False, False)
         dlg.grab_set()
 
+        if is_claude:
+            self._build_claude_code_dialog(dlg, name, cfg)
+        else:
+            self._build_api_key_dialog(dlg, name, cfg)
+
+    def _build_api_key_dialog(self, dlg, name, cfg):
         r = 0
 
         # API Key
@@ -353,6 +360,75 @@ class RouterManagerWindow:
             messagebox.showinfo(tr("tool.router.saved_title"),
                                 tr("tool.router.saved_config_msg", name=name), parent=dlg)
             self._rebuild_keys_tab()    # Refresh status display
+            dlg.destroy()
+
+        btn_row = tk.Frame(dlg)
+        btn_row.grid(row=r, column=0, columnspan=4, pady=14)
+        tk.Button(btn_row, text=tr("tool.router.btn_save"), command=save, width=10).pack(side="left", padx=10)
+        tk.Button(btn_row, text=tr("tool.router.btn_cancel"), command=dlg.destroy, width=10).pack(side="left")
+
+    def _build_claude_code_dialog(self, dlg, name, cfg):
+        """Edit dialog variant for claude_code providers: no API key row, no
+        Base URL. Exposes executable path, timeout, and model list."""
+        r = 0
+
+        # Executable path
+        tk.Label(dlg, text=tr("tool.router.label_executable"), anchor="e", width=14).grid(
+            row=r, column=0, padx=10, pady=(14, 6), sticky="e")
+        exec_var = tk.StringVar(value=cfg.get("executable", "claude"))
+        tk.Entry(dlg, textvariable=exec_var, width=42).grid(
+            row=r, column=1, columnspan=3, pady=(14, 6), sticky="w")
+        r += 1
+
+        # Timeout (seconds)
+        tk.Label(dlg, text=tr("tool.router.label_timeout_sec"), anchor="e", width=14).grid(
+            row=r, column=0, padx=10, pady=6, sticky="e")
+        timeout_var = tk.StringVar(value=str(cfg.get("timeout_sec", 600)))
+        tk.Entry(dlg, textvariable=timeout_var, width=14).grid(
+            row=r, column=1, pady=6, sticky="w")
+        r += 1
+
+        # Model list (comma-separated)
+        tk.Label(dlg, text=tr("tool.router.label_models"), anchor="ne", width=14).grid(
+            row=r, column=0, padx=10, pady=6, sticky="ne")
+        models_text = tk.Text(dlg, height=4, width=42, wrap="word")
+        models_text.grid(row=r, column=1, columnspan=3, pady=6, sticky="w")
+        models_text.insert("1.0", ", ".join(cfg.get("models", [])))
+        r += 1
+
+        # Hint
+        tk.Label(
+            dlg,
+            text=tr("tool.router.claudecode_hint"),
+            font=("", 8), fg="gray", justify="left", wraplength=440,
+        ).grid(row=r, column=0, columnspan=4, padx=12, pady=(8, 4), sticky="w")
+        r += 1
+
+        def save():
+            executable = exec_var.get().strip() or "claude"
+            try:
+                timeout_sec = _parse_int_range(
+                    timeout_var.get(),
+                    minimum=10,
+                    maximum=3600,
+                    field_label=tr("tool.router.label_timeout_sec"),
+                )
+            except ValueError as e:
+                messagebox.showerror(tr("dialog.common.error"), str(e), parent=dlg)
+                return
+
+            raw_models = models_text.get("1.0", "end")
+            models = [m.strip() for m in raw_models.replace("\n", ",").split(",") if m.strip()]
+
+            router.update_provider(
+                name,
+                executable=executable,
+                timeout_sec=timeout_sec,
+                models=models,
+            )
+            messagebox.showinfo(tr("tool.router.saved_title"),
+                                tr("tool.router.saved_config_msg", name=name), parent=dlg)
+            self._rebuild_keys_tab()
             dlg.destroy()
 
         btn_row = tk.Frame(dlg)
