@@ -7,7 +7,9 @@
 
 ## 第一批：基础可用性（先修再上线）
 
-_本批次已清空，完成的条目见下方「已完成」。_
+| 优先级 | 状态 | 功能 | 说明 |
+|--------|------|------|------|
+| 🔴 P1 | [ ] | PPT 视频生成管线 | Claude 对话产出 slide（md/html）→ PPT 插件渲染 → Claude 写备注讲稿 → TTS（Edge TTS 免费档 / Fish Audio 发布档）→ PPT 每页导出 PNG → ffmpeg 按音频时长拼接 + 字幕烧录 → MP4。完整管线草案见 [docs/draft/PPT2Videopipeline.md](docs/draft/PPT2Videopipeline.md) |
 
 ---
 
