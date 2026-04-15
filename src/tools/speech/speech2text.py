@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 import requests
 import textwrap  # for text helper utilities
+import time
+import threading
 from hub_logger import logger
 
 # Whisper支持的语言字典：ISO代码 -> (英文名, 中文名)
@@ -337,6 +339,44 @@ class Speech2TextApp(ToolBase):
         self.log_text.insert(tk.END, msg)
         self.log_text.see(tk.END)
 
+    @staticmethod
+    def _resolve_upload_mime(file_path: str) -> tuple[str, bool]:
+        """Infer upload MIME type from extension, with safe fallback."""
+        ext = os.path.splitext(file_path)[1].lower()
+        mime_map = {
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".m4a": "audio/mp4",
+            ".mp4": "video/mp4",
+            ".mkv": "video/x-matroska",
+        }
+        if ext in mime_map:
+            return mime_map[ext], False
+        return "application/octet-stream", True
+
+    @staticmethod
+    def _build_request_data(api_lang: str | None, translate: bool, speaker: bool) -> list[tuple[str, str]]:
+        data = [
+            ("response_format", "verbose_json"),
+            ("timestamp_granularities[]", "segment"),
+            ("timestamp_granularities[]", "word"),
+        ]
+        if api_lang:
+            data.append(("language", api_lang))
+        if translate:
+            data.append(("translate_to_english", "true"))
+        if speaker:
+            data.append(("speaker_labels", "true"))
+        return data
+
+    @staticmethod
+    def _safe_int(value, default: int, minimum: int, maximum: int) -> int:
+        try:
+            parsed = int(value)
+        except Exception:
+            return default
+        return min(max(parsed, minimum), maximum)
+
     def _verbose_json_to_srt(self, data: dict) -> str:
         """将 verbose_json 响应的 segments 转换为 SRT 格式字符串。
         若 segment 含 speaker 字段（说话人区分模式），文本前置 [SPEAKER_xx]。
@@ -355,8 +395,6 @@ class Speech2TextApp(ToolBase):
     def _transcribe_audio(self):
         """Validate inputs on the main thread, then launch a background thread for the API call
         so the UI stays responsive during the (potentially long) transcription request."""
-        import threading
-
         mp3_path = self.entry_mp3_path.get()
         selected_language = self.combo_language.get()
         api_key = router.get_asr_key("lemonfox")
@@ -396,35 +434,173 @@ class Speech2TextApp(ToolBase):
                 # Route all log writes back to the main thread via after()
                 self.master.after(0, self._log, msg)
 
+            def set_btn_text(text):
+                self.master.after(0, lambda t=text: self.btn_transcribe.config(text=t))
+
             def finish():
                 # Re-enable button on the main thread when done or on error
                 self.master.after(0, lambda: self.btn_transcribe.config(
                     state="normal", text=tr("tool.speech.btn_transcribe")))
 
             try:
-                url      = "https://api.lemonfox.ai/v1/audio/transcriptions"
-                headers  = {"Authorization": f"Bearer {api_key}"}
-                file_ext = os.path.splitext(mp3_path)[1].lower()
-                mime_type = "video/mp4" if file_ext == ".mp4" else "audio/mpeg"
-                files = {"file": (os.path.basename(mp3_path), open(mp3_path, "rb"), mime_type)}
-                data  = [
-                    ("response_format", "verbose_json"),
-                    ("timestamp_granularities[]", "segment"),
-                    ("timestamp_granularities[]", "word"),
-                ]
-                if api_lang:
-                    data.append(("language", api_lang))
-                if translate:
-                    data.append(("translate_to_english", "true"))
-                if speaker:
-                    data.append(("speaker_labels", "true"))
+                asr_cfg = router.get_asr_config("lemonfox") or {}
+                url = asr_cfg.get("base_url") or "https://api.lemonfox.ai/v1/audio/transcriptions"
+                headers = {"Authorization": f"Bearer {api_key}"}
+                mime_type, used_fallback_mime = self._resolve_upload_mime(mp3_path)
+                data = self._build_request_data(api_lang, translate, speaker)
 
-                response = requests.post(url, headers=headers, data=data, files=files)
-                if not response.ok:
-                    raise Exception(tr("tool.speech.error.api_error",
-                                       code=response.status_code, text=response.text))
+                connect_timeout = self._safe_int(asr_cfg.get("connect_timeout_sec"), 60, 5, 300)
+                read_timeout = self._safe_int(asr_cfg.get("read_timeout_sec"), 120, 30, 600)
+                max_retries = self._safe_int(asr_cfg.get("max_retries"), 1, 1, 10)
+                timeout = (connect_timeout, read_timeout)
+                max_attempts = max_retries + 1
 
-                result = response.json()
+                log(tr("tool.speech.log.request_summary",
+                       url=url,
+                       filename=os.path.basename(mp3_path),
+                       mime=mime_type,
+                       language=api_lang or "auto",
+                       translate=str(translate).lower(),
+                       speaker=str(speaker).lower(),
+                       timeout=f"{connect_timeout}/{read_timeout}"))
+                if used_fallback_mime:
+                    log(tr("tool.speech.warning.mime_fallback", mime=mime_type))
+
+                result = None
+                for attempt in range(1, max_attempts + 1):
+                    wait_started_at = None
+                    wait_stop_event = threading.Event()
+                    state_lock = threading.Lock()
+                    upload_reported = -1
+                    wait_log_second = -1
+                    waiting_started = False
+
+                    def start_waiting_status():
+                        nonlocal wait_started_at, waiting_started
+                        with state_lock:
+                            if waiting_started:
+                                return
+                            waiting_started = True
+                            wait_started_at = time.time()
+                        log(tr("tool.speech.log.state_waiting_start",
+                               attempt=attempt, max=max_attempts))
+
+                    def report_upload(uploaded: int, total: int):
+                        nonlocal upload_reported
+                        if total <= 0:
+                            return
+                        percent = int(uploaded * 100 / total)
+                        if percent > 100:
+                            percent = 100
+                        with state_lock:
+                            should_log = (percent != upload_reported and (percent % 5 == 0 or percent == 100))
+                            if should_log:
+                                upload_reported = percent
+                        if should_log:
+                            set_btn_text(tr("tool.speech.btn_uploading", percent=percent))
+                            log(tr("tool.speech.log.state_uploading",
+                                   attempt=attempt, max=max_attempts, percent=percent))
+                        if percent >= 100:
+                            start_waiting_status()
+
+                    def wait_status_loop():
+                        nonlocal wait_log_second
+                        while not wait_stop_event.wait(1):
+                            with state_lock:
+                                started = wait_started_at
+                            if started is None:
+                                continue
+                            elapsed = int(time.time() - started)
+                            set_btn_text(tr("tool.speech.btn_waiting", elapsed=elapsed, total=read_timeout))
+                            if elapsed != wait_log_second and elapsed % 5 == 0:
+                                wait_log_second = elapsed
+                                log(tr("tool.speech.log.state_waiting_tick",
+                                       attempt=attempt, max=max_attempts,
+                                       elapsed=elapsed, total=read_timeout))
+
+                    wait_thread = threading.Thread(target=wait_status_loop, daemon=True)
+                    wait_thread.start()
+
+                    class ProgressFile:
+                        def __init__(self, path: str, callback):
+                            self._fp = open(path, "rb")
+                            self._total = os.path.getsize(path)
+                            self._uploaded = 0
+                            self._callback = callback
+
+                        def read(self, size=-1):
+                            chunk = self._fp.read(size)
+                            if chunk:
+                                self._uploaded += len(chunk)
+                                self._callback(self._uploaded, self._total)
+                            else:
+                                self._callback(self._total, self._total)
+                            return chunk
+
+                        def close(self):
+                            self._fp.close()
+
+                        def __getattr__(self, item):
+                            return getattr(self._fp, item)
+
+                    try:
+                        progress_fp = ProgressFile(mp3_path, report_upload)
+                        try:
+                            files = {"file": (os.path.basename(mp3_path), progress_fp, mime_type)}
+                            response = requests.post(
+                                url,
+                                headers=headers,
+                                data=data,
+                                files=files,
+                                timeout=timeout,
+                            )
+                        finally:
+                            progress_fp.close()
+                        status_code = response.status_code
+                        if not response.ok:
+                            body_preview = (response.text or "")[:500]
+                            raise RuntimeError(tr("tool.speech.error.api_error",
+                                                  code=status_code, text=body_preview))
+
+                        try:
+                            result = response.json()
+                        except ValueError:
+                            raise RuntimeError(tr("tool.speech.error.invalid_json"))
+                        break
+
+                    except requests.exceptions.ConnectTimeout as e:
+                        if attempt < max_attempts:
+                            wait_s = min(2 ** attempt, 30)
+                            log(tr("tool.speech.log.retry_connect_timeout",
+                                   attempt=attempt, max=max_attempts, wait=wait_s))
+                            time.sleep(wait_s)
+                            continue
+                        raise RuntimeError(tr("tool.speech.error.connect_timeout")) from e
+                    except requests.exceptions.ReadTimeout as e:
+                        if attempt < max_attempts:
+                            wait_s = min(2 ** attempt, 30)
+                            log(tr("tool.speech.log.retry_read_timeout",
+                                   attempt=attempt, max=max_attempts, wait=wait_s))
+                            time.sleep(wait_s)
+                            continue
+                        raise RuntimeError(tr("tool.speech.error.read_timeout")) from e
+                    except requests.exceptions.ConnectionError as e:
+                        if attempt < max_attempts:
+                            wait_s = min(2 ** attempt, 30)
+                            log(tr("tool.speech.log.retry_connection_error",
+                                   attempt=attempt, max=max_attempts, wait=wait_s))
+                            time.sleep(wait_s)
+                            continue
+                        raise RuntimeError(tr("tool.speech.error.connection_error")) from e
+                    except requests.exceptions.RequestException as e:
+                        raise RuntimeError(tr("tool.speech.error.request_exception",
+                                              e=str(e))) from e
+                    finally:
+                        wait_stop_event.set()
+                        set_btn_text(tr("tool.speech.btn_running"))
+
+                if result is None:
+                    raise RuntimeError(tr("tool.speech.error.no_result"))
                 current_srt_path = srt_path
 
                 # Resolve the detected language ISO code reported by the Whisper model

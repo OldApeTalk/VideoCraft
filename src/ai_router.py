@@ -124,6 +124,9 @@ _DEFAULT_ASR_PROVIDERS = {
         "key_file":    "lemonfox.key",
         "base_url":    "https://api.lemonfox.ai/v1/audio/transcriptions",
         "description": "LemonFox Whisper ASR API",
+        "connect_timeout_sec": 60,
+        "read_timeout_sec": 120,
+        "max_retries": 1,
     },
 }
 
@@ -478,6 +481,8 @@ class AIRouter:
             self._tier_routing   = copy.deepcopy(_DEFAULT_TIER_ROUTING)
             self._save_config()     # 首次运行写出默认配置
 
+        self._normalize_asr_providers()
+
         # 初始化统计条目
         with self._lock:
             for name in self._providers:
@@ -496,6 +501,13 @@ class AIRouter:
                 "asr_providers": self._asr_providers,
                 "tts_providers": self._tts_providers,
             }, f, ensure_ascii=False, indent=2)
+
+    def _normalize_asr_providers(self):
+        """回填 ASR provider 缺失字段，保证旧 providers.json 向后兼容。"""
+        for name, default_cfg in _DEFAULT_ASR_PROVIDERS.items():
+            current = self._asr_providers.setdefault(name, copy.deepcopy(default_cfg))
+            for key, value in default_cfg.items():
+                current.setdefault(key, value)
 
     @staticmethod
     def _read_key(provider_cfg: dict):

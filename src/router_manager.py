@@ -42,6 +42,17 @@ def open_router_manager(parent):
     RouterManagerWindow(parent)
 
 
+def _parse_int_range(value: str, *, minimum: int, maximum: int, field_label: str) -> int:
+    try:
+        parsed = int(value.strip())
+    except Exception as e:
+        raise ValueError(tr("tool.router.error_invalid_number", field=field_label)) from e
+    if parsed < minimum or parsed > maximum:
+        raise ValueError(tr("tool.router.error_out_of_range",
+                            field=field_label, min=minimum, max=maximum))
+    return parsed
+
+
 # ── 主窗口 ────────────────────────────────────────────────────────────────────
 
 class RouterManagerWindow:
@@ -156,7 +167,7 @@ class RouterManagerWindow:
         display_name = cfg.get("name", name)
         dlg = tk.Toplevel(self.win)
         dlg.title(tr("tool.router.edit_dialog_title", name=display_name))
-        dlg.geometry("500x180")
+        dlg.geometry("560x300")
         dlg.resizable(False, False)
         dlg.grab_set()
 
@@ -177,24 +188,78 @@ class RouterManagerWindow:
         ttk.Checkbutton(dlg, text=tr("tool.router.label_show"), variable=show_var,
                         command=toggle_show).grid(row=0, column=3, padx=6)
 
+        tk.Label(dlg, text=tr("tool.router.label_connect_timeout_sec"), anchor="e", width=12).grid(
+            row=1, column=0, padx=10, pady=6, sticky="e")
+        connect_timeout_var = tk.StringVar(value=str(cfg.get("connect_timeout_sec", 60)))
+        tk.Entry(dlg, textvariable=connect_timeout_var, width=14).grid(row=1, column=1, pady=6, sticky="w")
+
+        tk.Label(dlg, text=tr("tool.router.label_read_timeout_sec"), anchor="e", width=12).grid(
+            row=2, column=0, padx=10, pady=6, sticky="e")
+        read_timeout_var = tk.StringVar(value=str(cfg.get("read_timeout_sec", 120)))
+        tk.Entry(dlg, textvariable=read_timeout_var, width=14).grid(row=2, column=1, pady=6, sticky="w")
+
+        tk.Label(dlg, text=tr("tool.router.label_max_retries"), anchor="e", width=12).grid(
+            row=3, column=0, padx=10, pady=6, sticky="e")
+        max_retries_var = tk.StringVar(value=str(cfg.get("max_retries", 1)))
+        tk.Entry(dlg, textvariable=max_retries_var, width=14).grid(row=3, column=1, pady=6, sticky="w")
+
+        tk.Label(
+            dlg,
+            text=tr("tool.router.asr_retry_hint"),
+            font=("", 8),
+            fg="gray",
+            justify="left",
+            wraplength=430,
+        ).grid(row=4, column=0, columnspan=4, padx=12, pady=(8, 4), sticky="w")
+
         def save():
             key = key_var.get().strip()
             if not key:
                 messagebox.showerror(tr("dialog.common.error"),
                                      tr("tool.router.error_key_empty"), parent=dlg)
                 return
+
+            try:
+                connect_timeout = _parse_int_range(
+                    connect_timeout_var.get(),
+                    minimum=5,
+                    maximum=300,
+                    field_label=tr("tool.router.label_connect_timeout_sec"),
+                )
+                read_timeout = _parse_int_range(
+                    read_timeout_var.get(),
+                    minimum=30,
+                    maximum=600,
+                    field_label=tr("tool.router.label_read_timeout_sec"),
+                )
+                max_retries = _parse_int_range(
+                    max_retries_var.get(),
+                    minimum=1,
+                    maximum=10,
+                    field_label=tr("tool.router.label_max_retries"),
+                )
+            except ValueError as e:
+                messagebox.showerror(tr("dialog.common.error"), str(e), parent=dlg)
+                return
+
             kp = os.path.join(_keys_dir(), cfg.get("key_file", ""))
             if kp:
                 os.makedirs(os.path.dirname(kp), exist_ok=True)
                 with open(kp, "w", encoding="utf-8") as f:
                     f.write(key)
+            router.update_asr_provider(
+                name,
+                connect_timeout_sec=connect_timeout,
+                read_timeout_sec=read_timeout,
+                max_retries=max_retries,
+            )
             messagebox.showinfo(tr("tool.router.saved_title"),
-                                tr("tool.router.saved_msg", name=display_name), parent=dlg)
+                                tr("tool.router.saved_config_msg", name=display_name), parent=dlg)
             self._rebuild_keys_tab()
             dlg.destroy()
 
         btn_row = tk.Frame(dlg)
-        btn_row.grid(row=1, column=0, columnspan=4, pady=14)
+        btn_row.grid(row=5, column=0, columnspan=4, pady=14)
         tk.Button(btn_row, text=tr("tool.router.btn_save"), command=save, width=10).pack(side="left", padx=10)
         tk.Button(btn_row, text=tr("tool.router.btn_cancel"), command=dlg.destroy, width=10).pack(side="left")
 
