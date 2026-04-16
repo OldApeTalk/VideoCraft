@@ -349,15 +349,14 @@ class Speech2TextApp(ToolBase):
                         self.entry_srt_path.insert(0, p),
                     ))
 
-                # Log detected language (and warn on mismatch)
+                # Log detected language (and log mismatch notice early so the
+                # user sees it close to the detection line).
                 if detected:
                     post_log(tr("tool.speech.log.detected_lang",
                                 detected=detected, iso=detected_iso or ""))
                 if lang_mismatch:
                     post_log(tr("tool.speech.log.lang_mismatch",
                                 selected=expected_iso, detected=detected_iso))
-                    self.set_warning(tr("tool.speech.warning.lang_mismatch",
-                                        selected=expected_iso, detected=detected_iso))
 
                 # Success logs
                 post_log(tr("tool.speech.log.json_saved", path=json_path))
@@ -368,7 +367,15 @@ class Speech2TextApp(ToolBase):
                     post_log(tr("tool.speech.log.words", count=result["word_count"]))
                 logger.info(tr("tool.speech.log.complete",
                                filename=os.path.basename(final_srt)))
-                self.set_done()
+
+                # Final tab status — warning takes priority over done, so call
+                # set_warning LAST (otherwise set_done would flip the tab dot
+                # from orange back to green, silently hiding the mismatch).
+                if lang_mismatch:
+                    self.set_warning(tr("tool.speech.warning.lang_mismatch",
+                                        selected=expected_iso, detected=detected_iso))
+                else:
+                    self.set_done()
 
             except Exception as e:
                 post_log(tr("tool.speech.error.generic", e=str(e)))
