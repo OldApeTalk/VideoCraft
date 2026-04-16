@@ -1,0 +1,93 @@
+"""core.ai — Unified AI facade for VideoCraft.
+
+Design principles (see docs/draft/AIRouterAndCoreAPI.md):
+  1. Three-layer architecture: UI -> core/<feature> -> core/ai
+  2. UI layer must NOT import core.ai directly (except infrastructure tools
+     like the AI console / Router tab itself).
+  3. Feature layer (core/translate.py, core/asr.py, etc.) is the proper
+     consumer of this facade.
+
+Phase 1 scope (current):
+  - Router + stats + config split out of the old ai_router.py monolith.
+  - LLM provider adapters extracted (gemini / openai_compat / claude_code).
+  - AIError + CancellationToken contracts scaffolded (implementation in
+    Phase 7).
+  - describe() returns Phase 1 placeholder capability metadata.
+  - ASR / TTS dispatch NOT yet folded in — those migrations happen in
+    M4 / M5 respectively. For now, callers continue to use
+    `router.get_asr_key(...)` / `router.get_tts_key(...)` and make their
+    own HTTP/SDK calls.
+
+Legacy compatibility:
+  - `src/ai_router.py` is a thin shim that re-exports `router`, `TIER_*`,
+    and the legacy constants so existing `import ai_router` callers keep
+    working unchanged.
+"""
+
+from core.ai.router import router, AIRouter
+from core.ai.tiers import (
+    Tier,
+    TIER_PREMIUM,
+    TIER_STANDARD,
+    TIER_ECONOMY,
+    TIERS,
+)
+from core.ai.errors import AIError, Kind
+from core.ai.cancellation import CancellationToken
+
+
+# ── Facade functions ────────────────────────────────────────────────────────
+# Feature layer (core/translate.py etc.) calls these. They are thin wrappers
+# around the router singleton. Keeping them as module-level functions keeps
+# feature-layer call sites concise:
+#   `from core import ai; text = ai.complete(prompt, task="translate")`
+
+def complete(prompt: str, *,
+             task: str = "",
+             tier: str = TIER_STANDARD,
+             provider: str | None = None,
+             model: str | None = None) -> str:
+    """Plain text completion.
+
+    `task` is the future namespace identifier (e.g. "translate",
+    "subtitle.refine"). Phase 1 records it for forward compatibility but
+    does not yet drive routing. Phase 7+ will use it to pick prompts from
+    the Prompt hub and route per-task.
+    """
+    _ = task  # reserved for Phase 7 task->prompt/provider mapping
+    return router.complete(prompt, tier=tier, provider=provider, model=model)
+
+
+def complete_json(prompt: str, *,
+                  schema: dict,
+                  task: str = "",
+                  tier: str = TIER_STANDARD,
+                  provider: str | None = None,
+                  model: str | None = None) -> dict:
+    """Structured JSON completion. See complete() for `task` semantics."""
+    _ = task
+    return router.complete_json(
+        prompt, schema=schema, tier=tier, provider=provider, model=model
+    )
+
+
+def describe(task: str = "", tier: str = TIER_STANDARD) -> dict:
+    """Capability metadata for (task, tier). Phase 1 returns placeholders."""
+    return router.describe(task, tier)
+
+
+__all__ = [
+    "router",
+    "AIRouter",
+    "Tier",
+    "TIER_PREMIUM",
+    "TIER_STANDARD",
+    "TIER_ECONOMY",
+    "TIERS",
+    "AIError",
+    "Kind",
+    "CancellationToken",
+    "complete",
+    "complete_json",
+    "describe",
+]
