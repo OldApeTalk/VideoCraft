@@ -18,6 +18,7 @@ from core.ai.providers import gemini as _gemini
 from core.ai.providers import openai_compat as _openai_compat
 from core.ai.providers import claude_code as _claude_code
 from core.ai.providers import lemonfox as _lemonfox
+from core.ai.providers import fish_audio as _fish_audio
 from core.ai.stats import Stats
 from core.ai.tiers import (
     TIER_PREMIUM,
@@ -284,6 +285,66 @@ class AIRouter:
         self._persist()
 
     # ── TTS API ──────────────────────────────────────────────────────────────
+
+    def tts(self, text: str, output_path: str, *,
+            provider: str = "fish_audio",
+            voice_id: str,
+            audio_format: str = "mp3",
+            should_cancel=None,
+            on_chunk=None) -> None:
+        """Dispatch a TTS synthesis call.
+
+        Args:
+            text:          Input text.
+            output_path:   Destination audio file.
+            provider:      TTS provider name. Phase 1 only supports
+                           "fish_audio".
+            voice_id:      Voice / reference ID for the provider.
+            audio_format:  'mp3' | 'wav' | 'opus'.
+            should_cancel: Optional predicate for cooperative cancel;
+                           provider raises InterruptedError mid-stream
+                           when it returns True.
+            on_chunk:      Optional callback(bytes_written_so_far) for
+                           streaming progress.
+
+        Raises:
+            RuntimeError:     provider unknown / disabled / key missing /
+                              SDK missing / API failure.
+            InterruptedError: user cancelled via should_cancel.
+        """
+        cfg = self._tts_providers.get(provider)
+        if cfg is None:
+            raise RuntimeError(f"Unknown TTS provider: {provider!r}")
+        if not cfg.get("enabled", True):
+            raise RuntimeError(f"TTS provider {provider!r} is disabled")
+        api_key = _cfg.read_key(cfg)
+        if api_key is None:
+            raise RuntimeError(
+                f"TTS API key not configured for {provider!r} — "
+                f"set it in AI Router manager"
+            )
+
+        try:
+            if provider == "fish_audio":
+                _fish_audio.synthesize(
+                    text, output_path,
+                    api_key=api_key,
+                    voice_id=voice_id,
+                    audio_format=audio_format,
+                    should_cancel=should_cancel,
+                    on_chunk=on_chunk,
+                )
+            else:
+                raise RuntimeError(f"Unsupported TTS provider: {provider!r}")
+            self._stats.record(provider, success=True)
+        except InterruptedError:
+            # Treat user cancel as not-a-failure for stats (and re-raise so
+            # the UI layer knows). The provider already left no partial
+            # output beyond what the caller handles.
+            raise
+        except Exception as e:
+            self._stats.record(provider, success=False, error=str(e))
+            raise
 
     def get_tts_key(self, provider: str) -> str | None:
         cfg = self._tts_providers.get(provider)

@@ -100,6 +100,38 @@ def asr(audio_path: str, *,
     )
 
 
+def tts(text: str, output_path: str, *,
+        task: str = "tts.synthesize",
+        provider: str = "fish_audio",
+        voice_id: str,
+        audio_format: str = "mp3",
+        should_cancel=None,
+        on_chunk=None) -> None:
+    """Stream TTS audio to a file.
+
+    `task` is recorded for forward compatibility; Phase 1 ignores it.
+    `should_cancel` is a cooperative cancellation predicate (Phase 7 will
+    integrate with CancellationToken).
+    """
+    _ = task
+    return router.tts(
+        text, output_path,
+        provider=provider,
+        voice_id=voice_id,
+        audio_format=audio_format,
+        should_cancel=should_cancel,
+        on_chunk=on_chunk,
+    )
+
+
+def is_tts_sdk_available(provider: str = "fish_audio") -> bool:
+    """Check whether the given TTS provider's SDK is installed."""
+    from core.ai.providers import fish_audio as _fish_audio
+    if provider == "fish_audio":
+        return _fish_audio.is_sdk_available()
+    return False
+
+
 __all__ = [
     "router",
     "AIRouter",
@@ -115,4 +147,6 @@ __all__ = [
     "complete_json",
     "describe",
     "asr",
+    "tts",
+    "is_tts_sdk_available",
 ]

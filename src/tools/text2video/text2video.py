@@ -16,14 +16,7 @@ import threading
 import subprocess
 import tempfile
 
-try:
-    from fish_audio_sdk import Session, TTSRequest
-    FISH_AUDIO_AVAILABLE = True
-except ImportError:
-    FISH_AUDIO_AVAILABLE = False
-
-from ai_router import router
-from router_manager import open_router_manager
+from core import tts as core_tts
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -50,10 +43,8 @@ class TTSApp(ToolBase):
         row = 0
         tk.Label(tab, text="Fish Audio:").grid(row=row, column=0, padx=10, pady=8, sticky="e")
         self.api_status_var = tk.StringVar(value=tr("tool.tts.api_status_unknown"))
-        self.api_status_lbl = tk.Label(tab, textvariable=self.api_status_var, fg="red", width=32, anchor="w")
-        self.api_status_lbl.grid(row=row, column=1, sticky="w")
-        tk.Button(tab, text=tr("tool.tts.router_btn"),
-                  command=lambda: open_router_manager(self.master)).grid(row=row, column=2, padx=10)
+        self.api_status_lbl = tk.Label(tab, textvariable=self.api_status_var, fg="red", anchor="w")
+        self.api_status_lbl.grid(row=row, column=1, columnspan=2, sticky="ew")
 
         row += 1
         mode_frame = tk.LabelFrame(tab, text=tr("tool.tts.mode_frame"), padx=8, pady=6)
@@ -180,20 +171,20 @@ class TTSApp(ToolBase):
             self.output_path_var.set(path)
 
     def _refresh_api_status(self):
-        key = router.get_tts_key("fish_audio")
-        if key:
-            masked = key[:6] + "****" + key[-4:]
-            self.api_status_var.set(tr("tool.tts.api_configured", masked=masked))
+        st = core_tts.status("fish_audio")
+        if st["configured"]:
+            self.api_status_var.set(tr("tool.tts.api_configured", masked=st["masked_key"]))
             self.api_status_lbl.config(fg="green")
         else:
             self.api_status_var.set(tr("tool.tts.api_not_configured"))
             self.api_status_lbl.config(fg="red")
 
     def start_generation(self):
-        if not FISH_AUDIO_AVAILABLE:
+        st = core_tts.status("fish_audio")
+        if not st["available"]:
             self._show_error(tr("tool.tts.error_no_sdk"))
             return
-        if not router.get_tts_key("fish_audio"):
+        if not st["configured"]:
             self._show_error(tr("tool.tts.error_no_apikey"))
             return
         self._stop_flag = False
@@ -231,18 +222,25 @@ class TTSApp(ToolBase):
 
             self.status_var.set(tr("tool.tts.status_calling_api"))
             self.progress_var.set(10)
-            session = Session(router.get_tts_key("fish_audio"))
-            with session.tts(TTSRequest(
-                reference_id=voice_id, text=text, format=self.audio_format_var.get(),
-            )) as resp:
-                with open(output, "wb") as f:
-                    total = 0
-                    for chunk in resp.iter_bytes():
-                        if self._stop_flag:
-                            self.status_var.set(tr("tool.tts.status_stopped")); return
-                        f.write(chunk)
-                        total += len(chunk)
-                        self.progress_var.set(min(90, 10 + total // 1024))
+
+            # Map streaming byte count to a pseudo 10%-90% progress bar
+            # (total size is unknown until the stream completes).
+            def on_progress(written, _total, _msg):
+                pct = min(90, 10 + written // 1024)
+                self.master.after(0, lambda p=pct: self.progress_var.set(p))
+
+            try:
+                core_tts.synthesize_text(
+                    text, output,
+                    voice_id=voice_id,
+                    audio_format=self.audio_format_var.get(),
+                    should_cancel=lambda: self._stop_flag,
+                    on_progress=on_progress,
+                )
+            except InterruptedError:
+                self.status_var.set(tr("tool.tts.status_stopped"))
+                return
+
             self._last_output = output
             self.progress_var.set(100)
             self.status_var.set(tr("tool.tts.status_done_single", output=output))
@@ -261,40 +259,38 @@ class TTSApp(ToolBase):
             if not role_map:
                 self._show_error(tr("tool.tts.error_no_role_voice")); return
             raw = self.multi_text.get("1.0", tk.END).strip()
-            segments = self._parse_dialogue(raw, role_map)
+            segments = core_tts.parse_dialogue(raw, role_map)
             if not segments:
                 self._show_error(tr("tool.tts.error_no_valid_dialog")); return
             output = self.output_path_var.get().strip()
             if not output:
                 self._show_error(tr("tool.tts.error_no_output")); return
 
-            session = Session(router.get_tts_key("fish_audio"))
             total = len(segments)
-            tmp_files = []
-            for i, (role, text) in enumerate(segments):
-                if self._stop_flag:
-                    self.status_var.set(tr("tool.tts.status_stopped"))
-                    self._cleanup_temps(tmp_files); return
-                self.status_var.set(tr("tool.tts.status_generating_seg", i=i+1, total=total, role=role))
-                self.progress_var.set(int(i / total * 85))
-                fmt = self.audio_format_var.get()
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{fmt}")
-                tmp.close()
-                tmp_files.append(tmp.name)
-                with session.tts(TTSRequest(
-                    reference_id=role_map[role], text=text, format=fmt,
-                )) as resp:
-                    with open(tmp.name, "wb") as f:
-                        for chunk in resp.iter_bytes():
-                            if self._stop_flag:
-                                self.status_var.set(tr("tool.tts.status_stopped"))
-                                self._cleanup_temps(tmp_files); return
-                            f.write(chunk)
 
-            self.status_var.set(tr("tool.tts.status_merging"))
-            self.progress_var.set(90)
-            self._concat_audio(tmp_files, output)
-            self._cleanup_temps(tmp_files)
+            def on_progress(i, total_segs, role):
+                if role == "merging":
+                    self.master.after(0,
+                        lambda: self.status_var.set(tr("tool.tts.status_merging")))
+                    self.master.after(0, lambda: self.progress_var.set(90))
+                else:
+                    self.master.after(0, lambda idx=i, r=role: self.status_var.set(
+                        tr("tool.tts.status_generating_seg",
+                           i=idx + 1, total=total_segs, role=r)))
+                    self.master.after(0,
+                        lambda idx=i: self.progress_var.set(int(idx / total_segs * 85)))
+
+            try:
+                core_tts.synthesize_dialogue(
+                    segments, role_map, output,
+                    audio_format=self.audio_format_var.get(),
+                    should_cancel=lambda: self._stop_flag,
+                    on_progress=on_progress,
+                )
+            except InterruptedError:
+                self.status_var.set(tr("tool.tts.status_stopped"))
+                return
+
             self._last_output = output
             self.progress_var.set(100)
             self.status_var.set(tr("tool.tts.status_done_multi", total=total, output=output))
@@ -304,41 +300,6 @@ class TTSApp(ToolBase):
             self.set_error(tr("tool.tts.error_tts_multi_failed", e=e))
         finally:
             self._finish_generation()
-
-    def _parse_dialogue(self, raw, role_map):
-        segments = []
-        for line in raw.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            for role in role_map:
-                for sep in ['：', ':']:
-                    if line.startswith(role + sep):
-                        text = line[len(role) + 1:].strip()
-                        if text:
-                            if segments and segments[-1][0] == role:
-                                segments[-1] = (role, segments[-1][1] + " " + text)
-                            else:
-                                segments.append((role, text))
-                        break
-        return segments
-
-    def _concat_audio(self, files, output):
-        lf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8')
-        for f in files:
-            lf.write(f"file '{f}'\n")
-        lf.close()
-        try:
-            subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0',
-                            '-i', lf.name, '-c', 'copy', output],
-                           capture_output=True, check=True)
-        finally:
-            os.unlink(lf.name)
-
-    def _cleanup_temps(self, files):
-        for f in files:
-            try: os.unlink(f)
-            except Exception: pass
 
     def _show_error(self, msg):
         self.master.after(0, lambda: __import__('tkinter').messagebox.showerror(
