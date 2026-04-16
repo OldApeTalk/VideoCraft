@@ -164,10 +164,15 @@ class RouterManagerWindow:
                   ).pack(side="left", padx=8)
 
     def _open_asr_edit_dialog(self, name, cfg):
+        # TTS providers reuse this dialog but have no timeout / retry fields —
+        # showing them and calling update_asr_provider() crashes. Branch off
+        # the TTS-only path that just writes the key file and closes.
+        is_tts = name in router._tts_providers
+
         display_name = cfg.get("name", name)
         dlg = tk.Toplevel(self.win)
         dlg.title(tr("tool.router.edit_dialog_title", name=display_name))
-        dlg.geometry("560x300")
+        dlg.geometry("560x180" if is_tts else "560x300")
         dlg.resizable(False, False)
         dlg.grab_set()
 
@@ -188,29 +193,33 @@ class RouterManagerWindow:
         ttk.Checkbutton(dlg, text=tr("tool.router.label_show"), variable=show_var,
                         command=toggle_show).grid(row=0, column=3, padx=6)
 
-        tk.Label(dlg, text=tr("tool.router.label_connect_timeout_sec"), anchor="e", width=12).grid(
-            row=1, column=0, padx=10, pady=6, sticky="e")
+        # Timeout / retry fields only apply to ASR (HTTP-heavy). TTS providers
+        # use a streaming SDK with its own timeouts, so we hide these rows.
         connect_timeout_var = tk.StringVar(value=str(cfg.get("connect_timeout_sec", 60)))
-        tk.Entry(dlg, textvariable=connect_timeout_var, width=14).grid(row=1, column=1, pady=6, sticky="w")
+        read_timeout_var    = tk.StringVar(value=str(cfg.get("read_timeout_sec", 120)))
+        max_retries_var     = tk.StringVar(value=str(cfg.get("max_retries", 1)))
 
-        tk.Label(dlg, text=tr("tool.router.label_read_timeout_sec"), anchor="e", width=12).grid(
-            row=2, column=0, padx=10, pady=6, sticky="e")
-        read_timeout_var = tk.StringVar(value=str(cfg.get("read_timeout_sec", 120)))
-        tk.Entry(dlg, textvariable=read_timeout_var, width=14).grid(row=2, column=1, pady=6, sticky="w")
+        if not is_tts:
+            tk.Label(dlg, text=tr("tool.router.label_connect_timeout_sec"), anchor="e", width=12).grid(
+                row=1, column=0, padx=10, pady=6, sticky="e")
+            tk.Entry(dlg, textvariable=connect_timeout_var, width=14).grid(row=1, column=1, pady=6, sticky="w")
 
-        tk.Label(dlg, text=tr("tool.router.label_max_retries"), anchor="e", width=12).grid(
-            row=3, column=0, padx=10, pady=6, sticky="e")
-        max_retries_var = tk.StringVar(value=str(cfg.get("max_retries", 1)))
-        tk.Entry(dlg, textvariable=max_retries_var, width=14).grid(row=3, column=1, pady=6, sticky="w")
+            tk.Label(dlg, text=tr("tool.router.label_read_timeout_sec"), anchor="e", width=12).grid(
+                row=2, column=0, padx=10, pady=6, sticky="e")
+            tk.Entry(dlg, textvariable=read_timeout_var, width=14).grid(row=2, column=1, pady=6, sticky="w")
 
-        tk.Label(
-            dlg,
-            text=tr("tool.router.asr_retry_hint"),
-            font=("", 8),
-            fg="gray",
-            justify="left",
-            wraplength=430,
-        ).grid(row=4, column=0, columnspan=4, padx=12, pady=(8, 4), sticky="w")
+            tk.Label(dlg, text=tr("tool.router.label_max_retries"), anchor="e", width=12).grid(
+                row=3, column=0, padx=10, pady=6, sticky="e")
+            tk.Entry(dlg, textvariable=max_retries_var, width=14).grid(row=3, column=1, pady=6, sticky="w")
+
+            tk.Label(
+                dlg,
+                text=tr("tool.router.asr_retry_hint"),
+                font=("", 8),
+                fg="gray",
+                justify="left",
+                wraplength=430,
+            ).grid(row=4, column=0, columnspan=4, padx=12, pady=(8, 4), sticky="w")
 
         def save():
             key = key_var.get().strip()
@@ -219,40 +228,49 @@ class RouterManagerWindow:
                                      tr("tool.router.error_key_empty"), parent=dlg)
                 return
 
-            try:
-                connect_timeout = _parse_int_range(
-                    connect_timeout_var.get(),
-                    minimum=5,
-                    maximum=300,
-                    field_label=tr("tool.router.label_connect_timeout_sec"),
-                )
-                read_timeout = _parse_int_range(
-                    read_timeout_var.get(),
-                    minimum=30,
-                    maximum=600,
-                    field_label=tr("tool.router.label_read_timeout_sec"),
-                )
-                max_retries = _parse_int_range(
-                    max_retries_var.get(),
-                    minimum=1,
-                    maximum=10,
-                    field_label=tr("tool.router.label_max_retries"),
-                )
-            except ValueError as e:
-                messagebox.showerror(tr("dialog.common.error"), str(e), parent=dlg)
-                return
+            if not is_tts:
+                try:
+                    connect_timeout = _parse_int_range(
+                        connect_timeout_var.get(),
+                        minimum=5,
+                        maximum=300,
+                        field_label=tr("tool.router.label_connect_timeout_sec"),
+                    )
+                    read_timeout = _parse_int_range(
+                        read_timeout_var.get(),
+                        minimum=30,
+                        maximum=600,
+                        field_label=tr("tool.router.label_read_timeout_sec"),
+                    )
+                    max_retries = _parse_int_range(
+                        max_retries_var.get(),
+                        minimum=1,
+                        maximum=10,
+                        field_label=tr("tool.router.label_max_retries"),
+                    )
+                except ValueError as e:
+                    messagebox.showerror(tr("dialog.common.error"), str(e), parent=dlg)
+                    return
 
             kp = os.path.join(_keys_dir(), cfg.get("key_file", ""))
             if kp:
                 os.makedirs(os.path.dirname(kp), exist_ok=True)
                 with open(kp, "w", encoding="utf-8") as f:
                     f.write(key)
-            router.update_asr_provider(
-                name,
-                connect_timeout_sec=connect_timeout,
-                read_timeout_sec=read_timeout,
-                max_retries=max_retries,
-            )
+
+            if not is_tts:
+                # Persist the ASR-only fields via the router so they're
+                # written back to providers.json.
+                router.update_asr_provider(
+                    name,
+                    connect_timeout_sec=connect_timeout,
+                    read_timeout_sec=read_timeout,
+                    max_retries=max_retries,
+                )
+            # TTS providers have no extra fields beyond the key file; writing
+            # the .key is sufficient and the in-memory router reads it lazily
+            # on next get_tts_key() call.
+
             messagebox.showinfo(tr("tool.router.saved_title"),
                                 tr("tool.router.saved_config_msg", name=display_name), parent=dlg)
             self._rebuild_keys_tab()
