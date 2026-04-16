@@ -66,9 +66,9 @@ REGISTRY: list[Operation] = [
     Operation("烧录字幕...",
               "tool",  [".mp4", ".mkv", ".avi", ".mov"],
               tool_key="subtitle"),
-    Operation("视频分段...",
+    Operation("分段工作台...",
               "tool",  [".mp4", ".mkv", ".avi", ".mov"],
-              tool_key="splitvideo"),
+              tool_key="split-workbench"),
 
     # ── SRT 文件 ──
     Operation("提取纯文本 (.txt)",

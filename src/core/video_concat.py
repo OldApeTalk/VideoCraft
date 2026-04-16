@@ -1,11 +1,16 @@
 """
 Video split and merge helpers for the split workbench.
 
-`split_segments` writes one file per segment (stream copy, keyframe-aligned).
+`split_segments` writes one file per segment, with selectable cut mode
+(fast / keyframe_snap / accurate) routed through core.video_split.split_one.
 `merge_segments` re-encodes each selected segment then concatenates them into
 one output, so non-contiguous segments can be stitched into a single cut.
 `concat_videos` is the underlying ffmpeg concat-demuxer call, also used as a
 standalone utility.
+
+The low-level ffmpeg helpers (run_ffmpeg, stream_copy_segment,
+reencode_segment) are exported so that core.video_split can reuse them
+without reaching into private names.
 """
 
 from __future__ import annotations
@@ -13,14 +18,17 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 from core.segment_model import Segment, duration_of, end_of, safe_filename
+
+if TYPE_CHECKING:
+    from core.video_split import SplitMode
 
 ProgressCb = Callable[[int, int], None]  # (done, total)
 
 
-def _run_ffmpeg(cmd: list[str]) -> None:
+def run_ffmpeg(cmd: list[str]) -> None:
     """Run ffmpeg and raise RuntimeError with stderr on failure."""
     result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
@@ -40,7 +48,7 @@ def concat_videos(files: list[str], output: str) -> None:
             escaped = f.replace("'", r"'\''")
             lf.write(f"file '{escaped}'\n")
         lf.close()
-        _run_ffmpeg([
+        run_ffmpeg([
             "ffmpeg", "-y", "-f", "concat", "-safe", "0",
             "-i", lf.name, "-c", "copy", output,
         ])
@@ -51,14 +59,15 @@ def concat_videos(files: list[str], output: str) -> None:
             pass
 
 
-def _stream_copy_segment(
+def stream_copy_segment(
     video_path: str,
     start_sec: float,
     duration_sec: float,
     output: str,
 ) -> None:
     """Fast stream-copy cut. Start is seeked BEFORE -i so ffmpeg jumps to the
-    nearest prior keyframe; we do not snap explicitly — ffmpeg handles it."""
+    nearest prior keyframe; snap-to-keyframe is handled at the SplitMode level
+    in core.video_split (KEYFRAME_SNAP mode pre-snaps start explicitly)."""
     cmd = [
         "ffmpeg", "-y",
         "-ss", f"{start_sec:.3f}",
@@ -70,10 +79,10 @@ def _stream_copy_segment(
         "-loglevel", "error",
         output,
     ]
-    _run_ffmpeg(cmd)
+    run_ffmpeg(cmd)
 
 
-def _reencode_segment(
+def reencode_segment(
     video_path: str,
     start_sec: float,
     duration_sec: float,
@@ -93,7 +102,7 @@ def _reencode_segment(
         "-loglevel", "error",
         output,
     ]
-    _run_ffmpeg(cmd)
+    run_ffmpeg(cmd)
 
 
 def split_segments(
@@ -103,15 +112,45 @@ def split_segments(
     video_duration: float,
     output_dir: str,
     progress_cb: ProgressCb | None = None,
+    mode: "SplitMode | None" = None,
+    on_probe_start: Callable[[], None] | None = None,
 ) -> list[str]:
-    """Export each selected segment to its own file via stream copy.
+    """Export each selected segment to its own file.
 
     `selected_indices` refers to positions inside `all_segments` — the caller
     passes the full list so that each segment's end is derived from the
     ORIGINAL next segment, not the next *selected* one.
 
+    `mode` selects the cut strategy (see core.video_split.SplitMode).
+    Defaults to KEYFRAME_SNAP when omitted — the professional-workbench
+    stance: no re-encode, but boundaries land on I-frames.
+
+    `on_probe_start` is invoked once before the (potentially slow) ffprobe
+    scan so the UI can show a "Probing keyframes…" status. Skipped when mode
+    doesn't need probing or when the cache is already warm.
+
     Returns the list of written file paths.
     """
+    from core.video_split import SplitMode, probe_keyframes, split_one, _KEYFRAME_CACHE
+
+    if mode is None:
+        mode = SplitMode.KEYFRAME_SNAP
+
+    keyframes: list[float] | None = None
+    if mode == SplitMode.KEYFRAME_SNAP:
+        abs_path = os.path.abspath(video_path)
+        cache_hit = False
+        cached = _KEYFRAME_CACHE.get(abs_path)
+        if cached:
+            try:
+                if cached[0] == os.path.getmtime(abs_path):
+                    cache_hit = True
+            except OSError:
+                pass
+        if not cache_hit and on_probe_start is not None:
+            on_probe_start()
+        keyframes = probe_keyframes(video_path)
+
     os.makedirs(output_dir, exist_ok=True)
     total = len(selected_indices)
     outputs: list[str] = []
@@ -124,7 +163,10 @@ def split_segments(
         out_path = os.path.join(output_dir, name)
         if progress_cb:
             progress_cb(done, total)
-        _stream_copy_segment(video_path, seg.start_sec, duration, out_path)
+        split_one(
+            video_path, seg.start_sec, duration, out_path,
+            mode=mode, keyframes=keyframes,
+        )
         outputs.append(out_path)
     if progress_cb:
         progress_cb(total, total)
@@ -161,7 +203,7 @@ def merge_segments(
             piece = os.path.join(tmp_dir, f"piece_{done:03d}.mp4")
             if progress_cb:
                 progress_cb(done, total)
-            _reencode_segment(video_path, seg.start_sec, duration, piece)
+            reencode_segment(video_path, seg.start_sec, duration, piece)
             tmp_files.append(piece)
 
         if not tmp_files:
@@ -185,7 +227,10 @@ def merge_segments(
 
 
 __all__ = [
+    "run_ffmpeg",
     "concat_videos",
+    "stream_copy_segment",
+    "reencode_segment",
     "split_segments",
     "merge_segments",
     "end_of",

@@ -20,7 +20,21 @@ from hub_logger import logger
 from core import segment_model as sm
 from core.segment_model import Segment
 from core.video_concat import split_segments, merge_segments
+from core.video_split import SplitMode
 from ui.vlc_player import VlcPlayerFrame, is_vlc_available
+
+
+# Display-label i18n key per mode. Enum values stay as stable internal ids.
+_MODE_LABEL_KEYS: dict[SplitMode, str] = {
+    SplitMode.FAST: "tool.split_workbench.mode.fast",
+    SplitMode.KEYFRAME_SNAP: "tool.split_workbench.mode.keyframe_snap",
+    SplitMode.ACCURATE: "tool.split_workbench.mode.accurate",
+}
+_MODE_TOOLTIP_KEYS: dict[SplitMode, str] = {
+    SplitMode.FAST: "tool.split_workbench.mode.tooltip.fast",
+    SplitMode.KEYFRAME_SNAP: "tool.split_workbench.mode.tooltip.keyframe_snap",
+    SplitMode.ACCURATE: "tool.split_workbench.mode.tooltip.accurate",
+}
 
 
 def _get_video_duration(path: str) -> float:
@@ -64,6 +78,12 @@ class SplitWorkbenchApp(ToolBase):
         self._video_duration: float = 0.0
         self._selected_iid: str | None = None
         self._busy: bool = False
+
+        # Split-mode state: store enum value (stable id) in the Var, map to
+        # localized label via _MODE_LABEL_KEYS. Default to KEYFRAME_SNAP so
+        # the workbench's out-of-the-box behavior aligns cuts to I-frames.
+        self._split_mode_var = tk.StringVar(value=SplitMode.KEYFRAME_SNAP.value)
+        self._mode_label_to_value: dict[str, str] = {}
 
         self._build_ui()
 
@@ -176,7 +196,7 @@ class SplitWorkbenchApp(ToolBase):
         # Row 2: export bar
         bar = tk.Frame(m)
         bar.grid(row=2, column=0, sticky="ew", padx=8, pady=6)
-        bar.columnconfigure(3, weight=1)
+        bar.columnconfigure(5, weight=1)
 
         self._btn_save = tk.Button(bar, text=tr("tool.split_workbench.btn_save"), command=self._save_segments)
         self._btn_save.grid(row=0, column=0, padx=2)
@@ -184,14 +204,28 @@ class SplitWorkbenchApp(ToolBase):
         self._btn_split = tk.Button(bar, text=tr("tool.split_workbench.btn_export_split"), command=self._export_split)
         self._btn_split.grid(row=0, column=1, padx=2)
 
+        # Split-mode selector sits between split and merge so it visually
+        # belongs to the split flow (merge always re-encodes — no mode choice).
+        tk.Label(bar, text=tr("tool.split_workbench.label_mode")).grid(row=0, column=2, padx=(8, 2))
+        labels = [tr(_MODE_LABEL_KEYS[m]) for m in SplitMode]
+        self._mode_label_to_value = {tr(_MODE_LABEL_KEYS[m]): m.value for m in SplitMode}
+        current_label = tr(_MODE_LABEL_KEYS[SplitMode(self._split_mode_var.get())])
+        self._cmb_mode = ttk.Combobox(
+            bar, state="readonly", width=16, values=labels,
+        )
+        self._cmb_mode.set(current_label)
+        self._cmb_mode.bind("<<ComboboxSelected>>", self._on_mode_selected)
+        self._cmb_mode.grid(row=0, column=3, padx=2)
+        self._install_mode_tooltip(self._cmb_mode)
+
         self._btn_merge = tk.Button(bar, text=tr("tool.split_workbench.btn_export_merge"), command=self._export_merge)
-        self._btn_merge.grid(row=0, column=2, padx=2)
+        self._btn_merge.grid(row=0, column=4, padx=(8, 2))
 
         self._progress = ttk.Progressbar(bar, mode="determinate", maximum=100)
-        self._progress.grid(row=0, column=3, sticky="ew", padx=8)
+        self._progress.grid(row=0, column=5, sticky="ew", padx=8)
 
         tk.Label(bar, textvariable=self.status_var, fg="#2196F3", anchor="w").grid(
-            row=1, column=0, columnspan=4, sticky="ew", pady=(4, 0)
+            row=1, column=0, columnspan=6, sticky="ew", pady=(4, 0)
         )
 
         # Clean up VLC on window close
@@ -199,6 +233,47 @@ class SplitWorkbenchApp(ToolBase):
             self.master.bind("<Destroy>", self._on_destroy, add="+")
         except Exception:
             pass
+
+    # ── Mode selector ─────────────────────────────────────────────────────
+
+    def _on_mode_selected(self, _event: object = None) -> None:
+        label = self._cmb_mode.get()
+        value = self._mode_label_to_value.get(label)
+        if value:
+            self._split_mode_var.set(value)
+
+    def _install_mode_tooltip(self, widget: tk.Widget) -> None:
+        """Show the current mode's tooltip on hover. Lightweight Toplevel tip."""
+        tip: dict[str, tk.Toplevel | None] = {"win": None}
+
+        def show(_e: object = None) -> None:
+            if tip["win"] is not None:
+                return
+            try:
+                mode = SplitMode(self._split_mode_var.get())
+            except ValueError:
+                return
+            text = tr(_MODE_TOOLTIP_KEYS[mode])
+            w = tk.Toplevel(widget)
+            w.wm_overrideredirect(True)
+            x = widget.winfo_rootx() + 10
+            y = widget.winfo_rooty() + widget.winfo_height() + 4
+            w.wm_geometry(f"+{x}+{y}")
+            tk.Label(
+                w, text=text, bg="#ffffe0", fg="#333",
+                relief="solid", borderwidth=1, padx=6, pady=3,
+                justify="left", wraplength=320,
+            ).pack()
+            tip["win"] = w
+
+        def hide(_e: object = None) -> None:
+            if tip["win"] is not None:
+                tip["win"].destroy()
+                tip["win"] = None
+
+        widget.bind("<Enter>", show, add="+")
+        widget.bind("<Leave>", hide, add="+")
+        widget.bind("<<ComboboxSelected>>", lambda e: (hide(), show()), add="+")
 
     # ── File pickers ──────────────────────────────────────────────────────
 
@@ -498,12 +573,22 @@ class SplitWorkbenchApp(ToolBase):
                 ),
             )
 
+        def _on_probe_start() -> None:
+            self.master.after(
+                0,
+                lambda: self._set_status(tr("tool.split_workbench.status_probing")),
+            )
+
         def _run() -> None:
             try:
                 if mode == "split":
+                    split_mode = SplitMode(self._split_mode_var.get())
                     outputs = split_segments(
                         video_path, self._segments, selected,
-                        self._video_duration, output_dir, progress_cb=_progress_cb,
+                        self._video_duration, output_dir,
+                        progress_cb=_progress_cb,
+                        mode=split_mode,
+                        on_probe_start=_on_probe_start,
                     )
                     self.master.after(
                         0,
