@@ -36,7 +36,6 @@ TOOL_MAP = {
     "translate":   {"file": "tools/translate/translate_srt.py",    "class": "TranslateApp"},
     "subtitle":    {"file": "tools/subtitle/subtitle_tool.py",     "class": "SubtitleToolApp"},
     "word-subtitle": {"file": "tools/subtitle/word_subtitle.py",   "class": "WordSubtitleApp"},
-    "srttools":               {"file": "tools/subtitle/srt_tools.py", "class": "YouTubeSegmentsApp"},
     "srt-extract-subtitles":  {"file": "tools/subtitle/srt_tools.py", "class": "SrtExtractSubtitlesApp"},
     "srt-gen-segments":       {"file": "tools/subtitle/srt_tools.py", "class": "SrtGenerateSegmentsApp"},
     "srt-extract-paragraphs": {"file": "tools/subtitle/srt_tools.py", "class": "SrtExtractParagraphsApp"},
