@@ -241,7 +241,7 @@
   "tool.speech.log.detected_lang": "检测到语言：{detected} → ISO: {iso}\n",
   "tool.speech.log.lang_mismatch": "⚠ 选择语言({selected}) 与检测结果({detected})不符，按实际语言命名。\n",
   "tool.speech.warning.lang_mismatch": "语言不一致：选择 {selected}，实际检测为 {detected}，文件已按实际语言命名",
-  "tool.speech.language_tip": "💡 指定语言会让 API 按该语言输出（可能自动翻译原语音）；如需验证实际语音语言，建议使用 Auto Detect。",
+  "tool.speech.language_tip": "💡 Auto Detect 最安全；对嘈杂/带口音/短音频，选对源语言能提升识别率，但选错会让 API 静默翻译为所选语言。",
   "tool.speech.warning.mime_fallback": "⚠ 未识别的文件扩展名，已使用回退 MIME: {mime}\n",
   "tool.speech.log.json_saved": "verbose_json 已保存：{path}\n",
   "tool.speech.log.srt_saved": "SRT 已生成：{path}\n",

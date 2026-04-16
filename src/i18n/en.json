@@ -241,7 +241,7 @@
   "tool.speech.log.detected_lang": "Detected language: {detected} → ISO: {iso}\n",
   "tool.speech.log.lang_mismatch": "⚠ Selected language ({selected}) differs from detected ({detected}); naming file by detected.\n",
   "tool.speech.warning.lang_mismatch": "Language mismatch: selected {selected}, detected {detected}. File named after detected language.",
-  "tool.speech.language_tip": "💡 Specifying a language makes the API output text in that language (may auto-translate). Use Auto Detect to verify the actual audio language.",
+  "tool.speech.language_tip": "💡 Auto Detect is safest. For noisy / accented / short audio, specifying the correct source language can improve accuracy — but picking wrong silently translates to that language.",
   "tool.speech.warning.mime_fallback": "⚠ Unrecognized file extension; fallback MIME is used: {mime}\n",
   "tool.speech.log.json_saved": "verbose_json saved: {path}\n",
   "tool.speech.log.srt_saved": "SRT generated: {path}\n",
