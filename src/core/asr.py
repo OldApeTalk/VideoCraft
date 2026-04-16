@@ -73,7 +73,14 @@ def transcribe_audio(
         on_event=on_event,
     )
 
-    # Resolve detected language and decide on output suffix rewrite
+    # Resolve detected language and decide on output suffix rewrite.
+    # Note: Lemonfox/Whisper treats the `language` parameter as "output in
+    # THIS language" (auto-translating if needed), NOT "the audio IS in
+    # this language". So when a hint is provided, `result["language"]`
+    # simply echoes the hint and lang_mismatch is effectively a no-op.
+    # Mismatch detection only produces meaningful results when the user
+    # runs in Auto Detect mode; the UI nudges toward that by defaulting
+    # the dropdown to Auto Detect.
     detected_name = result.get("language", "")
     detected_iso = _iso_from_english(detected_name) if detected_name else None
 
@@ -84,29 +91,8 @@ def transcribe_audio(
         and detected_iso != expected_lang_iso
     )
 
-    # Script-based sanity check — catches the Whisper/Lemonfox quirk where
-    # passing an explicit `language` hint makes the API echo it back as
-    # "detected" without real detection. If the user selected a language
-    # with a distinctive script (Arabic, CJK, Cyrillic, ...) but the
-    # transcribed text has none of that script's characters, the
-    # transcription is almost certainly wrong.
-    script_mismatch = False
-    if expected_lang_iso and not is_auto:
-        transcript_text = (result.get("text", "") or "").strip()
-        if len(transcript_text) >= _SCRIPT_MIN_LENGTH:
-            has_script = _script_present(transcript_text, expected_lang_iso)
-            if has_script is False:
-                script_mismatch = True
-
     final_srt_path = output_srt_path
-    # Suffix rewrite rules:
-    #   - Auto Detect → use detected_iso (we trust it here since no hint
-    #     was given).
-    #   - lang_mismatch → rewrite to detected_iso (traditional case).
-    #   - script_mismatch → KEEP user's suffix; detected_iso is also
-    #     unreliable in this case, and we want the user to notice and retry
-    #     with the correct language hint.
-    if detected_iso is not None and not script_mismatch and (is_auto or lang_mismatch):
+    if detected_iso is not None and (is_auto or lang_mismatch):
         final_srt_path = _apply_lang_suffix(output_srt_path, detected_iso)
 
     # Save raw verbose_json alongside the SRT for word-level access
@@ -127,98 +113,10 @@ def transcribe_audio(
         "detected_lang_iso": detected_iso,
         "expected_lang_iso": expected_lang_iso,
         "lang_mismatch":     lang_mismatch,
-        "script_mismatch":   script_mismatch,
         "duration":          result.get("duration", "?"),
         "segment_count":     len(result.get("segments", [])),
         "word_count":        len(result.get("words", [])),
     }
-
-
-# ── Script-range table for mismatch detection ────────────────────────────────
-# Whisper's `language` response field is unreliable when the caller passes an
-# explicit language hint — the model just echoes back what was requested
-# without real detection. To catch "user selected Arabic but the audio is
-# English" we sanity-check the transcribed text's character set against the
-# script(s) expected for the user-selected ISO. Languages that use Latin
-# script (en/es/fr/de/...) are intentionally omitted since they share the
-# same script and can't be distinguished this way.
-
-_SCRIPT_RANGES: dict[str, list[tuple[int, int]]] = {
-    # Arabic script family
-    'ar':  [(0x0600, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF)],
-    'fa':  [(0x0600, 0x06FF)],  # Persian
-    'ur':  [(0x0600, 0x06FF)],  # Urdu
-    'ps':  [(0x0600, 0x06FF)],  # Pashto
-    'sd':  [(0x0600, 0x06FF)],  # Sindhi
-    # CJK
-    'zh':  [(0x4E00, 0x9FFF)],
-    'yue': [(0x4E00, 0x9FFF)],  # Cantonese
-    'ja':  [(0x3040, 0x309F), (0x30A0, 0x30FF), (0x4E00, 0x9FFF)],
-    'ko':  [(0xAC00, 0xD7AF)],  # Hangul
-    # Cyrillic family
-    'ru':  [(0x0400, 0x04FF)],
-    'uk':  [(0x0400, 0x04FF)],
-    'be':  [(0x0400, 0x04FF)],
-    'bg':  [(0x0400, 0x04FF)],
-    'mk':  [(0x0400, 0x04FF)],
-    'sr':  [(0x0400, 0x04FF)],
-    'kk':  [(0x0400, 0x04FF)],
-    'mn':  [(0x0400, 0x04FF)],
-    'tg':  [(0x0400, 0x04FF)],
-    'tt':  [(0x0400, 0x04FF)],
-    'ba':  [(0x0400, 0x04FF)],
-    # Other distinctive scripts
-    'he':  [(0x0590, 0x05FF)],
-    'yi':  [(0x0590, 0x05FF)],
-    'th':  [(0x0E00, 0x0E7F)],
-    'lo':  [(0x0E80, 0x0EFF)],
-    'hi':  [(0x0900, 0x097F)],  # Devanagari
-    'mr':  [(0x0900, 0x097F)],
-    'ne':  [(0x0900, 0x097F)],
-    'sa':  [(0x0900, 0x097F)],
-    'bn':  [(0x0980, 0x09FF)],
-    'as':  [(0x0980, 0x09FF)],
-    'ka':  [(0x10A0, 0x10FF)],
-    'hy':  [(0x0530, 0x058F)],
-    'el':  [(0x0370, 0x03FF)],
-    'bo':  [(0x0F00, 0x0FFF)],
-    'dz':  [(0x0F00, 0x0FFF)],
-    'my':  [(0x1000, 0x109F)],
-    'km':  [(0x1780, 0x17FF)],
-    'ta':  [(0x0B80, 0x0BFF)],
-    'te':  [(0x0C00, 0x0C7F)],
-    'kn':  [(0x0C80, 0x0CFF)],
-    'ml':  [(0x0D00, 0x0D7F)],
-    'gu':  [(0x0A80, 0x0AFF)],
-    'pa':  [(0x0A00, 0x0A7F)],  # Gurmukhi
-    'si':  [(0x0D80, 0x0DFF)],
-    'am':  [(0x1200, 0x137F)],  # Ethiopic
-}
-
-# Minimum transcript length to trust the script check — very short outputs
-# (Whisper hallucinating a single word on a near-empty clip, etc.) are not
-# reliable evidence of anything.
-_SCRIPT_MIN_LENGTH = 10
-
-
-def _script_present(text: str, iso: str) -> bool | None:
-    """Check whether `text` contains any codepoint expected for `iso`.
-
-    Returns:
-        True  — found at least one codepoint in the expected range(s).
-        False — we have ranges for this ISO but none appeared in text.
-        None  — no script signature defined (Latin-script language etc.),
-                the check does not apply.
-    """
-    ranges = _SCRIPT_RANGES.get(iso)
-    if not ranges:
-        return None
-    for ch in text:
-        cp = ord(ch)
-        for lo, hi in ranges:
-            if lo <= cp <= hi:
-                return True
-    return False
 
 
 # ── Language ISO lookup ──────────────────────────────────────────────────────

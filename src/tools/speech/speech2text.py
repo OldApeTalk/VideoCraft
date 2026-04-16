@@ -169,13 +169,19 @@ class Speech2TextApp(ToolBase):
         # Recognition language
         tk.Label(f, text=tr("tool.speech.language_label")).pack(pady=(8, 2))
         options = build_language_options()
-        # Default to English (first non-auto entry, which is "English" or "English (英语)").
-        default_value = next((o for o in options if o.startswith("English")), options[0])
+        # Default to Auto Detect. Specifying a language makes Lemonfox/Whisper
+        # treat it as "output in THIS language" (auto-translating when needed)
+        # rather than "input audio is in this language", so Auto Detect is the
+        # safer default unless the user explicitly wants translation.
+        default_value = options[0]
         self.combo_language = tk.StringVar(value=default_value)
         self.combo_language.trace_add("write", lambda *_: self._auto_fill_output())
         combo_menu = ttk.Combobox(f, textvariable=self.combo_language,
                                   values=options, state="readonly", width=50)
         combo_menu.pack(fill=tk.X, padx=10)
+        tk.Label(f, text=tr("tool.speech.language_tip"),
+                 font=("Arial", 8), fg="gray", wraplength=560,
+                 justify="left").pack(anchor="w", padx=10, pady=(2, 0))
 
         self.translate_var = tk.BooleanVar()
         tk.Checkbutton(f, text=tr("tool.speech.translate_to_en"),
@@ -336,12 +342,11 @@ class Speech2TextApp(ToolBase):
                     on_event=on_event,
                 )
 
-                detected        = result["detected_lang"]
-                detected_iso    = result["detected_lang_iso"]
-                final_srt       = result["srt_path"]
-                json_path       = result["json_path"]
-                lang_mismatch   = result["lang_mismatch"]
-                script_mismatch = result["script_mismatch"]
+                detected      = result["detected_lang"]
+                detected_iso  = result["detected_lang_iso"]
+                final_srt     = result["srt_path"]
+                json_path     = result["json_path"]
+                lang_mismatch = result["lang_mismatch"]
 
                 # Update the output-path entry if it was rewritten
                 if final_srt != srt_path:
@@ -358,9 +363,6 @@ class Speech2TextApp(ToolBase):
                 if lang_mismatch:
                     post_log(tr("tool.speech.log.lang_mismatch",
                                 selected=expected_iso, detected=detected_iso))
-                if script_mismatch:
-                    post_log(tr("tool.speech.log.script_mismatch",
-                                selected=expected_iso))
 
                 # Success logs
                 post_log(tr("tool.speech.log.json_saved", path=json_path))
@@ -375,12 +377,9 @@ class Speech2TextApp(ToolBase):
                 # Final tab status — warning takes priority over done, so call
                 # set_warning LAST (otherwise set_done would flip the tab dot
                 # from orange back to green, silently hiding the mismatch).
-                # script_mismatch is the stronger signal (transcription likely
-                # wrong) so it takes priority over lang_mismatch when both hit.
-                if script_mismatch:
-                    self.set_warning(tr("tool.speech.warning.script_mismatch",
-                                        selected=expected_iso))
-                elif lang_mismatch:
+                # Note: lang_mismatch only meaningfully fires in Auto Detect
+                # mode (see core.asr for why).
+                if lang_mismatch:
                     self.set_warning(tr("tool.speech.warning.lang_mismatch",
                                         selected=expected_iso, detected=detected_iso))
                 else:
