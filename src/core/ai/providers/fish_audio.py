@@ -57,16 +57,19 @@ def synthesize(
             "fish_audio_sdk not installed; pip install fish_audio_sdk"
         ) from e
 
+    # SDK 1.3.x: Session.tts() directly returns Generator[bytes]; no context
+    # manager and no .iter_bytes() on the return value. Older code (pre-M5)
+    # used a stale `with ... as resp: resp.iter_bytes()` pattern that never
+    # worked against this SDK version.
     session = Session(api_key)
     total = 0
-    with session.tts(TTSRequest(
-        reference_id=voice_id, text=text, format=audio_format,
-    )) as resp:
-        with open(output_path, "wb") as f:
-            for chunk in resp.iter_bytes():
-                if should_cancel and should_cancel():
-                    raise InterruptedError("TTS cancelled")
-                f.write(chunk)
-                total += len(chunk)
-                if on_chunk:
-                    on_chunk(total)
+    with open(output_path, "wb") as f:
+        for chunk in session.tts(TTSRequest(
+            reference_id=voice_id, text=text, format=audio_format,
+        )):
+            if should_cancel and should_cancel():
+                raise InterruptedError("TTS cancelled")
+            f.write(chunk)
+            total += len(chunk)
+            if on_chunk:
+                on_chunk(total)
