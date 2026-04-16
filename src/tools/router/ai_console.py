@@ -451,11 +451,18 @@ class AIConsoleApp(ToolBase):
             tk.Label(hdr, text=_tier_hint(tier),
                      font=("", 8), fg="gray").pack(anchor="w")
 
-        current      = router.get_task_routing()
-        llm_names    = router.get_provider_names()
-        asr_names    = [p["name"] for p in router.get_available_asr_providers()]
-        tts_names    = [p["name"] for p in router.get_available_tts_providers()]
-        pool_by_cat  = {"llm": llm_names, "asr": asr_names, "tts": tts_names}
+        current = router.get_task_routing()
+
+        # Only surface providers that are actually usable — enabled AND either
+        # have a key on disk or (for claude_code) rely on CLI auth. Unusable
+        # ones in the dropdown just produce runtime "No API key" errors when
+        # selected. The Keys tab is still where users enable / configure them.
+        llm_names = [p["name"] for p in router.get_available_providers()]
+        asr_names = [p["name"] for p in router.get_available_asr_providers()
+                     if p.get("enabled") and p.get("has_key")]
+        tts_names = [p["name"] for p in router.get_available_tts_providers()
+                     if p.get("enabled") and p.get("has_key")]
+        pool_by_cat = {"llm": llm_names, "asr": asr_names, "tts": tts_names}
 
         self._matrix_widgets: dict = {}
 
@@ -488,7 +495,15 @@ class AIConsoleApp(ToolBase):
         prov_var  = tk.StringVar(value=current.get("provider", ""))
         model_var = tk.StringVar(value=current.get("model", ""))
 
-        prov_combo = ttk.Combobox(frame, textvariable=prov_var, values=provider_pool,
+        # If the currently-saved provider isn't in the filtered pool (user
+        # disabled / removed its key since last save), keep it visible in the
+        # dropdown so the user can see what's there and pick a replacement.
+        effective_pool = list(provider_pool)
+        saved_provider = current.get("provider", "")
+        if saved_provider and saved_provider not in effective_pool:
+            effective_pool.append(saved_provider)
+
+        prov_combo = ttk.Combobox(frame, textvariable=prov_var, values=effective_pool,
                                    state="readonly", width=10)
         prov_combo.pack(side="left", padx=(0, 2))
 
