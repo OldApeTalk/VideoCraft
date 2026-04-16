@@ -76,7 +76,6 @@
   "tool.translate.tier": "Tier:",
   "tool.translate.btn_start": "Start Translation",
   "tool.translate.btn_running": "Translating…",
-  "tool.translate.router_manager": "Router Manager",
   "tool.translate.status_ready": "Ready",
   "tool.translate.status_reading": "Reading subtitles...",
 

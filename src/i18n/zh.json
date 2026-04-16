@@ -76,7 +76,6 @@
   "tool.translate.tier": "档位:",
   "tool.translate.btn_start": "开始翻译",
   "tool.translate.btn_running": "翻译中…",
-  "tool.translate.router_manager": "Router 管理",
   "tool.translate.status_ready": "就绪",
   "tool.translate.status_reading": "正在读取字幕...",
 
