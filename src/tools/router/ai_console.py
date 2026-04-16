@@ -138,6 +138,11 @@ class AIConsoleApp(ToolBase):
 
         def on_toggle(n=name, v=var):
             router.set_provider_enabled(n, v.get())
+            # Matrix tab's provider dropdowns are filtered by enabled status,
+            # so they must rebuild when the user flips the checkbox — otherwise
+            # the matrix keeps showing a stale pool until the user closes and
+            # reopens the whole tab.
+            self._rebuild_matrix_tab()
 
         ttk.Checkbutton(row, variable=var, command=on_toggle).pack(side="left", padx=4)
         tk.Button(row, text=tr("tool.router.btn_edit"), width=6,
@@ -256,6 +261,7 @@ class AIConsoleApp(ToolBase):
             messagebox.showinfo(tr("tool.router.saved_title"),
                                 tr("tool.router.saved_config_msg", name=display_name), parent=dlg)
             self._rebuild_keys_tab()
+            self._rebuild_matrix_tab()
             dlg.destroy()
 
         btn_row = tk.Frame(dlg)
@@ -355,6 +361,7 @@ class AIConsoleApp(ToolBase):
             messagebox.showinfo(tr("tool.router.saved_title"),
                                 tr("tool.router.saved_config_msg", name=name), parent=dlg)
             self._rebuild_keys_tab()
+            self._rebuild_matrix_tab()
             dlg.destroy()
 
         btn_row = tk.Frame(dlg)
@@ -417,6 +424,7 @@ class AIConsoleApp(ToolBase):
             messagebox.showinfo(tr("tool.router.saved_title"),
                                 tr("tool.router.saved_config_msg", name=name), parent=dlg)
             self._rebuild_keys_tab()
+            self._rebuild_matrix_tab()
             dlg.destroy()
 
         btn_row = tk.Frame(dlg)
@@ -428,6 +436,15 @@ class AIConsoleApp(ToolBase):
         for w in self.tab_keys.winfo_children():
             w.destroy()
         self._build_keys_tab()
+
+    def _rebuild_matrix_tab(self):
+        """Rebuild the matrix tab's widgets to pick up provider availability
+        changes (enable toggle, key edit). Must be called from the main
+        thread after any router._providers / _asr_providers / _tts_providers
+        state change."""
+        for w in self.tab_matrix.winfo_children():
+            w.destroy()
+        self._build_matrix_tab()
 
     # ── Tab 2: Routing Matrix (task × tier) ─────────────────────────────────
 
