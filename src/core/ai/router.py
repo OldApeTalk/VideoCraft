@@ -17,6 +17,7 @@ from core.ai import config as _cfg
 from core.ai.providers import gemini as _gemini
 from core.ai.providers import openai_compat as _openai_compat
 from core.ai.providers import claude_code as _claude_code
+from core.ai.providers import lemonfox as _lemonfox
 from core.ai.stats import Stats
 from core.ai.tiers import (
     TIER_PREMIUM,
@@ -185,6 +186,73 @@ class AIRouter:
         self._load_config()
 
     # ── ASR API ──────────────────────────────────────────────────────────────
+
+    def asr(self, audio_path: str, *,
+            provider: str = "lemonfox",
+            language: str | None = None,
+            translate: bool = False,
+            speaker_labels: bool = False,
+            on_event=None) -> dict:
+        """Dispatch an ASR (speech-to-text) call.
+
+        Args:
+            audio_path:     Path to audio/video file.
+            provider:       ASR provider name. Phase 1 only supports
+                            "lemonfox".
+            language:       Optional source-language hint. None = auto.
+            translate:      If True, provider returns English translation.
+            speaker_labels: If True, provider tags speakers.
+            on_event:       Optional callback(event_type, **kwargs) for
+                            upload progress / wait ticks / retries.
+                            See core.ai.providers.lemonfox for event types.
+
+        Returns:
+            Raw verbose_json dict from the provider (language, duration,
+            segments[], words[], text).
+
+        Raises:
+            RuntimeError: provider unknown, key missing, or all HTTP
+                          attempts failed.
+        """
+        cfg = self._asr_providers.get(provider)
+        if cfg is None:
+            raise RuntimeError(f"Unknown ASR provider: {provider!r}")
+        if not cfg.get("enabled", True):
+            raise RuntimeError(f"ASR provider {provider!r} is disabled")
+        api_key = _cfg.read_key(cfg)
+        if api_key is None:
+            raise RuntimeError(
+                f"ASR API key not configured for {provider!r} — "
+                f"set it in AI Router manager"
+            )
+
+        base_url = cfg.get("base_url") or ""
+        if not base_url:
+            raise RuntimeError(f"ASR provider {provider!r} has no base_url")
+
+        try:
+            if provider == "lemonfox":
+                result = _lemonfox.transcribe(
+                    audio_path,
+                    api_key=api_key,
+                    base_url=base_url,
+                    language=language,
+                    translate=translate,
+                    speaker_labels=speaker_labels,
+                    connect_timeout=cfg.get("connect_timeout_sec", 60),
+                    read_timeout=cfg.get("read_timeout_sec", 120),
+                    max_retries=cfg.get("max_retries", 1),
+                    on_event=on_event,
+                )
+            else:
+                raise RuntimeError(f"Unsupported ASR provider type: {provider!r}")
+
+            self._stats.record(provider, success=True)
+            return result
+
+        except Exception as e:
+            self._stats.record(provider, success=False, error=str(e))
+            raise
 
     def get_asr_key(self, provider: str) -> str | None:
         cfg = self._asr_providers.get(provider)

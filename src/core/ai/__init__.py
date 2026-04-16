@@ -76,6 +76,30 @@ def describe(task: str = "", tier: str = TIER_STANDARD) -> dict:
     return router.describe(task, tier)
 
 
+def asr(audio_path: str, *,
+        task: str = "asr.transcribe",
+        provider: str = "lemonfox",
+        language: str | None = None,
+        translate: bool = False,
+        speaker_labels: bool = False,
+        on_event=None) -> dict:
+    """Transcribe audio. Returns raw provider response dict.
+
+    `task` is recorded for forward compatibility (future routing); Phase 1
+    ignores it beyond the default. `on_event` receives structured state
+    events — see core.ai.providers.lemonfox.transcribe() for event types.
+    """
+    _ = task
+    return router.asr(
+        audio_path,
+        provider=provider,
+        language=language,
+        translate=translate,
+        speaker_labels=speaker_labels,
+        on_event=on_event,
+    )
+
+
 __all__ = [
     "router",
     "AIRouter",
@@ -90,4 +114,5 @@ __all__ = [
     "complete",
     "complete_json",
     "describe",
+    "asr",
 ]

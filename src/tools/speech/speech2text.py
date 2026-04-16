@@ -5,15 +5,14 @@ import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, ttk
-import requests
-import textwrap  # for text helper utilities
-import time
 import threading
 from hub_logger import logger
 
-# Whisper支持的语言字典：ISO代码 -> (英文名, 中文名)
-# UN官方语言优先：ar, zh, en, fr, ru, es
-# 其他按英文名字母顺序
+from core import asr as core_asr
+
+# Whisper-supported languages: ISO code -> (english_name, chinese_name).
+# UN-6 first, then alphabetical. Kept local to the UI for combobox display;
+# the canonical catalog used by core feature layer is in core/translate.py.
 language_dict = {
     "ar": ("Arabic", "阿拉伯语"),
     "zh": ("Chinese", "中文"),
@@ -116,6 +115,7 @@ language_dict = {
     "yue": ("Cantonese", "粤语")
 }
 
+
 def build_language_options() -> list:
     """Build the combobox option list based on current UI locale.
     In zh mode shows bilingual "English (英语)" form; in en mode shows
@@ -130,103 +130,6 @@ def build_language_options() -> list:
             f"{language_dict[code][0]} ({language_dict[code][1]})" for code in ordered
         ]
     return [auto] + [language_dict[code][0] for code in ordered]
-
-from ai_router import router
-
-
-def clean_srt_content(srt_content):
-    """清理API返回的SRT内容"""
-    if srt_content:
-        srt_content_cleaned = srt_content.strip('"')
-        srt_content_unescaped = srt_content_cleaned.replace('\\n', '\n')
-        srt_content_fixed = srt_content_unescaped.replace('\r\n', '\n').replace('\n', '\r\n')
-        return srt_content_fixed
-    return ""
-
-
-def parse_timestamp(ts_str):
-    """解析SRT时间戳为秒，支持 ',' 或 '.' 作为小数分隔符"""
-    if '.' in ts_str.rsplit(':', 1)[-1]:
-        decimal = '.'
-    elif ',' in ts_str.rsplit(':', 1)[-1]:
-        decimal = ','
-    else:
-        raise ValueError(f"No decimal separator in {ts_str}")
-    h, m, s_ms = ts_str.split(':')
-    s, ms = s_ms.split(decimal)
-    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
-
-
-def format_timestamp(t, always_include_hours=True, decimal_marker=','):
-    """格式化秒为SRT时间戳"""
-    hours = int(t // 3600)
-    mins = int((t % 3600) // 60)
-    secs = int(t % 60)
-    msecs = int(round((t - int(t)) * 1000))
-    if always_include_hours or hours > 0:
-        return f"{hours:02d}:{mins:02d}:{secs:02d}{decimal_marker}{msecs:03d}"
-    else:
-        return f"{mins:02d}:{secs:02d}{decimal_marker}{msecs:03d}"
-
-
-def parse_srt(srt_content, log_callback=None):
-    """解析SRT内容为段落列表"""
-    srt_content = srt_content.replace('\r', '')
-    segments = []
-    blocks = srt_content.strip().split('\n\n')
-    for block in blocks:
-        if not block:
-            continue
-        lines = block.split('\n')
-        if len(lines) < 3:
-            continue
-        try:
-            index = int(lines[0])
-            time_line = lines[1].strip()
-            start_str, end_str = [s.strip() for s in time_line.split('-->')]
-            start = parse_timestamp(start_str)
-            end = parse_timestamp(end_str)
-            text = '\n'.join(lines[2:]).strip()
-            segments.append((index, start, end, text))
-        except Exception as e:
-            if log_callback:
-                log_callback(f"Block parse error: {str(e)} - block: {block[:100]}\n")
-    return segments
-
-
-def split_long_segment(start, end, text, max_chars=60):
-    """使用线性插值将长段落分割成短字幕块（无词级时间戳）"""
-    text = text.strip()
-    words = text.split()
-    if not words:
-        return [(start, end, "")]
-    total_word_chars = sum(len(w) + 1 for w in words) - 1
-    if total_word_chars == 0:
-        return [(start, end, "")]
-    duration = end - start
-    sub_segments = []
-    current_words = []
-    cum_word_chars = 0
-    for word in words:
-        test_words = current_words + [word]
-        test_text = ' '.join(test_words)
-        if len(test_text) > max_chars and current_words:
-            sub_text = ' '.join(current_words)
-            sub_word_chars = len(sub_text)
-            sub_start = start + (cum_word_chars / total_word_chars) * duration
-            sub_end = start + ((cum_word_chars + sub_word_chars) / total_word_chars) * duration
-            sub_segments.append((sub_start, sub_end, sub_text))
-            cum_word_chars += sub_word_chars
-            current_words = [word]
-        else:
-            current_words = test_words
-    if current_words:
-        sub_text = ' '.join(current_words)
-        sub_word_chars = len(sub_text)
-        sub_start = start + (cum_word_chars / total_word_chars) * duration
-        sub_end = start + ((cum_word_chars + sub_word_chars) / total_word_chars) * duration
-        sub_segments.append((sub_start, sub_end, sub_text))
-    return sub_segments
 
 
 class Speech2TextApp(ToolBase):
@@ -298,7 +201,7 @@ class Speech2TextApp(ToolBase):
             return
         base = os.path.splitext(src)[0]
         lang = self.combo_language.get()
-        if lang.startswith("Auto Detect"):
+        if lang.startswith("Auto Detect") or lang.startswith(tr("tool.speech.auto_detect")):
             suffix = "auto"
         else:
             eng_name = lang.split(" (")[0]
@@ -339,72 +242,18 @@ class Speech2TextApp(ToolBase):
         self.log_text.insert(tk.END, msg)
         self.log_text.see(tk.END)
 
-    @staticmethod
-    def _resolve_upload_mime(file_path: str) -> tuple[str, bool]:
-        """Infer upload MIME type from extension, with safe fallback."""
-        ext = os.path.splitext(file_path)[1].lower()
-        mime_map = {
-            ".mp3": "audio/mpeg",
-            ".wav": "audio/wav",
-            ".m4a": "audio/mp4",
-            ".mp4": "video/mp4",
-            ".mkv": "video/x-matroska",
-        }
-        if ext in mime_map:
-            return mime_map[ext], False
-        return "application/octet-stream", True
-
-    @staticmethod
-    def _build_request_data(api_lang: str | None, translate: bool, speaker: bool) -> list[tuple[str, str]]:
-        data = [
-            ("response_format", "verbose_json"),
-            ("timestamp_granularities[]", "segment"),
-            ("timestamp_granularities[]", "word"),
-        ]
-        if api_lang:
-            data.append(("language", api_lang))
-        if translate:
-            data.append(("translate_to_english", "true"))
-        if speaker:
-            data.append(("speaker_labels", "true"))
-        return data
-
-    @staticmethod
-    def _safe_int(value, default: int, minimum: int, maximum: int) -> int:
-        try:
-            parsed = int(value)
-        except Exception:
-            return default
-        return min(max(parsed, minimum), maximum)
-
-    def _verbose_json_to_srt(self, data: dict) -> str:
-        """将 verbose_json 响应的 segments 转换为 SRT 格式字符串。
-        若 segment 含 speaker 字段（说话人区分模式），文本前置 [SPEAKER_xx]。
-        """
-        lines = []
-        for i, seg in enumerate(data.get("segments", []), 1):
-            start   = format_timestamp(seg["start"])
-            end     = format_timestamp(seg["end"])
-            text    = seg["text"].strip()
-            speaker = seg.get("speaker", "")
-            if speaker:
-                text = f"[{speaker}] {text}"
-            lines.append(f"{i}\n{start} --> {end}\n{text}\n")
-        return "\n".join(lines)
+    def _is_auto_selection(self, selected_language: str) -> bool:
+        return (selected_language.startswith("Auto Detect")
+                or selected_language.startswith(tr("tool.speech.auto_detect")))
 
     def _transcribe_audio(self):
-        """Validate inputs on the main thread, then launch a background thread for the API call
-        so the UI stays responsive during the (potentially long) transcription request."""
+        """Validate inputs on the main thread, then launch a background thread for the
+        transcription call so the UI stays responsive during the API request."""
         mp3_path = self.entry_mp3_path.get()
         selected_language = self.combo_language.get()
-        api_key = router.get_asr_key("lemonfox")
 
         if not mp3_path or not os.path.exists(mp3_path):
             self._log(tr("tool.speech.warning.no_audio"))
-            return
-        if not api_key:
-            self._log(tr("tool.speech.warning.no_apikey"))
-            logger.warning(tr("tool.speech.warning.no_apikey_log"))
             return
 
         srt_path = self.entry_srt_path.get().strip()
@@ -412,12 +261,17 @@ class Speech2TextApp(ToolBase):
             self._log(tr("tool.speech.warning.no_output"))
             return
 
-        # Read all UI state on the main thread before handing off to the worker
-        if selected_language.startswith("Auto Detect"):
+        # Resolve selected language -> (api_lang display name, expected ISO)
+        if self._is_auto_selection(selected_language):
             api_lang = None
+            expected_iso = None
         else:
-            eng_name = selected_language.split(" (")[0].lower()
-            api_lang = eng_name
+            eng_name = selected_language.split(" (")[0]
+            api_lang = eng_name.lower()
+            expected_iso = next(
+                (code for code, (e, _) in language_dict.items() if e == eng_name),
+                eng_name.lower()[:2]
+            )
 
         translate = self.translate_var.get()
         speaker   = self.speaker_var.get()
@@ -427,237 +281,97 @@ class Speech2TextApp(ToolBase):
         self._log(tr("tool.speech.log.starting"))
 
         def _do_transcribe():
-            import json as _json
-            import re as _re
-
-            def log(msg):
-                # Route all log writes back to the main thread via after()
+            def post_log(msg: str):
                 self.master.after(0, self._log, msg)
 
-            def set_btn_text(text):
+            def post_btn(text: str):
                 self.master.after(0, lambda t=text: self.btn_transcribe.config(text=t))
 
             def finish():
-                # Re-enable button on the main thread when done or on error
                 self.master.after(0, lambda: self.btn_transcribe.config(
                     state="normal", text=tr("tool.speech.btn_transcribe")))
 
+            def on_event(event_type: str, **kwargs):
+                """Translate provider events to i18n log lines + button-text updates."""
+                if event_type == "request_summary":
+                    post_log(tr("tool.speech.log.request_summary", **kwargs))
+                elif event_type == "mime_fallback":
+                    post_log(tr("tool.speech.warning.mime_fallback", **kwargs))
+                elif event_type == "state_uploading":
+                    attempt = kwargs.get("attempt")
+                    max_att = kwargs.get("max_attempts")
+                    percent = kwargs.get("percent", 0)
+                    post_btn(tr("tool.speech.btn_uploading", percent=percent))
+                    post_log(tr("tool.speech.log.state_uploading",
+                                attempt=attempt, max=max_att, percent=percent))
+                elif event_type == "state_waiting_start":
+                    attempt = kwargs.get("attempt")
+                    max_att = kwargs.get("max_attempts")
+                    post_log(tr("tool.speech.log.state_waiting_start",
+                                attempt=attempt, max=max_att))
+                elif event_type == "state_waiting_tick":
+                    attempt = kwargs.get("attempt")
+                    max_att = kwargs.get("max_attempts")
+                    elapsed = kwargs.get("elapsed", 0)
+                    total   = kwargs.get("total", 0)
+                    post_btn(tr("tool.speech.btn_waiting", elapsed=elapsed, total=total))
+                    post_log(tr("tool.speech.log.state_waiting_tick",
+                                attempt=attempt, max=max_att,
+                                elapsed=elapsed, total=total))
+                elif event_type.startswith("retry_"):
+                    attempt = kwargs.get("attempt")
+                    max_att = kwargs.get("max_attempts")
+                    wait    = kwargs.get("wait", 0)
+                    key = f"tool.speech.log.{event_type}"
+                    post_log(tr(key, attempt=attempt, max=max_att, wait=wait))
+
             try:
-                asr_cfg = router.get_asr_config("lemonfox") or {}
-                url = asr_cfg.get("base_url") or "https://api.lemonfox.ai/v1/audio/transcriptions"
-                headers = {"Authorization": f"Bearer {api_key}"}
-                mime_type, used_fallback_mime = self._resolve_upload_mime(mp3_path)
-                data = self._build_request_data(api_lang, translate, speaker)
+                result = core_asr.transcribe_audio(
+                    mp3_path,
+                    srt_path,
+                    expected_lang_iso=expected_iso,
+                    language=api_lang,
+                    translate=translate,
+                    speaker_labels=speaker,
+                    on_event=on_event,
+                )
 
-                connect_timeout = self._safe_int(asr_cfg.get("connect_timeout_sec"), 60, 5, 300)
-                read_timeout = self._safe_int(asr_cfg.get("read_timeout_sec"), 120, 30, 600)
-                max_retries = self._safe_int(asr_cfg.get("max_retries"), 1, 1, 10)
-                timeout = (connect_timeout, read_timeout)
-                max_attempts = max_retries + 1
+                detected      = result["detected_lang"]
+                detected_iso  = result["detected_lang_iso"]
+                final_srt     = result["srt_path"]
+                json_path     = result["json_path"]
+                lang_mismatch = result["lang_mismatch"]
 
-                log(tr("tool.speech.log.request_summary",
-                       url=url,
-                       filename=os.path.basename(mp3_path),
-                       mime=mime_type,
-                       language=api_lang or "auto",
-                       translate=str(translate).lower(),
-                       speaker=str(speaker).lower(),
-                       timeout=f"{connect_timeout}/{read_timeout}"))
-                if used_fallback_mime:
-                    log(tr("tool.speech.warning.mime_fallback", mime=mime_type))
+                # Update the output-path entry if it was rewritten
+                if final_srt != srt_path:
+                    self.master.after(0, lambda p=final_srt: (
+                        self.entry_srt_path.delete(0, tk.END),
+                        self.entry_srt_path.insert(0, p),
+                    ))
 
-                result = None
-                for attempt in range(1, max_attempts + 1):
-                    wait_started_at = None
-                    wait_stop_event = threading.Event()
-                    state_lock = threading.Lock()
-                    upload_reported = -1
-                    wait_log_second = -1
-                    waiting_started = False
+                # Log detected language (and warn on mismatch)
+                if detected:
+                    post_log(tr("tool.speech.log.detected_lang",
+                                detected=detected, iso=detected_iso or ""))
+                if lang_mismatch:
+                    post_log(tr("tool.speech.log.lang_mismatch",
+                                selected=expected_iso, detected=detected_iso))
+                    self.set_warning(tr("tool.speech.warning.lang_mismatch",
+                                        selected=expected_iso, detected=detected_iso))
 
-                    def start_waiting_status():
-                        nonlocal wait_started_at, waiting_started
-                        with state_lock:
-                            if waiting_started:
-                                return
-                            waiting_started = True
-                            wait_started_at = time.time()
-                        log(tr("tool.speech.log.state_waiting_start",
-                               attempt=attempt, max=max_attempts))
-
-                    def report_upload(uploaded: int, total: int):
-                        nonlocal upload_reported
-                        if total <= 0:
-                            return
-                        percent = int(uploaded * 100 / total)
-                        if percent > 100:
-                            percent = 100
-                        with state_lock:
-                            should_log = (percent != upload_reported and (percent % 5 == 0 or percent == 100))
-                            if should_log:
-                                upload_reported = percent
-                        if should_log:
-                            set_btn_text(tr("tool.speech.btn_uploading", percent=percent))
-                            log(tr("tool.speech.log.state_uploading",
-                                   attempt=attempt, max=max_attempts, percent=percent))
-                        if percent >= 100:
-                            start_waiting_status()
-
-                    def wait_status_loop():
-                        nonlocal wait_log_second
-                        while not wait_stop_event.wait(1):
-                            with state_lock:
-                                started = wait_started_at
-                            if started is None:
-                                continue
-                            elapsed = int(time.time() - started)
-                            set_btn_text(tr("tool.speech.btn_waiting", elapsed=elapsed, total=read_timeout))
-                            if elapsed != wait_log_second and elapsed % 5 == 0:
-                                wait_log_second = elapsed
-                                log(tr("tool.speech.log.state_waiting_tick",
-                                       attempt=attempt, max=max_attempts,
-                                       elapsed=elapsed, total=read_timeout))
-
-                    wait_thread = threading.Thread(target=wait_status_loop, daemon=True)
-                    wait_thread.start()
-
-                    class ProgressFile:
-                        def __init__(self, path: str, callback):
-                            self._fp = open(path, "rb")
-                            self._total = os.path.getsize(path)
-                            self._uploaded = 0
-                            self._callback = callback
-
-                        def read(self, size=-1):
-                            chunk = self._fp.read(size)
-                            if chunk:
-                                self._uploaded += len(chunk)
-                                self._callback(self._uploaded, self._total)
-                            else:
-                                self._callback(self._total, self._total)
-                            return chunk
-
-                        def close(self):
-                            self._fp.close()
-
-                        def __getattr__(self, item):
-                            return getattr(self._fp, item)
-
-                    try:
-                        progress_fp = ProgressFile(mp3_path, report_upload)
-                        try:
-                            files = {"file": (os.path.basename(mp3_path), progress_fp, mime_type)}
-                            response = requests.post(
-                                url,
-                                headers=headers,
-                                data=data,
-                                files=files,
-                                timeout=timeout,
-                            )
-                        finally:
-                            progress_fp.close()
-                        status_code = response.status_code
-                        if not response.ok:
-                            body_preview = (response.text or "")[:500]
-                            raise RuntimeError(tr("tool.speech.error.api_error",
-                                                  code=status_code, text=body_preview))
-
-                        try:
-                            result = response.json()
-                        except ValueError:
-                            raise RuntimeError(tr("tool.speech.error.invalid_json"))
-                        break
-
-                    except requests.exceptions.ConnectTimeout as e:
-                        if attempt < max_attempts:
-                            wait_s = min(2 ** attempt, 30)
-                            log(tr("tool.speech.log.retry_connect_timeout",
-                                   attempt=attempt, max=max_attempts, wait=wait_s))
-                            time.sleep(wait_s)
-                            continue
-                        raise RuntimeError(tr("tool.speech.error.connect_timeout")) from e
-                    except requests.exceptions.ReadTimeout as e:
-                        if attempt < max_attempts:
-                            wait_s = min(2 ** attempt, 30)
-                            log(tr("tool.speech.log.retry_read_timeout",
-                                   attempt=attempt, max=max_attempts, wait=wait_s))
-                            time.sleep(wait_s)
-                            continue
-                        raise RuntimeError(tr("tool.speech.error.read_timeout")) from e
-                    except requests.exceptions.ConnectionError as e:
-                        if attempt < max_attempts:
-                            wait_s = min(2 ** attempt, 30)
-                            log(tr("tool.speech.log.retry_connection_error",
-                                   attempt=attempt, max=max_attempts, wait=wait_s))
-                            time.sleep(wait_s)
-                            continue
-                        raise RuntimeError(tr("tool.speech.error.connection_error")) from e
-                    except requests.exceptions.RequestException as e:
-                        raise RuntimeError(tr("tool.speech.error.request_exception",
-                                              e=str(e))) from e
-                    finally:
-                        wait_stop_event.set()
-                        set_btn_text(tr("tool.speech.btn_running"))
-
-                if result is None:
-                    raise RuntimeError(tr("tool.speech.error.no_result"))
-                current_srt_path = srt_path
-
-                # Resolve the detected language ISO code reported by the Whisper model
-                detected_lang = result.get("language", "")
-                if detected_lang:
-                    iso_detected = next(
-                        (code for code, (e, _) in language_dict.items()
-                         if e.lower() == detected_lang.lower()),
-                        detected_lang[:2].lower()
-                    )
-                    log(tr("tool.speech.log.detected_lang", detected=detected_lang, iso=iso_detected))
-
-                    is_auto = selected_language.startswith("Auto Detect")
-                    iso_selected = None
-                    if not is_auto and api_lang:
-                        iso_selected = next(
-                            (code for code, (e, _) in language_dict.items()
-                             if e.lower() == api_lang.lower()),
-                            api_lang[:2].lower()
-                        )
-                    mismatch = (not is_auto) and iso_selected and (iso_selected != iso_detected)
-
-                    if is_auto or mismatch:
-                        if mismatch:
-                            log(tr("tool.speech.log.lang_mismatch", selected=iso_selected, detected=iso_detected))
-                            self.set_warning(tr("tool.speech.warning.lang_mismatch",
-                                                selected=iso_selected, detected=iso_detected))
-                        base_no_lang = _re.sub(r'_[a-z]{2,5}(\.srt)$', r'\1', current_srt_path)
-                        current_srt_path = base_no_lang[:-4] + f"_{iso_detected}.srt"
-                        self.master.after(0, lambda p=current_srt_path: (
-                            self.entry_srt_path.delete(0, tk.END),
-                            self.entry_srt_path.insert(0, p)
-                        ))
-
-                # Save raw verbose_json alongside the SRT for word-level timestamp access
-                json_path = os.path.splitext(current_srt_path)[0] + ".json"
-                with open(json_path, "w", encoding="utf-8") as jf:
-                    _json.dump(result, jf, ensure_ascii=False, indent=2)
-                log(tr("tool.speech.log.json_saved", path=json_path))
-
-                # Build SRT from the segments array in the verbose_json response
-                srt_content = self._verbose_json_to_srt(result)
-                srt_content = clean_srt_content(srt_content)
-                with open(current_srt_path, "w", encoding="utf-8", newline='') as sf:
-                    sf.write(srt_content)
-
-                log(tr("tool.speech.log.srt_saved", path=current_srt_path))
-                log(tr("tool.speech.log.duration", seconds=result.get('duration', '?')))
-                log(tr("tool.speech.log.segments", count=len(result.get('segments', []))))
-                word_count = len(result.get("words", []))
-                if word_count:
-                    log(tr("tool.speech.log.words", count=word_count))
-                logger.info(tr("tool.speech.log.complete", filename=os.path.basename(current_srt_path)))
+                # Success logs
+                post_log(tr("tool.speech.log.json_saved", path=json_path))
+                post_log(tr("tool.speech.log.srt_saved", path=final_srt))
+                post_log(tr("tool.speech.log.duration", seconds=result["duration"]))
+                post_log(tr("tool.speech.log.segments", count=result["segment_count"]))
+                if result["word_count"]:
+                    post_log(tr("tool.speech.log.words", count=result["word_count"]))
+                logger.info(tr("tool.speech.log.complete",
+                               filename=os.path.basename(final_srt)))
                 self.set_done()
 
             except Exception as e:
-                log(tr("tool.speech.error.generic", e=str(e)))
+                post_log(tr("tool.speech.error.generic", e=str(e)))
                 self.set_error(tr("tool.speech.error.transcribe_failed", e=e))
             finally:
                 finish()
