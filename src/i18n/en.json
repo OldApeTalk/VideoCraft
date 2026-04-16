@@ -241,6 +241,8 @@
   "tool.speech.log.detected_lang": "Detected language: {detected} → ISO: {iso}\n",
   "tool.speech.log.lang_mismatch": "⚠ Selected language ({selected}) differs from detected ({detected}); naming file by detected.\n",
   "tool.speech.warning.lang_mismatch": "Language mismatch: selected {selected}, detected {detected}. File named after detected language.",
+  "tool.speech.log.script_mismatch": "⚠ Transcript contains no {selected} script characters — the source language may be wrong and the transcription is likely incorrect.\n",
+  "tool.speech.warning.script_mismatch": "Transcript doesn't match selected language {selected}: expected script characters are absent. Verify the source language and retry (or use Auto Detect).",
   "tool.speech.warning.mime_fallback": "⚠ Unrecognized file extension; fallback MIME is used: {mime}\n",
   "tool.speech.log.json_saved": "verbose_json saved: {path}\n",
   "tool.speech.log.srt_saved": "SRT generated: {path}\n",

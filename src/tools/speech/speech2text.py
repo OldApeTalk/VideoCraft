@@ -336,11 +336,12 @@ class Speech2TextApp(ToolBase):
                     on_event=on_event,
                 )
 
-                detected      = result["detected_lang"]
-                detected_iso  = result["detected_lang_iso"]
-                final_srt     = result["srt_path"]
-                json_path     = result["json_path"]
-                lang_mismatch = result["lang_mismatch"]
+                detected        = result["detected_lang"]
+                detected_iso    = result["detected_lang_iso"]
+                final_srt       = result["srt_path"]
+                json_path       = result["json_path"]
+                lang_mismatch   = result["lang_mismatch"]
+                script_mismatch = result["script_mismatch"]
 
                 # Update the output-path entry if it was rewritten
                 if final_srt != srt_path:
@@ -357,6 +358,9 @@ class Speech2TextApp(ToolBase):
                 if lang_mismatch:
                     post_log(tr("tool.speech.log.lang_mismatch",
                                 selected=expected_iso, detected=detected_iso))
+                if script_mismatch:
+                    post_log(tr("tool.speech.log.script_mismatch",
+                                selected=expected_iso))
 
                 # Success logs
                 post_log(tr("tool.speech.log.json_saved", path=json_path))
@@ -371,7 +375,12 @@ class Speech2TextApp(ToolBase):
                 # Final tab status — warning takes priority over done, so call
                 # set_warning LAST (otherwise set_done would flip the tab dot
                 # from orange back to green, silently hiding the mismatch).
-                if lang_mismatch:
+                # script_mismatch is the stronger signal (transcription likely
+                # wrong) so it takes priority over lang_mismatch when both hit.
+                if script_mismatch:
+                    self.set_warning(tr("tool.speech.warning.script_mismatch",
+                                        selected=expected_iso))
+                elif lang_mismatch:
                     self.set_warning(tr("tool.speech.warning.lang_mismatch",
                                         selected=expected_iso, detected=detected_iso))
                 else:
