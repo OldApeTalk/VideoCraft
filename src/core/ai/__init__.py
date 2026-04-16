@@ -49,13 +49,12 @@ def complete(prompt: str, *,
              model: str | None = None) -> str:
     """Plain text completion.
 
-    `task` is the future namespace identifier (e.g. "translate",
-    "subtitle.refine"). Phase 1 records it for forward compatibility but
-    does not yet drive routing. Phase 7+ will use it to pick prompts from
-    the Prompt hub and route per-task.
+    `task` is the namespace identifier (e.g. "translate", "subtitle.refine").
+    Routing consults task_routing[task][tier] first, then falls back to
+    tier_routing[tier] for legacy callers that pass task=''.
     """
-    _ = task  # reserved for Phase 7 task->prompt/provider mapping
-    return router.complete(prompt, tier=tier, provider=provider, model=model)
+    return router.complete(prompt, task=task, tier=tier,
+                           provider=provider, model=model)
 
 
 def complete_json(prompt: str, *,
@@ -65,9 +64,9 @@ def complete_json(prompt: str, *,
                   provider: str | None = None,
                   model: str | None = None) -> dict:
     """Structured JSON completion. See complete() for `task` semantics."""
-    _ = task
     return router.complete_json(
-        prompt, schema=schema, tier=tier, provider=provider, model=model
+        prompt, schema=schema, task=task, tier=tier,
+        provider=provider, model=model,
     )
 
 

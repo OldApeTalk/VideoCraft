@@ -22,7 +22,6 @@ if sys.stderr and hasattr(sys.stderr, "buffer"):
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from project import Project, add_recent_project, get_recent_projects, file_icon
-from router_manager import open_router_manager
 from operations import get_operations
 
 # ── 工具注册表 ────────────────────────────────────────────────────────────────
@@ -55,6 +54,7 @@ TOOL_MAP = {
     "tiktok-publish":   {"file": "tools/publish/tiktok_publish.py",  "class": "TikTokPublishApp"},
     "youtube-publish":  {"file": "tools/publish/youtube_publish.py", "class": "YouTubePublishApp"},
     "preferences":      {"file": "tools/preferences/preferences.py", "class": "PreferencesApp"},
+    "ai-console":       {"file": "tools/router/ai_console.py",       "class": "AIConsoleApp"},
 }
 
 # ── Tab 状态颜色 ──────────────────────────────────────────────────────────────
@@ -364,8 +364,8 @@ class VideoCraftHub:
         # AI
         ai_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label=tr("menu.ai"), menu=ai_menu)
-        ai_menu.add_command(label=tr("menu.ai.router_manager"),
-                            command=lambda: open_router_manager(self.root))
+        ai_menu.add_command(label=tr("menu.ai.console"),
+                            command=lambda: self.open_tool("ai-console"))
 
         # Publish
         pub_menu = tk.Menu(menubar, tearoff=0)

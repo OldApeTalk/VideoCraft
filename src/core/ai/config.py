@@ -124,6 +124,61 @@ _DEFAULT_TTS_PROVIDERS = {
     },
 }
 
+# ── Task catalog (function × tier routing) ──────────────────────────────────
+# Each entry is (task_id, category, display_label). `category` drives which
+# provider pool is applicable when a user picks a cell in the matrix:
+#   "llm" — any LLM provider (Gemini / DeepSeek / Custom / ClaudeCode)
+#   "asr" — any ASR provider (Lemonfox / future)
+#   "tts" — any TTS provider (Fish Audio / future)
+# Phase 1 defines the canonical task list; features that add new tasks
+# (e.g. vision.ocr) register them by appending here.
+
+TASKS: list[tuple[str, str, str]] = [
+    ("translate",         "llm", "翻译 / Translate"),
+    ("subtitle.segments", "llm", "字幕分段 / Subtitle segments"),
+    ("subtitle.refine",   "llm", "字幕精炼 / Subtitle refine"),
+    ("subtitle.titles",   "llm", "视频标题 / Video titles"),
+    ("asr.transcribe",    "asr", "语音转字幕 / ASR"),
+    ("tts.synthesize",    "tts", "文本转语音 / TTS"),
+]
+
+
+def task_category(task_id: str) -> str | None:
+    """Return 'llm' | 'asr' | 'tts' | None for a given task_id."""
+    for tid, cat, _label in TASKS:
+        if tid == task_id:
+            return cat
+    return None
+
+
+# ── Default task × tier routing ──────────────────────────────────────────────
+# Seed each LLM task with the old tier_routing defaults; ASR/TTS use their
+# single available provider across all tiers (they have no real tier
+# concept yet — matrix cells are there for uniformity / future expansion).
+
+def _build_default_task_routing() -> dict:
+    llm_seed = copy.deepcopy(_DEFAULT_TIER_ROUTING)
+    asr_seed = {
+        TIER_PREMIUM:  {"provider": "lemonfox", "model": ""},
+        TIER_STANDARD: {"provider": "lemonfox", "model": ""},
+        TIER_ECONOMY:  {"provider": "lemonfox", "model": ""},
+    }
+    tts_seed = {
+        TIER_PREMIUM:  {"provider": "fish_audio", "model": ""},
+        TIER_STANDARD: {"provider": "fish_audio", "model": ""},
+        TIER_ECONOMY:  {"provider": "fish_audio", "model": ""},
+    }
+    out = {}
+    for tid, cat, _label in TASKS:
+        if cat == "llm":
+            out[tid] = copy.deepcopy(llm_seed)
+        elif cat == "asr":
+            out[tid] = copy.deepcopy(asr_seed)
+        elif cat == "tts":
+            out[tid] = copy.deepcopy(tts_seed)
+    return out
+
+
 # ── Legacy name normalization ────────────────────────────────────────────────
 # SrtTools used Chinese provider names historically; map them to canonical.
 
@@ -182,12 +237,14 @@ def load_config() -> dict:
         asr_providers = data.get("asr_providers", copy.deepcopy(_DEFAULT_ASR_PROVIDERS))
         tts_providers = data.get("tts_providers", copy.deepcopy(_DEFAULT_TTS_PROVIDERS))
         tier_routing  = data.get("tier_routing",  copy.deepcopy(_DEFAULT_TIER_ROUTING))
+        task_routing  = data.get("task_routing")
         wrote_on_first_run = False
     else:
         providers     = copy.deepcopy(_DEFAULT_PROVIDERS)
         asr_providers = copy.deepcopy(_DEFAULT_ASR_PROVIDERS)
         tts_providers = copy.deepcopy(_DEFAULT_TTS_PROVIDERS)
         tier_routing  = copy.deepcopy(_DEFAULT_TIER_ROUTING)
+        task_routing  = None
         wrote_on_first_run = True
         # First-run write happens below after migrations run
 
@@ -196,15 +253,17 @@ def load_config() -> dict:
     )
     providers, normalized = _normalize_providers(providers)
     asr_providers = _normalize_asr_providers(asr_providers)
+    task_routing, task_routing_dirty = _migrate_task_routing(task_routing, tier_routing)
 
     result = {
         "providers":     providers,
         "asr_providers": asr_providers,
         "tts_providers": tts_providers,
         "tier_routing":  tier_routing,
+        "task_routing":  task_routing,
     }
 
-    if wrote_on_first_run or migrated or normalized:
+    if wrote_on_first_run or migrated or normalized or task_routing_dirty:
         save_config(result)
 
     return result
@@ -217,6 +276,7 @@ def save_config(data: dict) -> None:
     with open(cfg_path, "w", encoding="utf-8") as f:
         json.dump({
             "tier_routing":  data["tier_routing"],
+            "task_routing":  data.get("task_routing", {}),
             "providers":     data["providers"],
             "asr_providers": data["asr_providers"],
             "tts_providers": data["tts_providers"],
@@ -272,3 +332,39 @@ def _normalize_asr_providers(asr_providers: dict) -> dict:
         for key, value in default_cfg.items():
             current.setdefault(key, value)
     return asr_providers
+
+
+def _migrate_task_routing(task_routing: dict | None, tier_routing: dict) -> tuple[dict, bool]:
+    """Build (or backfill) task_routing.
+
+    - If task_routing is None (first load after upgrade): seed it from
+      _build_default_task_routing() with LLM tasks using the user's existing
+      tier_routing choices as defaults, then mark dirty so it's persisted.
+    - If task_routing exists but is missing some of the canonical TASKS
+      (new feature added in a later release): backfill the missing rows.
+    - If a task_routing row is missing some tiers: backfill those.
+
+    Returns the fixed-up dict + a dirty flag.
+    """
+    dirty = False
+    if task_routing is None:
+        task_routing = _build_default_task_routing()
+        # Overlay the user's existing tier_routing onto LLM tasks
+        for tid, cat, _label in TASKS:
+            if cat == "llm":
+                for tier, routing in tier_routing.items():
+                    task_routing[tid][tier] = copy.deepcopy(routing)
+        dirty = True
+        return task_routing, dirty
+
+    defaults = _build_default_task_routing()
+    for tid, cat, _label in TASKS:
+        if tid not in task_routing:
+            task_routing[tid] = copy.deepcopy(defaults[tid])
+            dirty = True
+            continue
+        for tier in (TIER_PREMIUM, TIER_STANDARD, TIER_ECONOMY):
+            if tier not in task_routing[tid]:
+                task_routing[tid][tier] = copy.deepcopy(defaults[tid][tier])
+                dirty = True
+    return task_routing, dirty

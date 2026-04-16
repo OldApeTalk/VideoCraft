@@ -1,25 +1,34 @@
-"""
-router_manager.py - AI Router 管理界面
+"""AI Console — unified provider / key / routing management (Hub tab).
 
-提供三个标签页：
-  1. Provider & Key  — 查看/编辑各 Provider 的 API Key，启用/禁用
-  2. 档位配置        — 为高/中/低三档指定具体的 Provider + Model
-  3. 调用统计        — 查看各 Provider 的调用次数、错误情况
+Replaces the legacy `router_manager.RouterManagerWindow` Toplevel dialog.
+Runs as a regular Hub tab (ToolBase) so it follows the same conventions
+as every other tool. Three sub-tabs:
 
-使用方式：
-    from router_manager import open_router_manager
-    open_router_manager(parent_window)
+  1. Provider & Key — LLM / ASR / TTS provider rows with inline key status
+     and per-provider edit dialogs.
+  2. Routing Matrix — task × tier grid where each cell picks
+     (provider, model) for a given task at a given tier. The data model
+     is core.ai.config's task_routing; see AIRouterAndCoreAPI draft.
+  3. Call Stats — in-memory per-provider counters.
+
+Per architecture principle 1, this tool is an "infrastructure console"
+and is allowed to import core.ai directly.
 """
 
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from ai_router import router, TIERS, TIER_PREMIUM, TIER_STANDARD, TIER_ECONOMY, _keys_dir
+from tools.base import ToolBase
 from i18n import tr
 
-# ── Display text helpers (locale-aware) ──────────────────────────────────────
+from core.ai.router import router
+from core.ai.tiers import TIERS, TIER_PREMIUM, TIER_STANDARD, TIER_ECONOMY
+from core.ai import config as _ai_cfg
+from core.ai.config import keys_dir as _keys_dir
 
+
+# ── Display text helpers (locale-aware) ──────────────────────────────────────
 
 def _tier_display(tier: str) -> str:
     return {
@@ -37,11 +46,6 @@ def _tier_hint(tier: str) -> str:
     }.get(tier, "")
 
 
-def open_router_manager(parent):
-    """在 parent 窗口上弹出 Router 管理窗口。"""
-    RouterManagerWindow(parent)
-
-
 def _parse_int_range(value: str, *, minimum: int, maximum: int, field_label: str) -> int:
     try:
         parsed = int(value.strip())
@@ -53,47 +57,41 @@ def _parse_int_range(value: str, *, minimum: int, maximum: int, field_label: str
     return parsed
 
 
-# ── 主窗口 ────────────────────────────────────────────────────────────────────
+# ── AI Console tab ──────────────────────────────────────────────────────────
 
-class RouterManagerWindow:
-    def __init__(self, parent):
-        self.win = tk.Toplevel(parent)
-        self.win.title(tr("tool.router.title"))
-        self.win.geometry("660x540")
-        self.win.resizable(True, True)
-        self.win.grab_set()     # 模态行为
+class AIConsoleApp(ToolBase):
+    def __init__(self, master, initial_file=None):
+        self.master = master
+        master.title(tr("tool.router.title"))
+        master.geometry("780x620")
 
-        nb = ttk.Notebook(self.win)
-        nb.pack(fill="both", expand=True, padx=10, pady=(10, 5))
+        nb = ttk.Notebook(master)
+        nb.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.tab_keys  = tk.Frame(nb, padx=12, pady=10)
-        self.tab_tiers = tk.Frame(nb, padx=12, pady=10)
-        self.tab_stats = tk.Frame(nb, padx=12, pady=10)
+        self.tab_keys   = tk.Frame(nb, padx=12, pady=10)
+        self.tab_matrix = tk.Frame(nb, padx=12, pady=10)
+        self.tab_stats  = tk.Frame(nb, padx=12, pady=10)
 
-        nb.add(self.tab_keys,  text=tr("tool.router.tab_keys"))
-        nb.add(self.tab_tiers, text=tr("tool.router.tab_tiers"))
-        nb.add(self.tab_stats, text=tr("tool.router.tab_stats"))
+        nb.add(self.tab_keys,   text=tr("tool.router.tab_keys"))
+        nb.add(self.tab_matrix, text=tr("tool.router.tab_matrix"))
+        nb.add(self.tab_stats,  text=tr("tool.router.tab_stats"))
 
         nb.bind("<<NotebookTabChanged>>", self._on_tab_change)
 
         self._build_keys_tab()
-        self._build_tiers_tab()
+        self._build_matrix_tab()
         self._build_stats_tab()
-
-        tk.Button(self.win, text=tr("tool.router.btn_close"), command=self.win.destroy,
-                  width=10).pack(side="right", padx=15, pady=(0, 10))
 
     def _on_tab_change(self, event):
         nb = event.widget
-        if nb.index(nb.select()) == 2:      # 统计 tab
+        if nb.index(nb.select()) == 2:  # Stats tab
             self._refresh_stats()
 
-    # ── Tab 1: Provider & Key ─────────────────────────────────────────────────
+    # ── Tab 1: Provider & Key ───────────────────────────────────────────────
 
     def _build_keys_tab(self):
         tab = self.tab_keys
 
-        # Column headers
         hdr = tk.Frame(tab)
         hdr.pack(fill="x", pady=(0, 2))
         tk.Label(hdr, text=tr("tool.router.col_provider"),   width=10, anchor="w", font=("", 9, "bold")).pack(side="left")
@@ -107,23 +105,23 @@ class RouterManagerWindow:
 
         ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=(8, 4))
 
-        # ASR Providers section
-        tk.Label(tab, text=tr("tool.router.asr_providers_header"), font=("", 9, "bold"), fg="#444").pack(anchor="w", pady=(0, 4))
+        tk.Label(tab, text=tr("tool.router.asr_providers_header"),
+                 font=("", 9, "bold"), fg="#444").pack(anchor="w", pady=(0, 4))
         for name, cfg in router._asr_providers.items():
             self._build_asr_provider_row(tab, name, cfg)
 
         ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=(8, 4))
 
-        # TTS Providers section
-        tk.Label(tab, text=tr("tool.router.tts_providers_header"), font=("", 9, "bold"), fg="#444").pack(anchor="w", pady=(0, 4))
+        tk.Label(tab, text=tr("tool.router.tts_providers_header"),
+                 font=("", 9, "bold"), fg="#444").pack(anchor="w", pady=(0, 4))
         for name, cfg in router._tts_providers.items():
-            self._build_asr_provider_row(tab, name, cfg)   # Same row structure as ASR, reused
+            self._build_asr_provider_row(tab, name, cfg)   # Reused row layout
 
         ttk.Separator(tab, orient="horizontal").pack(fill="x", pady=(4, 8))
         tk.Label(tab,
                  text=tr("tool.router.key_hint"),
                  font=("", 8), fg="gray",
-                 wraplength=580, justify="left").pack(anchor="w")
+                 wraplength=640, justify="left").pack(anchor="w")
 
     def _build_provider_row(self, parent, name, cfg):
         row = tk.Frame(parent)
@@ -157,20 +155,19 @@ class RouterManagerWindow:
         tk.Label(row, text=status_text, width=24, anchor="w",
                  fg=status_color, font=("", 9)).pack(side="left")
 
-        # No enabled/disabled checkbox for ASR (not yet supported)
-        tk.Label(row, width=9).pack(side="left")   # Placeholder to align columns
+        tk.Label(row, width=9).pack(side="left")   # Spacer to align columns
         tk.Button(row, text=tr("tool.router.btn_edit"), width=6,
                   command=lambda n=name, c=cfg: self._open_asr_edit_dialog(n, c)
                   ).pack(side="left", padx=8)
 
     def _open_asr_edit_dialog(self, name, cfg):
-        # TTS providers reuse this dialog but have no timeout / retry fields —
-        # showing them and calling update_asr_provider() crashes. Branch off
-        # the TTS-only path that just writes the key file and closes.
+        # TTS providers share this dialog but skip timeout fields — see
+        # the router_manager fix commit (66cb634). This tab carries the
+        # same behavior.
         is_tts = name in router._tts_providers
 
         display_name = cfg.get("name", name)
-        dlg = tk.Toplevel(self.win)
+        dlg = tk.Toplevel(self.master)
         dlg.title(tr("tool.router.edit_dialog_title", name=display_name))
         dlg.geometry("560x180" if is_tts else "560x300")
         dlg.resizable(False, False)
@@ -193,8 +190,6 @@ class RouterManagerWindow:
         ttk.Checkbutton(dlg, text=tr("tool.router.label_show"), variable=show_var,
                         command=toggle_show).grid(row=0, column=3, padx=6)
 
-        # Timeout / retry fields only apply to ASR (HTTP-heavy). TTS providers
-        # use a streaming SDK with its own timeouts, so we hide these rows.
         connect_timeout_var = tk.StringVar(value=str(cfg.get("connect_timeout_sec", 60)))
         read_timeout_var    = tk.StringVar(value=str(cfg.get("read_timeout_sec", 120)))
         max_retries_var     = tk.StringVar(value=str(cfg.get("max_retries", 1)))
@@ -213,12 +208,8 @@ class RouterManagerWindow:
             tk.Entry(dlg, textvariable=max_retries_var, width=14).grid(row=3, column=1, pady=6, sticky="w")
 
             tk.Label(
-                dlg,
-                text=tr("tool.router.asr_retry_hint"),
-                font=("", 8),
-                fg="gray",
-                justify="left",
-                wraplength=430,
+                dlg, text=tr("tool.router.asr_retry_hint"),
+                font=("", 8), fg="gray", justify="left", wraplength=430,
             ).grid(row=4, column=0, columnspan=4, padx=12, pady=(8, 4), sticky="w")
 
         def save():
@@ -231,21 +222,15 @@ class RouterManagerWindow:
             if not is_tts:
                 try:
                     connect_timeout = _parse_int_range(
-                        connect_timeout_var.get(),
-                        minimum=5,
-                        maximum=300,
+                        connect_timeout_var.get(), minimum=5, maximum=300,
                         field_label=tr("tool.router.label_connect_timeout_sec"),
                     )
                     read_timeout = _parse_int_range(
-                        read_timeout_var.get(),
-                        minimum=30,
-                        maximum=600,
+                        read_timeout_var.get(), minimum=30, maximum=600,
                         field_label=tr("tool.router.label_read_timeout_sec"),
                     )
                     max_retries = _parse_int_range(
-                        max_retries_var.get(),
-                        minimum=1,
-                        maximum=10,
+                        max_retries_var.get(), minimum=1, maximum=10,
                         field_label=tr("tool.router.label_max_retries"),
                     )
                 except ValueError as e:
@@ -259,17 +244,14 @@ class RouterManagerWindow:
                     f.write(key)
 
             if not is_tts:
-                # Persist the ASR-only fields via the router so they're
-                # written back to providers.json.
                 router.update_asr_provider(
                     name,
                     connect_timeout_sec=connect_timeout,
                     read_timeout_sec=read_timeout,
                     max_retries=max_retries,
                 )
-            # TTS providers have no extra fields beyond the key file; writing
-            # the .key is sufficient and the in-memory router reads it lazily
-            # on next get_tts_key() call.
+            # TTS: key file is the only persistent state; router reads it
+            # lazily on each get_tts_key() call.
 
             messagebox.showinfo(tr("tool.router.saved_title"),
                                 tr("tool.router.saved_config_msg", name=display_name), parent=dlg)
@@ -298,7 +280,7 @@ class RouterManagerWindow:
 
     def _open_edit_dialog(self, name, cfg):
         is_claude = cfg.get("type") == "claude_code"
-        dlg = tk.Toplevel(self.win)
+        dlg = tk.Toplevel(self.master)
         dlg.title(tr("tool.router.edit_dialog_title", name=name))
         dlg.geometry("500x340")
         dlg.resizable(False, False)
@@ -312,7 +294,6 @@ class RouterManagerWindow:
     def _build_api_key_dialog(self, dlg, name, cfg):
         r = 0
 
-        # API Key
         tk.Label(dlg, text=tr("tool.router.label_api_key"), anchor="e", width=12).grid(
             row=r, column=0, padx=10, pady=10, sticky="e")
         key_var = tk.StringVar()
@@ -331,22 +312,20 @@ class RouterManagerWindow:
                         command=toggle_show).grid(row=r, column=3, padx=6)
         r += 1
 
-        # Base URL (openai_compatible only)
         url_var = None
         if cfg.get("type") == "openai_compatible":
-            tk.Label(dlg, text=tr("tool.router.label_base_url"), anchor="e", width=12).grid(
+            tk.Label(dlg, text="Base URL:", anchor="e", width=12).grid(
                 row=r, column=0, padx=10, pady=8, sticky="e")
             url_var = tk.StringVar(value=cfg.get("base_url", ""))
-            tk.Entry(dlg, textvariable=url_var, width=44).grid(
+            tk.Entry(dlg, textvariable=url_var, width=48).grid(
                 row=r, column=1, columnspan=3, pady=8, sticky="w")
             r += 1
 
-        # Model list (openai_compatible only)
         models_text = None
-        if cfg.get("type") == "openai_compatible":
+        if "models" in cfg:
             tk.Label(dlg, text=tr("tool.router.label_models"), anchor="ne", width=12).grid(
                 row=r, column=0, padx=10, pady=8, sticky="ne")
-            models_text = tk.Text(dlg, height=4, width=44, wrap="word")
+            models_text = tk.Text(dlg, height=4, width=42, wrap="word")
             models_text.grid(row=r, column=1, columnspan=3, pady=8, sticky="w")
             models_text.insert("1.0", ", ".join(cfg.get("models", [])))
             r += 1
@@ -358,14 +337,12 @@ class RouterManagerWindow:
                                      tr("tool.router.error_key_empty"), parent=dlg)
                 return
 
-            # Write .key file
             kp = os.path.join(_keys_dir(), cfg.get("key_file", ""))
             if kp:
                 os.makedirs(os.path.dirname(kp), exist_ok=True)
                 with open(kp, "w", encoding="utf-8") as f:
                     f.write(key)
 
-            # Update router config (base_url / models)
             kwargs = {}
             if url_var is not None:
                 kwargs["base_url"] = url_var.get().strip()
@@ -377,7 +354,7 @@ class RouterManagerWindow:
 
             messagebox.showinfo(tr("tool.router.saved_title"),
                                 tr("tool.router.saved_config_msg", name=name), parent=dlg)
-            self._rebuild_keys_tab()    # Refresh status display
+            self._rebuild_keys_tab()
             dlg.destroy()
 
         btn_row = tk.Frame(dlg)
@@ -386,11 +363,10 @@ class RouterManagerWindow:
         tk.Button(btn_row, text=tr("tool.router.btn_cancel"), command=dlg.destroy, width=10).pack(side="left")
 
     def _build_claude_code_dialog(self, dlg, name, cfg):
-        """Edit dialog variant for claude_code providers: no API key row, no
-        Base URL. Exposes executable path, timeout, and model list."""
+        """Edit dialog variant for claude_code providers: no API key row,
+        no Base URL. Exposes executable path, timeout, and model list."""
         r = 0
 
-        # Executable path
         tk.Label(dlg, text=tr("tool.router.label_executable"), anchor="e", width=14).grid(
             row=r, column=0, padx=10, pady=(14, 6), sticky="e")
         exec_var = tk.StringVar(value=cfg.get("executable", "claude"))
@@ -398,7 +374,6 @@ class RouterManagerWindow:
             row=r, column=1, columnspan=3, pady=(14, 6), sticky="w")
         r += 1
 
-        # Timeout (seconds)
         tk.Label(dlg, text=tr("tool.router.label_timeout_sec"), anchor="e", width=14).grid(
             row=r, column=0, padx=10, pady=6, sticky="e")
         timeout_var = tk.StringVar(value=str(cfg.get("timeout_sec", 600)))
@@ -406,7 +381,6 @@ class RouterManagerWindow:
             row=r, column=1, pady=6, sticky="w")
         r += 1
 
-        # Model list (comma-separated)
         tk.Label(dlg, text=tr("tool.router.label_models"), anchor="ne", width=14).grid(
             row=r, column=0, padx=10, pady=6, sticky="ne")
         models_text = tk.Text(dlg, height=4, width=42, wrap="word")
@@ -414,10 +388,8 @@ class RouterManagerWindow:
         models_text.insert("1.0", ", ".join(cfg.get("models", [])))
         r += 1
 
-        # Hint
         tk.Label(
-            dlg,
-            text=tr("tool.router.claudecode_hint"),
+            dlg, text=tr("tool.router.claudecode_hint"),
             font=("", 8), fg="gray", justify="left", wraplength=440,
         ).grid(row=r, column=0, columnspan=4, padx=12, pady=(8, 4), sticky="w")
         r += 1
@@ -426,9 +398,7 @@ class RouterManagerWindow:
             executable = exec_var.get().strip() or "claude"
             try:
                 timeout_sec = _parse_int_range(
-                    timeout_var.get(),
-                    minimum=10,
-                    maximum=3600,
+                    timeout_var.get(), minimum=10, maximum=3600,
                     field_label=tr("tool.router.label_timeout_sec"),
                 )
             except ValueError as e:
@@ -459,91 +429,106 @@ class RouterManagerWindow:
             w.destroy()
         self._build_keys_tab()
 
-    # ── Tab 2: 档位配置 ───────────────────────────────────────────────────────
+    # ── Tab 2: Routing Matrix (task × tier) ─────────────────────────────────
 
-    def _build_tiers_tab(self):
-        tab = self.tab_tiers
+    def _build_matrix_tab(self):
+        tab = self.tab_matrix
 
-        tk.Label(tab, text=tr("tool.router.tier_prompt"),
-                 font=("", 9), fg="#555").pack(anchor="w", pady=(0, 8))
+        tk.Label(tab, text=tr("tool.router.matrix_prompt"),
+                 font=("", 9), fg="#555", wraplength=700, justify="left",
+                 ).pack(anchor="w", pady=(0, 10))
 
-        current   = router.get_tier_routing()
-        providers = router.get_provider_names()
-        self._tier_widgets: dict = {}
+        grid = tk.Frame(tab)
+        grid.pack(fill="both", expand=True)
 
-        for tier in TIERS:
-            self._build_tier_row(tab, tier, current.get(tier, {}), providers)
+        # Header row: blank corner + one cell per tier
+        tk.Label(grid, text="", width=22).grid(row=0, column=0, sticky="w")
+        for col_idx, tier in enumerate(TIERS, start=1):
+            hdr = tk.Frame(grid)
+            hdr.grid(row=0, column=col_idx, padx=4, pady=(0, 4), sticky="w")
+            tk.Label(hdr, text=_tier_display(tier),
+                     font=("", 9, "bold")).pack(anchor="w")
+            tk.Label(hdr, text=_tier_hint(tier),
+                     font=("", 8), fg="gray").pack(anchor="w")
 
-        tk.Frame(tab, height=8).pack()
+        current      = router.get_task_routing()
+        llm_names    = router.get_provider_names()
+        asr_names    = [p["name"] for p in router.get_available_asr_providers()]
+        tts_names    = [p["name"] for p in router.get_available_tts_providers()]
+        pool_by_cat  = {"llm": llm_names, "asr": asr_names, "tts": tts_names}
 
-        save_btn = tk.Button(tab, text=tr("tool.router.btn_save_tiers"), command=self._save_tiers,
+        self._matrix_widgets: dict = {}
+
+        for row_idx, (task_id, category, label) in enumerate(_ai_cfg.TASKS, start=1):
+            tk.Label(grid, text=label, anchor="w", font=("", 9),
+                     ).grid(row=row_idx, column=0, sticky="w", padx=4, pady=6)
+
+            pool = pool_by_cat.get(category, [])
+            for col_idx, tier in enumerate(TIERS, start=1):
+                cell_data = current.get(task_id, {}).get(tier, {})
+                cell_frame = self._build_matrix_cell(
+                    grid, task_id, tier, cell_data, pool, category,
+                )
+                cell_frame.grid(row=row_idx, column=col_idx, padx=4, pady=6, sticky="w")
+
+        tk.Frame(tab, height=10).pack()
+
+        save_btn = tk.Button(tab, text=tr("tool.router.btn_save_matrix"),
+                             command=self._save_matrix,
                              bg="#4CAF50", fg="white", width=16, pady=4)
         save_btn.pack()
 
-        self._tier_status_var = tk.StringVar()
-        tk.Label(tab, textvariable=self._tier_status_var,
+        self._matrix_status_var = tk.StringVar()
+        tk.Label(tab, textvariable=self._matrix_status_var,
                  fg="#228B22", font=("", 9)).pack(pady=4)
 
-    def _build_tier_row(self, parent, tier, current, provider_names):
-        frame = tk.LabelFrame(parent, text=_tier_display(tier), padx=10, pady=6)
-        frame.pack(fill="x", pady=4)
+    def _build_matrix_cell(self, parent, task_id, tier, current, provider_pool, category):
+        frame = tk.Frame(parent)
 
-        tk.Label(frame, text=_tier_hint(tier),
-                 font=("", 8), fg="gray").pack(anchor="w")
-
-        ctrl = tk.Frame(frame)
-        ctrl.pack(fill="x", pady=(4, 0))
-
-        tk.Label(ctrl, text=tr("tool.router.label_provider_combo"), width=9, anchor="w").pack(side="left")
-
-        prov_var = tk.StringVar(value=current.get("provider",
-                                provider_names[0] if provider_names else ""))
-        prov_combo = ttk.Combobox(ctrl, textvariable=prov_var,
-                                  values=provider_names, state="readonly", width=14)
-        prov_combo.pack(side="left", padx=(0, 12))
-
-        tk.Label(ctrl, text=tr("tool.router.label_model_combo"), width=7, anchor="w").pack(side="left")
-
+        prov_var  = tk.StringVar(value=current.get("provider", ""))
         model_var = tk.StringVar(value=current.get("model", ""))
-        model_combo = ttk.Combobox(ctrl, textvariable=model_var,
-                                   state="normal", width=30)
+
+        prov_combo = ttk.Combobox(frame, textvariable=prov_var, values=provider_pool,
+                                   state="readonly", width=10)
+        prov_combo.pack(side="left", padx=(0, 2))
+
+        model_combo = ttk.Combobox(frame, textvariable=model_var, state="normal", width=16)
         model_combo.pack(side="left")
 
-        # 初始化模型列表
-        self._populate_model_combo(prov_var.get(), model_combo, model_var)
+        if category == "llm":
+            self._populate_model_combo(prov_var.get(), model_combo, model_var)
 
-        def on_provider_change(event, pv=prov_var, mc=model_combo, mv=model_var):
-            self._populate_model_combo(pv.get(), mc, mv)
+            def on_change(event, pv=prov_var, mc=model_combo, mv=model_var):
+                self._populate_model_combo(pv.get(), mc, mv)
+            prov_combo.bind("<<ComboboxSelected>>", on_change)
+        else:
+            # ASR/TTS providers have no per-task model list — model stays blank.
+            model_combo.configure(state="disabled")
 
-        prov_combo.bind("<<ComboboxSelected>>", on_provider_change)
-
-        self._tier_widgets[tier] = {
+        self._matrix_widgets[(task_id, tier)] = {
             "provider_var": prov_var,
             "model_var":    model_var,
+            "category":     category,
         }
+        return frame
 
     def _populate_model_combo(self, provider_name, combo, model_var):
-        models = router.get_provider_models(provider_name)
+        models = router.get_provider_models(provider_name) if provider_name else []
         combo["values"] = models
         if models and model_var.get() not in models:
             model_var.set(models[0])
 
-    def _save_tiers(self):
-        saved = []
-        for tier, widgets in self._tier_widgets.items():
+    def _save_matrix(self):
+        count = 0
+        for (task_id, tier), widgets in self._matrix_widgets.items():
             provider = widgets["provider_var"].get().strip()
             model    = widgets["model_var"].get().strip()
-            if provider and model:
-                router.set_tier_routing(tier, provider, model)
-                saved.append(_tier_display(tier))
+            router.set_task_routing_cell(task_id, tier, provider, model)
+            count += 1
+        self._matrix_status_var.set(tr("tool.router.matrix_saved", count=count))
+        self.master.after(4000, lambda: self._matrix_status_var.set(""))
 
-        if saved:
-            self._tier_status_var.set(tr("tool.router.tiers_saved", items=", ".join(saved)))
-        else:
-            self._tier_status_var.set(tr("tool.router.tiers_none_valid"))
-        self.win.after(4000, lambda: self._tier_status_var.set(""))
-
-    # ── Tab 3: 调用统计 ───────────────────────────────────────────────────────
+    # ── Tab 3: Call stats ───────────────────────────────────────────────────
 
     def _build_stats_tab(self):
         tab = self.tab_stats
@@ -570,8 +555,8 @@ class RouterManagerWindow:
 
         btn_col = tk.Frame(tab)
         btn_col.pack(side="left", padx=10, anchor="n")
-        tk.Button(btn_col, text=tr("tool.router.btn_refresh"), command=self._refresh_stats,
-                  width=8).pack(pady=4)
+        tk.Button(btn_col, text=tr("tool.router.btn_refresh"),
+                  command=self._refresh_stats, width=8).pack(pady=4)
 
         self._refresh_stats()
 
@@ -586,10 +571,3 @@ class RouterManagerWindow:
             rate   = f"{errors / calls * 100:.0f}%" if calls > 0 else "—"
             last   = s["last_used"] or tr("tool.router.never_used")
             self.stats_tree.insert("", "end", values=(name, calls, errors, rate, last))
-
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    root.withdraw()          # 隐藏空白根窗口
-    open_router_manager(root)
-    root.mainloop()

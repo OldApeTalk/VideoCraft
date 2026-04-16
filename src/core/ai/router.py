@@ -40,12 +40,14 @@ class AIRouter:
         self._asr_providers: dict = {}
         self._tts_providers: dict = {}
         self._tier_routing:  dict = {}
+        self._task_routing:  dict = {}
         self._stats = Stats()
         self._load_config()
 
     # ── Core LLM API ─────────────────────────────────────────────────────────
 
     def complete(self, prompt: str, *,
+                 task: str = "",
                  tier: str = TIER_STANDARD,
                  provider: str | None = None,
                  model: str | None = None) -> str:
@@ -53,6 +55,10 @@ class AIRouter:
 
         Args:
             prompt:   The user prompt.
+            task:     Optional task id (e.g. "translate", "subtitle.refine").
+                      When set, routing uses task_routing[task][tier] first,
+                      falling back to tier_routing[tier]. Empty string keeps
+                      the legacy pure-tier routing path.
             tier:     "premium" | "standard" | "economy". If provider is
                       unset, tier drives routing; if provider is set, tier
                       only chooses the default model within that provider.
@@ -71,14 +77,17 @@ class AIRouter:
         if provider:
             provider = _cfg.canonicalize_provider_name(provider)
             return self._complete_explicit(provider, tier, model, prompt)
-        return self._complete_by_tier(tier, model, prompt)
+        return self._complete_by_tier(task, tier, model, prompt)
 
     def complete_json(self, prompt: str, *,
                       schema: dict,
+                      task: str = "",
                       tier: str = TIER_STANDARD,
                       provider: str | None = None,
                       model: str | None = None) -> dict:
         """Structured JSON completion constrained by `schema`.
+
+        See complete() for `task` semantics.
 
         The schema is injected by the provider adapter (either as native
         response_schema, or as a system-prompt hint for OpenAI-compat).
@@ -97,7 +106,7 @@ class AIRouter:
         if provider:
             provider = _cfg.canonicalize_provider_name(provider)
             return self._complete_json_explicit(provider, tier, model, prompt, schema)
-        return self._complete_json_by_tier(tier, model, prompt, schema)
+        return self._complete_json_by_tier(task, tier, model, prompt, schema)
 
     def describe(self, task: str, tier: str = TIER_STANDARD) -> dict:
         """Return capability metadata for (task, tier).
@@ -149,6 +158,24 @@ class AIRouter:
         if tier not in TIERS:
             raise ValueError(f"tier must be one of {TIERS}")
         self._tier_routing[tier] = {"provider": provider, "model": model}
+        self._persist()
+
+    def get_task_routing(self) -> dict:
+        """Deep-copy of the task × tier routing matrix.
+        Structure: {task_id: {tier: {provider, model}, ...}, ...}
+        """
+        import copy
+        return copy.deepcopy(self._task_routing)
+
+    def set_task_routing_cell(self, task: str, tier: str,
+                              provider: str, model: str) -> None:
+        """Update one cell of the matrix (task, tier) and persist."""
+        if tier not in TIERS:
+            raise ValueError(f"tier must be one of {TIERS}")
+        self._task_routing.setdefault(task, {})[tier] = {
+            "provider": provider,
+            "model":    model,
+        }
         self._persist()
 
     def get_provider_names(self) -> list:
@@ -406,11 +433,29 @@ class AIRouter:
             )
         return self._call(provider, cfg, resolved_model, prompt)
 
-    def _complete_by_tier(self, tier: str, model: str | None, prompt: str) -> str:
-        """Tier routing with explicit-config priority, auto-fallback on error."""
-        routing = self._tier_routing.get(tier, {})
-        r_provider = routing.get("provider", "")
-        r_model    = model or routing.get("model", "")
+    def _resolve_task_tier(self, task: str, tier: str,
+                           model_override: str | None) -> tuple[str, str]:
+        """Look up (provider, model) for (task, tier).
+
+        Priority:
+          1. task_routing[task][tier]            (exact match)
+          2. tier_routing[tier]                  (legacy fallback)
+        Returns ("", "") if nothing resolves — caller should auto-fallback.
+
+        `model_override` wins over whatever the routing tables contain, so
+        explicit callers can still force a specific model.
+        """
+        if task:
+            cell = self._task_routing.get(task, {}).get(tier, {})
+            if cell.get("provider"):
+                return cell["provider"], model_override or cell.get("model", "")
+        legacy = self._tier_routing.get(tier, {})
+        return legacy.get("provider", ""), model_override or legacy.get("model", "")
+
+    def _complete_by_tier(self, task: str, tier: str,
+                          model: str | None, prompt: str) -> str:
+        """Task/tier routing with explicit-config priority, auto-fallback on error."""
+        r_provider, r_model = self._resolve_task_tier(task, tier, model)
 
         if r_provider and r_model:
             cfg = self._providers.get(r_provider)
@@ -450,11 +495,9 @@ class AIRouter:
             )
         return self._call_json(provider, cfg, resolved_model, prompt, schema)
 
-    def _complete_json_by_tier(self, tier: str, model: str | None,
+    def _complete_json_by_tier(self, task: str, tier: str, model: str | None,
                                prompt: str, schema: dict) -> dict:
-        routing = self._tier_routing.get(tier, {})
-        r_provider = routing.get("provider", "")
-        r_model    = model or routing.get("model", "")
+        r_provider, r_model = self._resolve_task_tier(task, tier, model)
 
         if r_provider and r_model:
             cfg = self._providers.get(r_provider)
@@ -564,6 +607,7 @@ class AIRouter:
         self._asr_providers = data["asr_providers"]
         self._tts_providers = data["tts_providers"]
         self._tier_routing  = data["tier_routing"]
+        self._task_routing  = data["task_routing"]
         self._stats.init_providers(list(self._providers.keys()))
 
     def _persist(self) -> None:
@@ -572,6 +616,7 @@ class AIRouter:
             "asr_providers": self._asr_providers,
             "tts_providers": self._tts_providers,
             "tier_routing":  self._tier_routing,
+            "task_routing":  self._task_routing,
         })
 
 

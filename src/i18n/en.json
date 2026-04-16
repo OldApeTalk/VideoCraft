@@ -39,7 +39,7 @@
   "menu.text2video.daily_news": "Daily News Composer",
 
   "menu.ai": "AI",
-  "menu.ai.router_manager": "Router Manager",
+  "menu.ai.console": "AI Console",
 
   "menu.publish": "Publish",
   "menu.publish.tiktok": "TikTok Publish",
@@ -806,9 +806,8 @@
 
   "tool.router.title": "AI Router Manager",
   "tool.router.tab_keys": "  Provider & Key  ",
-  "tool.router.tab_tiers": "  Tiers  ",
+  "tool.router.tab_matrix": "  Routing Matrix  ",
   "tool.router.tab_stats": "  Stats  ",
-  "tool.router.btn_close": "Close",
   "tool.router.tier_premium_label": "Premium",
   "tool.router.tier_standard_label": "Standard",
   "tool.router.tier_economy_label": "Economy",
@@ -846,10 +845,9 @@
   "tool.router.status_no_key_needed": "No key needed",
   "tool.router.status_not_configured": "❌ Not configured",
   "tool.router.status_key_empty": "❌ Key is empty",
-  "tool.router.tier_prompt": "Pick the AI provider and model for each tier:",
-  "tool.router.btn_save_tiers": "Save tier config",
-  "tool.router.tiers_saved": "✅ Saved: {items}",
-  "tool.router.tiers_none_valid": "⚠️ No valid configuration to save",
+  "tool.router.matrix_prompt": "Pick the provider and model used for each (task, tier) cell. The provider dropdown is filtered by category (LLM / ASR / TTS). Click Save Matrix after editing.",
+  "tool.router.btn_save_matrix": "Save matrix",
+  "tool.router.matrix_saved": "✅ Saved {count} cells",
   "tool.router.col_provider": "Provider",
   "tool.router.col_calls": "Calls",
   "tool.router.col_errors": "Errors",

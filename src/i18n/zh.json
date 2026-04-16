@@ -39,7 +39,7 @@
   "menu.text2video.daily_news": "每日要闻合成",
 
   "menu.ai": "AI",
-  "menu.ai.router_manager": "Router 管理",
+  "menu.ai.console": "AI 控制台",
 
   "menu.publish": "发布",
   "menu.publish.tiktok": "TikTok 发布",
@@ -806,9 +806,8 @@
 
   "tool.router.title": "AI Router 管理",
   "tool.router.tab_keys": "  Provider & Key  ",
-  "tool.router.tab_tiers": "  档位配置  ",
+  "tool.router.tab_matrix": "  路由矩阵  ",
   "tool.router.tab_stats": "  调用统计  ",
-  "tool.router.btn_close": "关闭",
   "tool.router.tier_premium_label": "高档 (Premium)",
   "tool.router.tier_standard_label": "中档 (Standard)",
   "tool.router.tier_economy_label": "低档 (Economy)",
@@ -846,10 +845,9 @@
   "tool.router.status_no_key_needed": "无需 Key",
   "tool.router.status_not_configured": "❌ 未配置",
   "tool.router.status_key_empty": "❌ Key 为空",
-  "tool.router.tier_prompt": "为每个档位指定使用的 AI Provider 和模型：",
-  "tool.router.btn_save_tiers": "保存档位配置",
-  "tool.router.tiers_saved": "✅ 已保存：{items}",
-  "tool.router.tiers_none_valid": "⚠️ 没有有效配置可保存",
+  "tool.router.matrix_prompt": "为每一个功能 (task) 在三个档位下指定使用的 Provider 和模型。Provider 下拉框按功能类别筛选（LLM / ASR / TTS）。修改后点下方「保存矩阵」生效。",
+  "tool.router.btn_save_matrix": "保存矩阵",
+  "tool.router.matrix_saved": "✅ 已保存 {count} 个配置",
   "tool.router.col_provider": "Provider",
   "tool.router.col_calls": "调用次数",
   "tool.router.col_errors": "错误次数",
