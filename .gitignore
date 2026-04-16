@@ -97,6 +97,11 @@ env.bak/
 venv.bak/
 myenv/
 
+# Local test artifacts at repo root (TTS output, etc.)
+/output.mp3
+/output.wav
+/output.opus
+
 # Spyder project settings
 .spyderproject
 .spyproject
