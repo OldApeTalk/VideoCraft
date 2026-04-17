@@ -78,9 +78,17 @@ def _chromium_installed() -> bool:
     )
 
 
+def _wrap_cmd(cmd: list[str]) -> list[str]:
+    """On Windows, .cmd files must be invoked via cmd /c to run correctly."""
+    if os.name == "nt" and cmd and cmd[0].lower().endswith(".cmd"):
+        return ["cmd", "/c"] + cmd
+    return cmd
+
+
 def _run_logged(cmd: list[str], cwd: str, env: dict,
                 on_log: Callable[[str], None] | None) -> None:
     """Run a subprocess, streaming stdout/stderr lines to on_log."""
+    cmd = _wrap_cmd(cmd)
     proc = subprocess.Popen(
         cmd, cwd=cwd, env=env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -209,10 +217,10 @@ def export_slidev_to_png(
         on_progress(0, 1, "running slidev export...")
 
     result = subprocess.run(
-        [slidev, "export",
-         "--format", "png",
-         "--output", pages_abs,
-         md_abs],
+        _wrap_cmd([slidev, "export",
+                   "--format", "png",
+                   "--output", pages_abs,
+                   md_abs]),
         capture_output=True,
         text=True,
         encoding="utf-8",
