@@ -12,6 +12,7 @@ errors (FileNotFoundError, TimeoutExpired, non-zero exit) to AIError kinds.
 """
 
 import json
+import shutil
 import subprocess
 
 from core.ai.providers._json_utils import parse_json_response
@@ -76,6 +77,16 @@ def _run(cmd: list, cfg: dict, prompt: str) -> str:
     """Spawn the Claude CLI subprocess with prompt on stdin, return stdout.
     Raises RuntimeError on missing binary, timeout, or non-zero exit."""
     executable = cmd[0] if cmd else "claude"
+
+    # On Windows, npm-installed CLIs land as `claude.cmd` (or .bat). Plain
+    # subprocess.run() only matches `.exe` unless shell=True. shutil.which()
+    # honors PATHEXT and resolves to the actual `.cmd` so we can pass an
+    # absolute path that subprocess can launch directly. No-op on POSIX
+    # (just returns the same path).
+    resolved = shutil.which(executable)
+    if resolved:
+        cmd = [resolved] + list(cmd[1:])
+
     try:
         result = subprocess.run(
             cmd,
@@ -90,7 +101,7 @@ def _run(cmd: list, cfg: dict, prompt: str) -> str:
         raise RuntimeError(
             f"Claude Code CLI not found: {executable!r}. "
             "Install from https://claude.com/claude-code and ensure it "
-            "is on PATH, or set a full path in the Router Manager."
+            "is on PATH, or set a full path in the AI Console."
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(
