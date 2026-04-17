@@ -186,25 +186,30 @@ def ensure_node_env(
 def extract_slidev_notes(md_path: str, notes_dir: str) -> list[str]:
     """Parse speaker notes from a Slidev .md file.
 
-    Notes live inside <!-- ... --> HTML comments within each slide block.
-    Slides are separated by `---` on its own line.
-    Returns list of written note file paths.
+    Each slide is delimited by a top-level '# ' heading on its own line.
+    Notes live inside <!-- ... --> HTML comments within the slide block.
+    This sidesteps Slidev's per-slide frontmatter (--- layout: ... ---)
+    which would otherwise be mis-counted as slide separators.
     """
     os.makedirs(notes_dir, exist_ok=True)
 
-    text = open(md_path, "r", encoding="utf-8").read()
+    text = open(md_path, encoding="utf-8").read()
 
-    # Split on --- slide separators
-    slide_blocks = re.split(r'\n---+\n', text)
+    # Strip the leading file-level YAML frontmatter (--- ... --- at top).
+    m = re.match(r'^---\n.*?\n---\n', text, re.DOTALL)
+    if m:
+        text = text[m.end():]
 
-    # Skip leading frontmatter block (no heading, looks like YAML key:value)
-    if slide_blocks and not re.search(r'^\s*#', slide_blocks[0], re.MULTILINE):
-        slide_blocks = slide_blocks[1:]
+    # Split at each H1 — lookahead keeps the heading with its block.
+    raw_blocks = re.split(r'(?m)(?=^# )', text)
+    blocks = [b for b in raw_blocks if re.match(r'^# ', b)]
 
     paths: list[str] = []
-    for i, block in enumerate(slide_blocks, 1):
-        comments = re.findall(r'<!--(.*?)-->', block, re.DOTALL)
-        note_text = "\n".join(c.strip() for c in comments if c.strip())
+    for i, block in enumerate(blocks, 1):
+        # Strip fenced code blocks so '<!--' inside code is ignored.
+        clean = re.sub(r'```.*?```', '', block, flags=re.DOTALL)
+        comments = re.findall(r'<!--(.*?)-->', clean, re.DOTALL)
+        note_text = "\n\n".join(c.strip() for c in comments if c.strip())
         out_path = os.path.join(notes_dir, f"page_{i:02d}.txt")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(note_text)
@@ -410,19 +415,5 @@ def run_step2_slidev(
 
     # PNG export via Slidev CLI
     page_paths = export_slidev_to_png(md_path, pages_dir, on_progress=on_progress)
-
-    # Sync note count to actual slide count (PNG count is authoritative).
-    # Over-count happens when per-slide frontmatter blocks are mis-counted as slides.
-    while len(note_paths) < len(page_paths):
-        i = len(note_paths) + 1
-        empty = os.path.join(notes_dir, f"page_{i:02d}.txt")
-        open(empty, "w").close()
-        note_paths.append(empty)
-    while len(note_paths) > len(page_paths):
-        try:
-            os.remove(note_paths[-1])
-        except OSError:
-            pass
-        note_paths.pop()
 
     return page_paths, note_paths
