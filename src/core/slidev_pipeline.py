@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import shutil
+import tempfile
 from typing import Callable
 
 
@@ -212,6 +213,48 @@ def extract_slidev_notes(md_path: str, notes_dir: str) -> list[str]:
     return paths
 
 
+# ── Theme helpers ────────────────────────────────────────────────────────────
+
+def _extract_theme(md_path: str) -> str:
+    """Return the theme name declared in the Slidev .md frontmatter."""
+    try:
+        text = open(md_path, encoding="utf-8").read(2048)
+        m = re.search(r'^theme\s*:\s*(\S+)', text, re.MULTILINE)
+        return m.group(1) if m else "default"
+    except Exception:
+        return "default"
+
+
+def _theme_to_pkg(theme: str) -> str:
+    """Map a Slidev theme name to its npm package name."""
+    if theme.startswith("@") or theme.startswith("slidev-theme-"):
+        return theme
+    return f"@slidev/theme-{theme}"
+
+
+def _ensure_theme(
+    md_path: str,
+    env: dict,
+    on_log: Callable[[str], None] | None,
+) -> None:
+    """Install the theme declared in md_path into node_env if not present."""
+    theme = _extract_theme(md_path)
+    pkg = _theme_to_pkg(theme)
+    if pkg.startswith("@"):
+        scope, name = pkg[1:].split("/", 1)
+        pkg_dir = os.path.join(_NODE_ENV, "node_modules", f"@{scope}", name)
+    else:
+        pkg_dir = os.path.join(_NODE_ENV, "node_modules", pkg)
+    if not os.path.isdir(pkg_dir):
+        if on_log:
+            on_log(f"Installing Slidev theme: {pkg} ...")
+        npm = _find_npm()
+        _run_logged(
+            [npm, "install", "--prefer-offline", pkg],
+            cwd=_NODE_ENV, env=env, on_log=on_log,
+        )
+
+
 # ── PNG export ───────────────────────────────────────────────────────────────
 
 def export_slidev_to_png(
@@ -236,47 +279,68 @@ def export_slidev_to_png(
 
     md_abs = os.path.abspath(md_path)
     pages_abs = os.path.abspath(pages_dir)
-    md_dir = os.path.dirname(md_abs)
 
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
 
-    # Use a relative output path (relative to cwd = md_dir) to avoid Windows
-    # cmd /c absolute-path quoting issues that can silently drop --output.
-    pages_rel = os.path.relpath(pages_abs, start=md_dir)
-
-    cmd = [
-        slidev, "export",
-        "--format", "png",
-        "--per-slide",          # navigate each slide individually; avoids
-                                # .print-slide-container selector issues
-        "--output", pages_rel,
-        "--timeout", "60000",   # 60 s per slide; prevents silent hangs
-        os.path.basename(md_abs),   # relative md path; cwd is md_dir
-    ]
-
-    if on_progress:
-        on_progress(0, 1, "starting slidev export (launching browser)...")
-
-    # Use streaming Popen so log lines surface to the UI in real time.
     last_lines: list[str] = []
 
     def _log(line: str):
         last_lines.append(line)
         if on_progress:
-            on_progress(0, 1, line[:80] or "running slidev export...")
+            on_progress(0, 1, line or "running slidev export...")
+
+    # Slidev sets Vite's userRoot to dirname(entry_md). The user's document dir has no
+    # node_modules, so Vite cannot find theme packages there. Fix: copy the .md into a
+    # temp subdir of node_env/ so Node.js module resolution walks up to node_env/node_modules/.
+    export_tmp = os.path.join(_NODE_ENV, "_export_tmp")
+    os.makedirs(export_tmp, exist_ok=True)
+    tmp_md = os.path.join(export_tmp, os.path.basename(md_abs))
+    shutil.copy2(md_abs, tmp_md)
+
+    # Install the theme declared in the .md into node_env/node_modules/ if missing.
+    # Must happen before export so Slidev doesn't prompt interactively (stdin=DEVNULL).
+    _ensure_theme(tmp_md, env, _log)
+
+    cmd = [
+        slidev, "export",
+        "--format", "png",
+        "--per-slide",
+        "--output", pages_abs,
+        "--timeout", "60000",
+        tmp_md,
+    ]
+
+    # Resolve the final command now so we can log it before running.
+    resolved_cmd = _wrap_cmd(cmd)
+    last_lines.append("CMD: " + " ".join(resolved_cmd))
+
+    if on_progress:
+        on_progress(0, 1, "CMD: " + " ".join(resolved_cmd))
 
     try:
-        _run_logged(
-            cmd,
-            cwd=os.path.dirname(md_abs),
+        proc = subprocess.Popen(
+            resolved_cmd,
+            cwd=_NODE_ENV,
             env=env,
-            on_log=_log,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace",
         )
-    except RuntimeError as e:
-        tail = "\n".join(last_lines[-10:])
+        for line in proc.stdout:
+            _log(line.rstrip())
+        proc.wait()
+        if proc.returncode != 0:
+            tail = "\n".join(last_lines[-20:])
+            raise RuntimeError(
+                f"slidev export failed (exit {proc.returncode}).\nOutput:\n{tail}"
+            )
+    except RuntimeError:
+        raise
+    except Exception as e:
+        tail = "\n".join(last_lines[-20:])
         raise RuntimeError(
-            f"slidev export failed.\nLast output:\n{tail}"
+            f"slidev export error: {e}\nOutput:\n{tail}"
         ) from e
 
     # Rename whatever PNGs Slidev produced → page_01.png, page_02.png ...
@@ -286,6 +350,13 @@ def export_slidev_to_png(
         f for f in os.listdir(pages_abs)
         if f.lower().endswith(".png")
     )
+    if not raw_pngs:
+        tail = "\n".join(last_lines)
+        raise RuntimeError(
+            f"slidev export succeeded (exit 0) but produced 0 PNG files.\n"
+            f"Output dir: {pages_abs}\n"
+            f"Full output:\n{tail}"
+        )
     final_paths: list[str] = []
     for idx, fname in enumerate(raw_pngs, 1):
         src = os.path.join(pages_abs, fname)
@@ -293,6 +364,12 @@ def export_slidev_to_png(
         if src != dst:
             os.replace(src, dst)
         final_paths.append(dst)
+
+    # Clean up the temporary .md copy inside node_env/_export_tmp/
+    try:
+        os.remove(tmp_md)
+    except OSError:
+        pass
 
     if on_progress:
         on_progress(1, 1, f"exported {len(final_paths)} slides")
@@ -334,11 +411,18 @@ def run_step2_slidev(
     # PNG export via Slidev CLI
     page_paths = export_slidev_to_png(md_path, pages_dir, on_progress=on_progress)
 
-    # Pad note list to match page count if Slidev produced more slides than notes
+    # Sync note count to actual slide count (PNG count is authoritative).
+    # Over-count happens when per-slide frontmatter blocks are mis-counted as slides.
     while len(note_paths) < len(page_paths):
         i = len(note_paths) + 1
         empty = os.path.join(notes_dir, f"page_{i:02d}.txt")
         open(empty, "w").close()
         note_paths.append(empty)
+    while len(note_paths) > len(page_paths):
+        try:
+            os.remove(note_paths[-1])
+        except OSError:
+            pass
+        note_paths.pop()
 
     return page_paths, note_paths
