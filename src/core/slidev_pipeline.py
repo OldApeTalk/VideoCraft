@@ -232,6 +232,8 @@ def export_slidev_to_png(
     cmd = [
         slidev, "export",
         "--format", "png",
+        "--per-slide",          # navigate each slide individually; avoids
+                                # .print-slide-container selector issues
         "--output", pages_rel,
         "--timeout", "60000",   # 60 s per slide; prevents silent hangs
         os.path.basename(md_abs),   # relative md path; cwd is md_dir
@@ -261,10 +263,12 @@ def export_slidev_to_png(
             f"slidev export failed.\nLast output:\n{tail}"
         ) from e
 
-    # Rename 001.png, 002.png ... → page_01.png, page_02.png
+    # Rename whatever PNGs Slidev produced → page_01.png, page_02.png ...
+    # --per-slide produces 01.png/02.png; onePiece produces 1.png/2.png.
+    # Accept any .png file; sort naturally so slide order is preserved.
     raw_pngs = sorted(
         f for f in os.listdir(pages_abs)
-        if re.match(r'^\d+\.png$', f)
+        if f.lower().endswith(".png")
     )
     final_paths: list[str] = []
     for idx, fname in enumerate(raw_pngs, 1):
