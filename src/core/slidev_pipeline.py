@@ -220,16 +220,21 @@ def export_slidev_to_png(
 
     md_abs = os.path.abspath(md_path)
     pages_abs = os.path.abspath(pages_dir)
+    md_dir = os.path.dirname(md_abs)
 
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
 
+    # Use a relative output path (relative to cwd = md_dir) to avoid Windows
+    # cmd /c absolute-path quoting issues that can silently drop --output.
+    pages_rel = os.path.relpath(pages_abs, start=md_dir)
+
     cmd = [
         slidev, "export",
         "--format", "png",
-        "--output", pages_abs,
+        "--output", pages_rel,
         "--timeout", "60000",   # 60 s per slide; prevents silent hangs
-        md_abs,
+        os.path.basename(md_abs),   # relative md path; cwd is md_dir
     ]
 
     if on_progress:
