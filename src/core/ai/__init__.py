@@ -131,6 +131,13 @@ def is_tts_sdk_available(provider: str = "fish_audio") -> bool:
     return False
 
 
+def list_models(provider: str) -> list[str]:
+    """Fetch the live model list from the given LLM provider's API.
+    Only supported for Gemini / OpenAI-compatible providers; ClaudeCode
+    raises RuntimeError (its model list is fixed local aliases)."""
+    return router.list_models(provider)
+
+
 __all__ = [
     "router",
     "AIRouter",
@@ -148,4 +155,5 @@ __all__ = [
     "asr",
     "tts",
     "is_tts_sdk_available",
+    "list_models",
 ]

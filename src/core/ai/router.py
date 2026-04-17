@@ -161,21 +161,15 @@ class AIRouter:
         self._persist()
 
     def get_task_routing(self) -> dict:
-        """Deep-copy of the task × tier routing matrix.
-        Structure: {task_id: {tier: {provider, model}, ...}, ...}
+        """Deep-copy of the task routing map.
+        Structure: {task_id: {"provider": str, "model": str}}
         """
         import copy
         return copy.deepcopy(self._task_routing)
 
-    def set_task_routing_cell(self, task: str, tier: str,
-                              provider: str, model: str) -> None:
-        """Update one cell of the matrix (task, tier) and persist."""
-        if tier not in TIERS:
-            raise ValueError(f"tier must be one of {TIERS}")
-        self._task_routing.setdefault(task, {})[tier] = {
-            "provider": provider,
-            "model":    model,
-        }
+    def set_task_routing(self, task: str, provider: str, model: str) -> None:
+        """Set the single routing entry for a task and persist."""
+        self._task_routing[task] = {"provider": provider, "model": model}
         self._persist()
 
     def get_provider_names(self) -> list:
@@ -184,6 +178,39 @@ class AIRouter:
     def get_provider_models(self, provider: str) -> list:
         provider = _cfg.canonicalize_provider_name(provider)
         return self._providers.get(provider, {}).get("models", [])
+
+    def list_models(self, provider: str) -> list[str]:
+        """Fetch live model list from the provider's API.
+
+        Supported provider types: gemini, openai_compatible. ClaudeCode's
+        local CLI has no remote model endpoint; raises RuntimeError.
+
+        Caller is expected to update the provider's `models` field via
+        update_provider() if they want to persist.
+        """
+        provider = _cfg.canonicalize_provider_name(provider)
+        cfg = self._providers.get(provider)
+        if cfg is None:
+            raise RuntimeError(f"Unknown provider: {provider!r}")
+        ptype = cfg.get("type")
+        api_key = _cfg.read_key(cfg)
+        if ptype == "gemini":
+            if not api_key:
+                raise RuntimeError(f"API key required to list Gemini models")
+            return _gemini.list_models(api_key)
+        if ptype == "openai_compatible":
+            if not api_key:
+                raise RuntimeError(f"API key required to list models from {provider!r}")
+            base_url = cfg.get("base_url", "")
+            if not base_url:
+                raise RuntimeError(f"provider {provider!r} has no base_url configured")
+            return _openai_compat.list_models(api_key, base_url)
+        if ptype == "claude_code":
+            raise RuntimeError(
+                "ClaudeCode runs locally via the `claude` CLI; model list "
+                "is fixed (sonnet / opus / haiku). No remote refresh."
+            )
+        raise RuntimeError(f"Unsupported provider type for list_models: {ptype!r}")
 
     def get_available_providers(self, tier: str | None = None) -> list:
         """Providers that are enabled AND have valid auth for their type.
@@ -435,21 +462,25 @@ class AIRouter:
 
     def _resolve_task_tier(self, task: str, tier: str,
                            model_override: str | None) -> tuple[str, str]:
-        """Look up (provider, model) for (task, tier).
+        """Look up (provider, model) for `task`.
+
+        `tier` is accepted but ignored — kept in the signature so older
+        feature/UI callers that still pass tier= don't break. Routing is
+        flat per-task now (see config._task_routing schema).
 
         Priority:
-          1. task_routing[task][tier]            (exact match)
-          2. tier_routing[tier]                  (legacy fallback)
+          1. task_routing[task]            (exact match)
+          2. tier_routing[tier]            (legacy fallback when task unknown)
         Returns ("", "") if nothing resolves — caller should auto-fallback.
 
-        `model_override` wins over whatever the routing tables contain, so
-        explicit callers can still force a specific model.
+        `model_override` wins over whatever the routing tables contain.
         """
+        _ = tier  # legacy parameter, no longer used for routing
         if task:
-            cell = self._task_routing.get(task, {}).get(tier, {})
+            cell = self._task_routing.get(task, {})
             if cell.get("provider"):
                 return cell["provider"], model_override or cell.get("model", "")
-        legacy = self._tier_routing.get(tier, {})
+        legacy = self._tier_routing.get(TIER_STANDARD, {})
         return legacy.get("provider", ""), model_override or legacy.get("model", "")
 
     def _complete_by_tier(self, task: str, tier: str,

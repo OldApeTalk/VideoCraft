@@ -31,3 +31,26 @@ def call_json(api_key: str, model_id: str, prompt: str, schema: dict) -> dict:
     response = model.generate_content(prompt)
     raw = (response.text or "").strip()
     return parse_json_response(raw, provider_hint="Gemini")
+
+
+def list_models(api_key: str) -> list[str]:
+    """Fetch the available generation-capable model IDs from Gemini.
+
+    Returned IDs are stripped of the leading "models/" prefix (so they can
+    be passed back into `call(model_id=...)` directly). Filtered to models
+    that support generateContent (skips embedding-only / vision-only ones).
+    """
+    import google.generativeai as genai
+    genai.configure(api_key=api_key)
+    out: list[str] = []
+    for m in genai.list_models():
+        methods = getattr(m, "supported_generation_methods", []) or []
+        if "generateContent" not in methods:
+            continue
+        name = getattr(m, "name", "") or ""
+        if name.startswith("models/"):
+            name = name[len("models/"):]
+        if name:
+            out.append(name)
+    out.sort()
+    return out

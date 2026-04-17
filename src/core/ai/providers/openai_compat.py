@@ -24,6 +24,27 @@ def call(api_key: str, base_url: str, model_id: str, prompt: str) -> str:
     return response.choices[0].message.content.strip()
 
 
+def list_models(api_key: str, base_url: str) -> list[str]:
+    """Fetch model IDs from an OpenAI-compatible endpoint's GET /models.
+
+    Returns a sorted list of model IDs the key has access to. Raises
+    RuntimeError if the call fails.
+    """
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    try:
+        response = client.models.list()
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch models from {base_url}: {e}") from e
+    ids = []
+    for m in response.data:
+        mid = getattr(m, "id", None) or (m.get("id") if isinstance(m, dict) else None)
+        if mid:
+            ids.append(mid)
+    ids.sort()
+    return ids
+
+
 def call_json(api_key: str, base_url: str, model_id: str,
               prompt: str, schema: dict) -> dict:
     """Structured JSON completion.

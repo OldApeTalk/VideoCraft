@@ -6,10 +6,9 @@ from tkinter import filedialog, ttk
 from tools.base import ToolBase
 from hub_logger import logger
 
-# UI imports the tier string constants from the legacy ai_router shim for
-# Radiobutton values. Per architecture principle 1, the UI does not import
-# core.ai directly; the actual AI call happens inside core.translate.
-from ai_router import TIER_PREMIUM, TIER_STANDARD, TIER_ECONOMY
+# Per architecture principle 1, the UI does not import core.ai directly;
+# the actual AI call happens inside core.translate. Routing (which model
+# to use for translation) is configured in the AI Console matrix.
 from core.translate import (
     SUPPORTED_LANGUAGES,
     get_language_options,
@@ -90,53 +89,41 @@ class TranslateApp(ToolBase):
 
         language_options = get_language_options()
 
-        # ── Row 0: AI 档位选择 ────────────────────────────────────────────────
-        tk.Label(master, text=tr("tool.translate.tier")).grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.tier_var = tk.StringVar(value=TIER_STANDARD)
-        tier_frame = tk.Frame(master)
-        tier_frame.grid(row=0, column=1, columnspan=2, sticky="w")
-        ttk.Radiobutton(tier_frame, text="高档 (最强)", variable=self.tier_var,
-                        value=TIER_PREMIUM).pack(side=tk.LEFT, padx=(0, 8))
-        ttk.Radiobutton(tier_frame, text="中档 (推荐)", variable=self.tier_var,
-                        value=TIER_STANDARD).pack(side=tk.LEFT, padx=(0, 8))
-        ttk.Radiobutton(tier_frame, text="低档 (经济)", variable=self.tier_var,
-                        value=TIER_ECONOMY).pack(side=tk.LEFT)
-
-        # ── Row 1: 源语言 ──────────────────────────────────────────────────────
-        tk.Label(master, text=tr("tool.translate.source_lang")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        # ── Row 0: 源语言 ──────────────────────────────────────────────────────
+        tk.Label(master, text=tr("tool.translate.source_lang")).grid(row=0, column=0, padx=10, pady=5, sticky="e")
         self.source_lang_var = tk.StringVar(value="English (英语)")
         self.source_combo = ttk.Combobox(master, textvariable=self.source_lang_var,
                                          values=language_options, state="readonly", width=30)
-        self.source_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        self.source_combo.grid(row=0, column=1, columnspan=2, sticky="w", padx=(0, 10))
 
-        # ── Row 2: 目标语言 ────────────────────────────────────────────────────
-        tk.Label(master, text=tr("tool.translate.target_lang")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        # ── Row 1: 目标语言 ────────────────────────────────────────────────────
+        tk.Label(master, text=tr("tool.translate.target_lang")).grid(row=1, column=0, padx=10, pady=5, sticky="e")
         self.target_lang_var = tk.StringVar(value="Chinese (中文)")
         self.target_combo = ttk.Combobox(master, textvariable=self.target_lang_var,
                                          values=language_options, state="readonly", width=30)
-        self.target_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        self.target_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(0, 10))
 
-        # ── Row 3: 批次大小 ────────────────────────────────────────────────────
-        tk.Label(master, text=tr("tool.translate.batch_size")).grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        # ── Row 2: 批次大小 ────────────────────────────────────────────────────
+        tk.Label(master, text=tr("tool.translate.batch_size")).grid(row=2, column=0, padx=10, pady=5, sticky="e")
         self.batch_size_var = tk.StringVar(value="100")
         batch_size_frame = tk.Frame(master)
-        batch_size_frame.grid(row=3, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        batch_size_frame.grid(row=2, column=1, columnspan=2, sticky="w", padx=(0, 10))
         ttk.Radiobutton(batch_size_frame, text="30",  variable=self.batch_size_var, value="30" ).pack(side=tk.LEFT, padx=5)
         ttk.Radiobutton(batch_size_frame, text="50",  variable=self.batch_size_var, value="50" ).pack(side=tk.LEFT, padx=5)
         ttk.Radiobutton(batch_size_frame, text="100", variable=self.batch_size_var, value="100").pack(side=tk.LEFT, padx=5)
         tk.Label(batch_size_frame, text="(批次越大越快，但可能影响准确性)",
                  font=("Arial", 8), fg="gray").pack(side=tk.LEFT, padx=5)
 
-        # ── Row 4: SRT 文件 ────────────────────────────────────────────────────
-        tk.Label(master, text=tr("tool.translate.source_label")).grid(row=4, column=0, padx=10, pady=10, sticky="e")
+        # ── Row 3: SRT 文件 ────────────────────────────────────────────────────
+        tk.Label(master, text=tr("tool.translate.source_label")).grid(row=3, column=0, padx=10, pady=10, sticky="e")
         self.srt_path_var = tk.StringVar()
-        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=4, column=1, sticky="w")
-        tk.Button(master, text=tr("tool.translate.browse"), command=self.select_srt).grid(row=4, column=2, padx=10)
+        tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=3, column=1, sticky="w")
+        tk.Button(master, text=tr("tool.translate.browse"), command=self.select_srt).grid(row=3, column=2, padx=10)
 
-        # ── Row 5: Prompt 编辑 ─────────────────────────────────────────────────
-        tk.Label(master, text=tr("tool.translate.prompt_label")).grid(row=5, column=0, padx=10, pady=5, sticky="ne")
+        # ── Row 4: Prompt 编辑 ─────────────────────────────────────────────────
+        tk.Label(master, text=tr("tool.translate.prompt_label")).grid(row=4, column=0, padx=10, pady=5, sticky="ne")
         self.translate_prompt_text = tk.Text(master, height=10, width=50, wrap=tk.WORD)
-        self.translate_prompt_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(0, 10))
+        self.translate_prompt_text.grid(row=4, column=1, columnspan=2, sticky="w", padx=(0, 10))
         default_translate_prompt = """You are a professional SRT subtitle translator. Translate the following subtitles from {source_lang_name} to {target_lang_name}.
 
 The input is a batch of {batch_size} subtitles, each prefixed with a 【number】 marker to identify its position. Use the marker's number as the `index` in your response.
@@ -152,15 +139,15 @@ Input subtitles (batch size = {batch_size}):
 """
         self.translate_prompt_text.insert(tk.END, default_translate_prompt)
 
-        # ── Row 6: 翻译按钮 ────────────────────────────────────────────────────
+        # ── Row 5: 翻译按钮 ────────────────────────────────────────────────────
         self.trans_btn = tk.Button(master, text=tr("tool.translate.btn_start"),
                                    command=self.translate_srt, width=20)
-        self.trans_btn.grid(row=6, column=1, pady=20)
+        self.trans_btn.grid(row=5, column=1, pady=20)
 
-        # ── Row 7: 状态栏 ──────────────────────────────────────────────────────
+        # ── Row 6: 状态栏 ──────────────────────────────────────────────────────
         self.status_var = tk.StringVar()
         tk.Label(master, textvariable=self.status_var, fg="blue").grid(
-            row=7, column=0, columnspan=3, pady=5)
+            row=6, column=0, columnspan=3, pady=5)
 
         if initial_file:
             self.srt_path_var.set(initial_file)
@@ -171,7 +158,7 @@ Input subtitles (batch size = {batch_size}):
             self.srt_path_var.set(path)
 
     def _run_translation(self, srt_path, source_lang, target_lang,
-                         custom_prompt, batch_size, tier):
+                         custom_prompt, batch_size):
         """Worker thread: delegate to core.translate, post status to main thread."""
         from i18n import tr as _tr
 
@@ -192,7 +179,6 @@ Input subtitles (batch size = {batch_size}):
                 target_lang=target_lang,
                 custom_prompt=custom_prompt,
                 batch_size=batch_size,
-                tier=tier,
                 progress_cb=on_progress,
                 log_cb=print,
             )
@@ -216,7 +202,6 @@ Input subtitles (batch size = {batch_size}):
         source_lang = get_lang_code(self.source_lang_var.get())
         target_lang = get_lang_code(self.target_lang_var.get())
         batch_size  = int(self.batch_size_var.get())
-        tier        = self.tier_var.get()
 
         if not srt_path or not os.path.exists(srt_path):
             self.status_var.set("⚠ 请选择有效的SRT文件")
@@ -232,7 +217,7 @@ Input subtitles (batch size = {batch_size}):
 
         threading.Thread(
             target=self._run_translation,
-            args=(srt_path, source_lang, target_lang, custom_prompt, batch_size, tier),
+            args=(srt_path, source_lang, target_lang, custom_prompt, batch_size),
             daemon=True
         ).start()
 

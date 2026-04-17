@@ -151,23 +151,17 @@ def task_category(task_id: str) -> str | None:
     return None
 
 
-# ── Default task × tier routing ──────────────────────────────────────────────
-# Seed each LLM task with the old tier_routing defaults; ASR/TTS use their
-# single available provider across all tiers (they have no real tier
-# concept yet — matrix cells are there for uniformity / future expansion).
+# ── Default task routing ─────────────────────────────────────────────────────
+# Flat schema: {task_id: {"provider": str, "model": str}}.
+# (Earlier versions had a 3-tier nested layer; tier was redundant once the UI
+# let users pick a specific model per task — see commit migrating M6→single
+# selection.) For LLM tasks we seed using the standard tier of the legacy
+# tier_routing; ASR/TTS use their single available provider.
 
 def _build_default_task_routing() -> dict:
-    llm_seed = copy.deepcopy(_DEFAULT_TIER_ROUTING)
-    asr_seed = {
-        TIER_PREMIUM:  {"provider": "lemonfox", "model": ""},
-        TIER_STANDARD: {"provider": "lemonfox", "model": ""},
-        TIER_ECONOMY:  {"provider": "lemonfox", "model": ""},
-    }
-    tts_seed = {
-        TIER_PREMIUM:  {"provider": "fish_audio", "model": ""},
-        TIER_STANDARD: {"provider": "fish_audio", "model": ""},
-        TIER_ECONOMY:  {"provider": "fish_audio", "model": ""},
-    }
+    llm_seed = _DEFAULT_TIER_ROUTING.get(TIER_STANDARD, {"provider": "Gemini", "model": ""})
+    asr_seed = {"provider": "lemonfox",  "model": ""}
+    tts_seed = {"provider": "fish_audio", "model": ""}
     out = {}
     for tid, cat, _label in TASKS:
         if cat == "llm":
@@ -335,36 +329,58 @@ def _normalize_asr_providers(asr_providers: dict) -> dict:
 
 
 def _migrate_task_routing(task_routing: dict | None, tier_routing: dict) -> tuple[dict, bool]:
-    """Build (or backfill) task_routing.
+    """Build / backfill / collapse task_routing.
 
-    - If task_routing is None (first load after upgrade): seed it from
-      _build_default_task_routing() with LLM tasks using the user's existing
-      tier_routing choices as defaults, then mark dirty so it's persisted.
-    - If task_routing exists but is missing some of the canonical TASKS
-      (new feature added in a later release): backfill the missing rows.
-    - If a task_routing row is missing some tiers: backfill those.
+    Three cases handled:
+    1. task_routing is None (very first load): seed via defaults overlaid
+       with the user's saved tier_routing's standard tier for LLM tasks.
+    2. Old 3-tier nested structure detected (M6 era):
+       collapse {task: {tier: {p, m}}} → {task: {p, m}} taking standard
+       (or premium / economy as fallback).
+    3. New flat structure missing a task: backfill from defaults.
 
-    Returns the fixed-up dict + a dirty flag.
+    Returns (fixed_dict, dirty_flag).
     """
     dirty = False
+
     if task_routing is None:
         task_routing = _build_default_task_routing()
-        # Overlay the user's existing tier_routing onto LLM tasks
-        for tid, cat, _label in TASKS:
-            if cat == "llm":
-                for tier, routing in tier_routing.items():
-                    task_routing[tid][tier] = copy.deepcopy(routing)
-        dirty = True
-        return task_routing, dirty
+        # Overlay the user's saved tier_routing onto LLM tasks
+        std_cell = tier_routing.get(TIER_STANDARD)
+        if std_cell:
+            for tid, cat, _label in TASKS:
+                if cat == "llm":
+                    task_routing[tid] = copy.deepcopy(std_cell)
+        return task_routing, True
 
+    # Detect + collapse old 3-tier nested structure
+    flattened: dict = {}
+    for tid, value in task_routing.items():
+        if isinstance(value, dict) and any(t in value for t in (TIER_PREMIUM, TIER_STANDARD, TIER_ECONOMY)):
+            # Old structure: pick standard, fall back to premium / economy
+            cell = (value.get(TIER_STANDARD)
+                    or value.get(TIER_PREMIUM)
+                    or value.get(TIER_ECONOMY)
+                    or {})
+            flattened[tid] = copy.deepcopy(cell)
+            dirty = True
+        else:
+            flattened[tid] = value
+
+    # Backfill any task that isn't present
     defaults = _build_default_task_routing()
     for tid, cat, _label in TASKS:
-        if tid not in task_routing:
-            task_routing[tid] = copy.deepcopy(defaults[tid])
+        if tid not in flattened or not isinstance(flattened.get(tid), dict):
+            flattened[tid] = copy.deepcopy(defaults[tid])
             dirty = True
-            continue
-        for tier in (TIER_PREMIUM, TIER_STANDARD, TIER_ECONOMY):
-            if tier not in task_routing[tid]:
-                task_routing[tid][tier] = copy.deepcopy(defaults[tid][tier])
+        else:
+            # Ensure both keys exist
+            cell = flattened[tid]
+            if "provider" not in cell:
+                cell["provider"] = defaults[tid]["provider"]
                 dirty = True
-    return task_routing, dirty
+            if "model" not in cell:
+                cell["model"] = defaults[tid]["model"]
+                dirty = True
+
+    return flattened, dirty
