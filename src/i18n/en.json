@@ -925,5 +925,11 @@
   "tool.ppt2video.status_all_done": "✓ All done → output.mp4",
   "tool.ppt2video.enable_approx_subs": "Enable approximate subtitles (optional)",
   "tool.ppt2video.subs_hint": "Character-ratio timing, not precise. Use Speech2Text + Subtitle Burn for accurate subs",
-  "tool.ppt2video.subs_skipped": "Subtitles skipped (not enabled)"
+  "tool.ppt2video.subs_skipped": "Subtitles skipped (not enabled)",
+  "tool.ppt2video.btn_browse_md": "Select .md file",
+  "tool.ppt2video.dialog_select_md": "Select Slidev Markdown file",
+  "tool.ppt2video.status_md_imported": "Slidev .md imported",
+  "tool.ppt2video.error_copy_md": "Failed to copy .md: {e}",
+  "tool.ppt2video.error_no_source_md": "⚠ source.md not found — please submit a Slidev .md file first",
+  "tool.ppt2video.error_node_missing": "⚠ Node.js not detected. Please install Node.js and retry"
 }

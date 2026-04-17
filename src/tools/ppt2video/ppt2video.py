@@ -60,6 +60,9 @@ class PPT2VideoApp(ToolBase):
         self._step_info_labels: list[tk.Label] = []
         self._step_buttons: list[tk.Button] = []
 
+        # Format: "pptx" or "slidev"
+        self._format_var = tk.StringVar(value="pptx")
+
         # TTS config
         self._voice_id_var = tk.StringVar()
         self._use_existing_audio_var = tk.BooleanVar(value=False)
@@ -143,16 +146,37 @@ class PPT2VideoApp(ToolBase):
             # Step-specific inline widgets
             if step_id == "step1":
                 detail = tk.Frame(mid)
-                detail.grid(row=i, column=0, columnspan=4, sticky="ew",
-                            padx=(28, 0), pady=(0, 2))
-                # Actually place it below the row
                 detail.grid(row=len(_STEPS) + i, column=0, columnspan=4,
                             sticky="ew", padx=(28, 0), pady=(0, 2))
-                tk.Button(detail, text=tr("tool.ppt2video.btn_browse_pptx"),
+                detail.columnconfigure(1, weight=0)
+
+                # Format radio buttons
+                fmt_frame = tk.Frame(detail)
+                fmt_frame.pack(side="left", padx=(0, 10))
+                tk.Radiobutton(fmt_frame, text="PPTX",
+                               variable=self._format_var, value="pptx",
+                               command=self._on_format_change).pack(side="left")
+                tk.Radiobutton(fmt_frame, text="Slidev",
+                               variable=self._format_var, value="slidev",
+                               command=self._on_format_change).pack(side="left")
+
+                # PPTX path row (shown when format=pptx)
+                self._pptx_frame = tk.Frame(detail)
+                self._pptx_frame.pack(side="left")
+                tk.Button(self._pptx_frame, text=tr("tool.ppt2video.btn_browse_pptx"),
                           command=self._browse_pptx).pack(side="left")
-                self._pptx_label = tk.Label(detail, text="", fg="#555",
+                self._pptx_label = tk.Label(self._pptx_frame, text="", fg="#555",
                                             font=("", 9))
                 self._pptx_label.pack(side="left", padx=6)
+
+                # Slidev path row (shown when format=slidev)
+                self._slidev_frame = tk.Frame(detail)
+                tk.Button(self._slidev_frame, text=tr("tool.ppt2video.btn_browse_md"),
+                          command=self._browse_slidev_md).pack(side="left")
+                self._slidev_label = tk.Label(self._slidev_frame, text="", fg="#555",
+                                              font=("", 9))
+                self._slidev_label.pack(side="left", padx=6)
+                # Hidden by default (format starts as pptx)
 
             elif step_id == "step3":
                 detail = tk.Frame(mid)
@@ -224,7 +248,14 @@ class PPT2VideoApp(ToolBase):
             return
 
         pptx = os.path.join(self._workdir, "source.pptx")
-        if os.path.isfile(pptx):
+        md = os.path.join(self._workdir, "source.md")
+        if os.path.isfile(md):
+            self._format_var.set("slidev")
+            self._on_format_change()
+            self._set_step_status(0, _DONE)
+            self._slidev_label.config(text=os.path.basename(md))
+            self._step_buttons[1].config(state="normal")
+        elif os.path.isfile(pptx):
             self._set_step_status(0, _DONE)
             self._pptx_label.config(text=os.path.basename(pptx))
             self._step_buttons[1].config(state="normal")
@@ -277,31 +308,60 @@ class PPT2VideoApp(ToolBase):
         steps[idx]()
 
     def _run_step1(self):
-        self._browse_pptx()
+        if self._format_var.get() == "slidev":
+            self._browse_slidev_md()
+        else:
+            self._browse_pptx()
 
     def _run_step2(self):
-        pptx = os.path.join(self._workdir, "source.pptx")
-        if not os.path.isfile(pptx):
-            self.set_error(tr("tool.ppt2video.error_copy_pptx", e="source.pptx missing"))
-            return
         self._set_busy(True)
         self._set_step_status(1, _RUNNING)
         self._status_var.set(tr("tool.ppt2video.status_exporting"))
 
-        def work():
-            try:
-                from core.pptx_pipeline import run_step2
-                pages, notes = run_step2(
-                    pptx, self._workdir,
-                    on_progress=lambda d, t, m: self.master.after(
-                        0, self._status_var.set,
-                        tr("tool.ppt2video.status_exporting") + f" {d}/{t}"),
-                )
-                self.master.after(0, self._on_step2_done, len(pages), len(notes))
-            except Exception as e:
-                self.master.after(0, self._on_step_error, 1, str(e))
+        if self._format_var.get() == "slidev":
+            md = os.path.join(self._workdir, "source.md")
+            if not os.path.isfile(md):
+                self._set_busy(False)
+                self.set_error(tr("tool.ppt2video.error_no_source_md"))
+                self._set_step_status(1, _ERROR)
+                return
 
-        threading.Thread(target=work, daemon=True).start()
+            def work_slidev():
+                try:
+                    from core.slidev_pipeline import run_step2_slidev
+                    pages, notes = run_step2_slidev(
+                        md, self._workdir,
+                        on_progress=lambda d, t, m: self.master.after(
+                            0, self._status_var.set,
+                            tr("tool.ppt2video.status_exporting") + f" {m}"),
+                    )
+                    self.master.after(0, self._on_step2_done, len(pages), len(notes))
+                except Exception as e:
+                    self.master.after(0, self._on_step_error, 1, str(e))
+
+            threading.Thread(target=work_slidev, daemon=True).start()
+        else:
+            pptx = os.path.join(self._workdir, "source.pptx")
+            if not os.path.isfile(pptx):
+                self._set_busy(False)
+                self.set_error(tr("tool.ppt2video.error_copy_pptx", e="source.pptx missing"))
+                self._set_step_status(1, _ERROR)
+                return
+
+            def work_pptx():
+                try:
+                    from core.pptx_pipeline import run_step2
+                    pages, notes = run_step2(
+                        pptx, self._workdir,
+                        on_progress=lambda d, t, m: self.master.after(
+                            0, self._status_var.set,
+                            tr("tool.ppt2video.status_exporting") + f" {d}/{t}"),
+                    )
+                    self.master.after(0, self._on_step2_done, len(pages), len(notes))
+                except Exception as e:
+                    self.master.after(0, self._on_step_error, 1, str(e))
+
+            threading.Thread(target=work_pptx, daemon=True).start()
 
     def _on_step2_done(self, pages: int, notes: int):
         self._set_busy(False)
@@ -522,6 +582,17 @@ class PPT2VideoApp(ToolBase):
 
         chain_step(start_idx)
 
+    # ── Format switching ─────────────────────────────────────────────────
+
+    def _on_format_change(self):
+        fmt = self._format_var.get()
+        if fmt == "pptx":
+            self._slidev_frame.pack_forget()
+            self._pptx_frame.pack(side="left")
+        else:
+            self._pptx_frame.pack_forget()
+            self._slidev_frame.pack(side="left")
+
     # ── File browsing ────────────────────────────────────────────────────
 
     def _browse_pptx(self):
@@ -548,6 +619,31 @@ class PPT2VideoApp(ToolBase):
         self._step_buttons[1].config(state="normal")
         self._status_var.set(tr("tool.ppt2video.status_pptx_imported"))
         self.log(f"PPT imported: {src}")
+
+    def _browse_slidev_md(self):
+        path = filedialog.askopenfilename(
+            title=tr("tool.ppt2video.dialog_select_md"),
+            filetypes=[("Slidev Markdown", "*.md"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        self._import_slidev_md(path)
+
+    def _import_slidev_md(self, src: str):
+        os.makedirs(self._workdir, exist_ok=True)
+        dst = os.path.join(self._workdir, "source.md")
+        try:
+            shutil.copy2(src, dst)
+        except OSError as e:
+            self.set_error(tr("tool.ppt2video.error_copy_md", e=str(e)))
+            self._set_step_status(0, _ERROR)
+            return
+
+        self._slidev_label.config(text=os.path.basename(src))
+        self._set_step_status(0, _DONE)
+        self._step_buttons[1].config(state="normal")
+        self._status_var.set(tr("tool.ppt2video.status_md_imported"))
+        self.log(f"Slidev .md imported: {src}")
 
     def _open_workdir(self):
         if self._workdir:

@@ -925,5 +925,11 @@
   "tool.ppt2video.status_all_done": "✓ 全部完成 → output.mp4",
   "tool.ppt2video.enable_approx_subs": "启用近似字幕（可选）",
   "tool.ppt2video.subs_hint": "按字符比例推时轴，不精确。推荐用 Speech2Text + 字幕烧录工具添加精准字幕",
-  "tool.ppt2video.subs_skipped": "字幕已跳过（未勾选）"
+  "tool.ppt2video.subs_skipped": "字幕已跳过（未勾选）",
+  "tool.ppt2video.btn_browse_md": "选择 .md 文件",
+  "tool.ppt2video.dialog_select_md": "选择 Slidev Markdown 文件",
+  "tool.ppt2video.status_md_imported": "Slidev .md 已导入",
+  "tool.ppt2video.error_copy_md": "复制 .md 失败: {e}",
+  "tool.ppt2video.error_no_source_md": "⚠ 找不到 source.md，请先提交 Slidev .md 文件",
+  "tool.ppt2video.error_node_missing": "⚠ 未检测到 Node.js，请安装后重试"
 }
