@@ -51,6 +51,7 @@ TOOL_MAP = {
     "tts-srt":        {"file": "tools/text2video/text2video.py", "class": "SRTFromTextApp"},
     "tts-video":      {"file": "tools/text2video/text2video.py", "class": "AudioVideoApp"},
     "daily-news":     {"file": "tools/text2video/text2video.py", "class": "DailyNewsApp"},
+    "media-composer": {"file": "tools/text2video/composer.py",   "class": "MediaSegmentComposerApp"},
     "tiktok-publish":   {"file": "tools/publish/tiktok_publish.py",  "class": "TikTokPublishApp"},
     "youtube-publish":  {"file": "tools/publish/youtube_publish.py", "class": "YouTubePublishApp"},
     "preferences":      {"file": "tools/preferences/preferences.py", "class": "PreferencesApp"},
@@ -365,6 +366,8 @@ class VideoCraftHub:
         t2v_menu.add_separator()
         t2v_menu.add_command(label=tr("menu.text2video.daily_news"),
                              command=lambda: self.open_tool("daily-news"))
+        t2v_menu.add_command(label=tr("menu.text2video.composer"),
+                             command=lambda: self.open_tool("media-composer"))
 
         # AI
         ai_menu = tk.Menu(menubar, tearoff=0)
