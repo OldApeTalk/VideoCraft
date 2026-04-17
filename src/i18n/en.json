@@ -5,16 +5,12 @@
   "menu.file.recent_empty": "(no recent projects)",
   "menu.file.preferences": "Preferences...",
   "menu.file.exit": "Exit",
-
   "menu.download": "Download",
   "menu.download.yt_dlp": "yt-dlp Downloader",
-
   "menu.speech": "Speech to Text",
   "menu.speech.lemonfox": "LemonFox API",
-
   "menu.translate": "Translate",
   "menu.translate.gemini": "Gemini Translate",
-
   "menu.video": "Video",
   "menu.video.subtitle_burn": "Burn Subtitles",
   "menu.video.word_subtitle": "Word-level Subtitles",
@@ -24,30 +20,24 @@
   "menu.video.auto_split": "Auto Split Video",
   "menu.video.convert_bitrate": "Convert Bitrate",
   "menu.video.split_workbench": "Split Workbench",
-
   "menu.subtitle": "Subtitles",
   "menu.subtitle.extract_all": "Extract Subtitle Text",
   "menu.subtitle.gen_segments": "Generate Segment Descriptions",
   "menu.subtitle.extract_paragraphs": "Extract Paragraph Content",
   "menu.subtitle.refine_segments": "Refine Segments",
   "menu.subtitle.gen_titles": "Generate Titles",
-
   "menu.text2video": "Text to Video",
   "menu.text2video.tts": "1. Text to Speech",
   "menu.text2video.srt_from_text": "2. Generate SRT",
   "menu.text2video.audio_video": "3. Compose Video",
   "menu.text2video.daily_news": "Daily News Composer",
-
   "menu.ai": "AI",
   "menu.ai.console": "AI Console",
-
   "menu.publish": "Publish",
   "menu.publish.tiktok": "TikTok Publish",
   "menu.publish.youtube": "YouTube Publish",
-
   "menu.help": "Help",
   "menu.help.about": "About VideoCraft",
-
   "hub.welcome.title": "VideoCraft",
   "hub.welcome.hint": "Open a folder to start working",
   "hub.welcome.open_folder_btn": "  Open Folder  ",
@@ -55,7 +45,6 @@
   "hub.log.clear": "Clear",
   "hub.sidebar.title": "Explorer",
   "hub.sidebar.refresh_tooltip": "Refresh",
-
   "tool.preferences.title": "Preferences",
   "tool.preferences.section_language": "Interface Language",
   "tool.preferences.language_label": "Current language:",
@@ -65,7 +54,6 @@
   "tool.preferences.saved_restart": "✓ Saved. Close and restart VideoCraft to apply.",
   "tool.preferences.saved_no_change": "✓ Saved (no change).",
   "tool.preferences.coverage_note": "Note: some tool windows are still Chinese-only and will be translated in later releases.",
-
   "tool.translate.title": "Gemini SRT Translator",
   "tool.translate.source_label": "SRT file:",
   "tool.translate.browse": "Browse",
@@ -77,13 +65,10 @@
   "tool.translate.btn_running": "Translating…",
   "tool.translate.status_ready": "Ready",
   "tool.translate.status_reading": "Reading subtitles...",
-
   "dialog.common.error": "Error",
   "dialog.common.warning": "Warning",
   "dialog.common.info": "Info",
-
   "tool.subtitle.title": "Bilingual Subtitle Tool (Split & Burn)",
-
   "tool.subtitle.preset.frame_title": "Parameter Preset",
   "tool.subtitle.preset.current_label": "Current preset:",
   "tool.subtitle.preset.save": "Save",
@@ -99,19 +84,16 @@
   "tool.subtitle.preset.overwrite_confirm": "Preset '{name}' already exists. Overwrite it?",
   "tool.subtitle.preset.delete_title": "Delete Confirmation",
   "tool.subtitle.preset.delete_confirm": "Delete preset '{name}'?",
-
   "tool.subtitle.video.label": "Video file:",
   "tool.subtitle.browse": "Browse",
   "tool.subtitle.output.label": "Output file:",
   "tool.subtitle.output.auto": "Auto",
-
   "tool.subtitle.orientation.frame_title": "Orientation",
   "tool.subtitle.orientation.horizontal": "Landscape",
   "tool.subtitle.orientation.vertical": "Portrait",
   "tool.subtitle.orientation.square": "Square",
   "tool.subtitle.orientation.encode_label": "  |  Encode speed:",
   "tool.subtitle.orientation.encode_hint": "(for high resolution: veryfast or faster)",
-
   "tool.subtitle.sub1.frame_title": "Chinese subtitles (bottom, upper row)",
   "tool.subtitle.sub2.frame_title": "English subtitles (bottom, lower row)",
   "tool.subtitle.sub.fontsize": "Font size:",
@@ -123,14 +105,12 @@
   "tool.subtitle.sub.is_chinese": "Chinese",
   "tool.subtitle.sub1_name": "Subtitle 1",
   "tool.subtitle.sub2_name": "Subtitle 2",
-
   "tool.subtitle.watermark.frame_title": "Watermark (top-right)",
   "tool.subtitle.watermark.image_radio": "Image watermark",
   "tool.subtitle.watermark.text_radio": "Text watermark",
   "tool.subtitle.watermark.scale": "Scale:",
   "tool.subtitle.watermark.alpha": "Opacity (%):",
   "tool.subtitle.watermark.show_date": "Show date",
-
   "tool.subtitle.progress.duration_unknown": "Duration --:--:--",
   "tool.subtitle.progress.duration_fmt": "Duration {hms}",
   "tool.subtitle.progress.duration_no_ffmpeg": "Duration (no FFmpeg)",
@@ -140,9 +120,7 @@
   "tool.subtitle.progress.remaining_unknown": "Remaining --:--:--",
   "tool.subtitle.progress.remaining_fmt": "Remaining {hms}",
   "tool.subtitle.progress.remaining_calc": "Remaining calculating",
-
   "tool.subtitle.action.start": "Start Burning Subtitles",
-
   "tool.subtitle.dialog.select_watermark_image": "Select watermark image",
   "tool.subtitle.dialog.select_video": "Select video file",
   "tool.subtitle.dialog.select_sub1": "Select Chinese subtitle file (bottom, upper row)",
@@ -152,18 +130,15 @@
   "tool.subtitle.dialog.choose_date_color": "Pick date color",
   "tool.subtitle.dialog.choose_sub1_color": "Pick Chinese subtitle color",
   "tool.subtitle.dialog.choose_sub2_color": "Pick English subtitle color",
-
   "tool.subtitle.filter.png": "PNG images",
   "tool.subtitle.filter.all_files": "All files",
   "tool.subtitle.filter.video": "Video files",
   "tool.subtitle.filter.srt": "SRT subtitle files",
   "tool.subtitle.filter.mp4": "MP4 video",
-
   "tool.subtitle.warning.no_ffprobe": "ffprobe not found. Please install FFmpeg and add it to your system PATH.",
   "tool.subtitle.warning.duration_timeout": "Timed out fetching video duration.",
   "tool.subtitle.warning.duration_failed": "Failed to fetch video duration: {e}\nYou may continue, but the progress bar may be inaccurate.",
   "tool.subtitle.warning.processing": "Already running. Please wait for it to finish.",
-
   "tool.subtitle.error.no_video": "Please select a video file.",
   "tool.subtitle.error.video_not_found": "Video file not found: {path}",
   "tool.subtitle.error.no_sub1": "Subtitle 1 is enabled but no SRT file is selected.",
@@ -174,7 +149,6 @@
   "tool.subtitle.error.output_dir_missing": "Output directory does not exist: {dir}",
   "tool.subtitle.error.burn_ffmpeg": "Subtitle burn failed: ffmpeg returned code {code}",
   "tool.subtitle.error.burn_generic": "Subtitle burn failed: {e}",
-
   "tool.download.title": "yt-dlp Downloader",
   "tool.download.url_label": "Video URLs (one per line):",
   "tool.download.btn_get_list": "Get Video List",
@@ -205,7 +179,6 @@
   "tool.download.error.download_failed": "Download failed: {e}",
   "tool.download.warning.partial": "Partial download: {summary}",
   "tool.download.log.all_done": "Download complete: {summary}",
-
   "tool.speech.title": "Speech to Text (LemonFox API)",
   "tool.speech.source_label": "Audio/Video file:",
   "tool.speech.browse": "Browse",
@@ -257,7 +230,6 @@
   "tool.speech.error.no_result": "No valid transcription result was returned.",
   "tool.speech.error.generic": "Error: {e}\n",
   "tool.speech.error.transcribe_failed": "Speech to text failed: {e}",
-
   "tool.video.common.browse": "Browse",
   "tool.video.common.input_video": "Input video file:",
   "tool.video.common.input_mp3": "Input MP3 file:",
@@ -277,7 +249,6 @@
   "tool.video.common.filter.audio": "Audio files",
   "tool.video.common.filter.srt": "Subtitle files",
   "tool.video.common.filter.all_videos": "All video files",
-
   "tool.video.extract_audio.title": "Extract MP3",
   "tool.video.extract_audio.btn_start": "Start",
   "tool.video.extract_audio.status_running": "Extracting audio...",
@@ -285,7 +256,6 @@
   "tool.video.extract_audio.status_fail": "✗ Extraction failed: {e}",
   "tool.video.extract_audio.error_failed": "MP3 extraction failed: {e}",
   "tool.video.extract_audio.log_done": "MP3 extraction complete → {filename}",
-
   "tool.video.convert_bitrate.title": "Convert Bitrate",
   "tool.video.convert_bitrate.btn_start": "Start",
   "tool.video.convert_bitrate.status_running": "Converting bitrate...",
@@ -293,7 +263,6 @@
   "tool.video.convert_bitrate.status_fail": "✗ Conversion failed: {e}",
   "tool.video.convert_bitrate.error_failed": "Bitrate conversion failed: {e}",
   "tool.video.convert_bitrate.log_done": "Bitrate conversion complete → {filename}",
-
   "tool.video.adjust_volume.title": "Adjust Volume",
   "tool.video.adjust_volume.volume_label": "Volume adjustment:",
   "tool.video.adjust_volume.volume_hint": "(-20dB ~ +20dB; positive boosts, negative attenuates)",
@@ -303,7 +272,6 @@
   "tool.video.adjust_volume.status_fail": "✗ Volume adjustment failed: {e}",
   "tool.video.adjust_volume.error_failed": "Volume adjustment failed: {e}",
   "tool.video.adjust_volume.log_done": "Volume adjustment complete → {filename}",
-
   "tool.video.extract_clip.title": "Extract Video Clip",
   "tool.video.extract_clip.start_time": "Start time:",
   "tool.video.extract_clip.end_time": "End time:",
@@ -329,7 +297,6 @@
   "tool.video.extract_clip.mode_accurate_short": "Accurate",
   "tool.video.extract_clip.mode_fast_short": "Fast",
   "tool.video.extract_clip.log_done": "Clip extraction complete ({mode}) → {filename}",
-
   "tool.video.auto_split.title": "Auto Split Video",
   "tool.video.auto_split.segments_label": "Number of segments:",
   "tool.video.auto_split.segments_hint": "(split video evenly; default 3)",
@@ -353,7 +320,6 @@
   "tool.video.auto_split.util_no_duration": "Could not read video duration",
   "tool.video.auto_split.util_segment_error": "Error splitting segment {i}",
   "tool.video.auto_split.util_error": "Split error: {e}",
-
   "tool.tts.title": "VideoCraft - Text to Speech",
   "tool.tts.api_status_unknown": "Not configured",
   "tool.tts.api_configured": "Configured ({masked})",
@@ -399,7 +365,6 @@
   "tool.tts.status_merging": "Merging audio...",
   "tool.tts.status_done_multi": "Done! Merged {total} segments: {output}",
   "tool.tts.error_tts_multi_failed": "TTS multi-voice generation failed: {e}",
-
   "tool.tts_srt.title": "VideoCraft - Generate SRT",
   "tool.tts_srt.audio_label": "Audio file:",
   "tool.tts_srt.btn_pick": "Pick",
@@ -424,7 +389,6 @@
   "tool.tts_srt.status_done": "Done! {count} subtitles → {output}",
   "tool.tts_srt.status_fail": "✗ Failed: {e}",
   "tool.tts_srt.error_srt_failed": "SRT generation failed: {e}",
-
   "tool.audio_video.title": "VideoCraft - Multi-chapter Audio+Video",
   "tool.audio_video.chapter_list": "Chapter list",
   "tool.audio_video.add_chapter": "＋ Add chapter",
@@ -497,7 +461,6 @@
   "tool.audio_video.status_fail": "Generation failed",
   "tool.audio_video.error_compose_failed": "Video generation failed: {e}",
   "tool.audio_video.error_dialog_compose": "Video generation failed:\n{e}",
-
   "tool.daily_news.title": "Daily News Composer",
   "tool.daily_news.status_ready": "Ready",
   "tool.daily_news.files_frame": "Files",
@@ -552,7 +515,6 @@
   "tool.daily_news.error_dialog_compose": "Composition failed:\n{e}",
   "tool.daily_news.error_ffmpeg_exit": "ffmpeg returned non-zero exit code; please check parameters",
   "tool.daily_news.error_no_duration": "Cannot read audio duration; check file format",
-
   "tool.srt.common.srt_file": "SRT file:",
   "tool.srt.common.output_file": "Output file:",
   "tool.srt.common.browse": "Browse",
@@ -567,13 +529,11 @@
   "tool.srt.common.filter.txt": "Text files",
   "tool.srt.common.status_done_fmt": "✓ Done: {filename}",
   "tool.srt.common.status_fail_fmt": "Failed: {e}",
-
   "tool.srt.extract_subs.title": "Extract Subtitle Text",
   "tool.srt.extract_subs.btn_run": "Extract",
   "tool.srt.extract_subs.preview_label": "Extracted content:",
   "tool.srt.extract_subs.status_extracting": "Extracting...",
   "tool.srt.extract_subs.error_failed": "Failed to extract subtitles: {e}",
-
   "tool.srt.gen_segments.title": "Generate Segment Descriptions",
   "tool.srt.gen_segments.btn_run": "Generate",
   "tool.srt.gen_segments.status_running": "Generating segments...",
@@ -581,7 +541,6 @@
   "tool.srt.gen_segments.status_fail": "Failed",
   "tool.srt.gen_segments.error_failed": "Failed to generate segments: {e}",
   "tool.srt.gen_segments.log_done": "Segments generated → {filename}",
-
   "tool.srt.extract_paragraphs.title": "Extract Paragraph Content",
   "tool.srt.extract_paragraphs.btn_run": "Extract",
   "tool.srt.extract_paragraphs.segments_label": "Segments file:",
@@ -591,7 +550,6 @@
   "tool.srt.extract_paragraphs.status_fail": "Failed",
   "tool.srt.extract_paragraphs.error_failed": "Failed to extract paragraphs: {e}",
   "tool.srt.extract_paragraphs.log_done": "Paragraphs extracted → {filename}",
-
   "tool.srt.refine.title": "Refine Segments",
   "tool.srt.refine.btn_run": "Refine",
   "tool.srt.refine.input_label": "Paragraphs file:",
@@ -601,7 +559,6 @@
   "tool.srt.refine.status_fail": "Failed",
   "tool.srt.refine.error_failed": "Failed to refine segments: {e}",
   "tool.srt.refine.log_done": "Refined segments saved → {filename}",
-
   "tool.srt.gen_titles.title": "Generate Titles",
   "tool.srt.gen_titles.btn_run": "Generate",
   "tool.srt.gen_titles.subs_label": "Subs file:",
@@ -611,7 +568,6 @@
   "tool.srt.gen_titles.status_fail": "Failed",
   "tool.srt.gen_titles.error_failed": "Failed to generate titles: {e}",
   "tool.srt.gen_titles.log_done": "Titles generated → {filename}",
-
   "tool.word_subtitle.title": "Word-level Subtitle Burner",
   "tool.word_subtitle.frame_file": "Files",
   "tool.word_subtitle.frame_style": "Subtitle Style",
@@ -667,7 +623,6 @@
   "tool.word_subtitle.log_done": "Word-level subtitle burn complete → {filename}",
   "tool.word_subtitle.log_hint_no_words": "Note: no words[] in JSON; dividing segment time evenly\n",
   "tool.word_subtitle.progress_label": "{pct:.1f}%  elapsed {elapsed}  remaining {remain}",
-
   "tool.publish.common.account": "Account",
   "tool.publish.common.info": "Publish Info",
   "tool.publish.common.video_file": "Video file",
@@ -701,7 +656,6 @@
   "tool.publish.common.filter_all": "All files",
   "tool.publish.common.logged_in_fmt": "Logged in  {name}",
   "tool.publish.common.oauth_done_page": "Authorization complete. You can close this page and return to the app.",
-
   "tool.youtube.title": "YouTube Publish",
   "tool.youtube.status_logged_in_email": "Logged in  {email}",
   "tool.youtube.secret_file_label": "Client secret",
@@ -758,7 +712,6 @@
   "tool.youtube.log_pl_added": "Added to playlist.",
   "tool.youtube.log_pl_add_failed_http": "Failed to add to playlist: {code}",
   "tool.youtube.log_pl_add_failed": "Failed to add to playlist: {e}",
-
   "tool.tiktok.title": "TikTok Publish",
   "tool.tiktok.status_logged_in_openid": "Logged in  open_id: {open_id}...",
   "tool.tiktok.btn_config_creds": "Configure credentials",
@@ -802,7 +755,6 @@
   "tool.tiktok.error_http": "TikTok upload HTTP error: {e}",
   "tool.tiktok.log_upload_error": "Upload error: {e}",
   "tool.tiktok.error_upload": "TikTok upload failed: {e}",
-
   "tool.router.title": "AI Console",
   "tool.router.tab_routing": "  Provider & Routing  ",
   "tool.router.tab_prompts": "  Prompts  ",
@@ -868,7 +820,6 @@
   "tool.router.col_last_used": "Last used",
   "tool.router.btn_refresh": "Refresh",
   "tool.router.never_used": "Never used",
-
   "tool.split_workbench.title": "Split Workbench",
   "tool.split_workbench.label_video": "Video:",
   "tool.split_workbench.label_desc": "Segments file:",
@@ -929,5 +880,50 @@
   "tool.split_workbench.confirm_issues": "The following issues were detected:\n\n{issues}\n\nContinue anyway?",
   "tool.split_workbench.log_vlc_missing": "VLC not detected, preview disabled",
   "tool.split_workbench.log_player_load_failed": "Player load failed: {e}",
-  "tool.split_workbench.log_export_failed": "Export failed: {e}"
+  "tool.split_workbench.log_export_failed": "Export failed: {e}",
+  "menu.video.ppt2video": "PPT to Video",
+  "tool.ppt2video.title": "PPT Video Workbench",
+  "tool.ppt2video.no_project_title": "Please open a project folder first",
+  "tool.ppt2video.no_project_hint": "PPT2Video needs a project folder to store intermediate files. Use File → Open Folder.",
+  "tool.ppt2video.label_workdir": "Work directory:",
+  "tool.ppt2video.step1_title": "Submit PPT",
+  "tool.ppt2video.step2_title": "Export slide images + extract notes",
+  "tool.ppt2video.step3_title": "Generate per-page audio",
+  "tool.ppt2video.step4_title": "Generate per-page subtitles",
+  "tool.ppt2video.step5_title": "Compose MP4",
+  "tool.ppt2video.btn_run_step": "Run this step",
+  "tool.ppt2video.btn_run_all": "Run all",
+  "tool.ppt2video.btn_run_from_here": "Run from here to end",
+  "tool.ppt2video.btn_open_workdir": "Open work directory",
+  "tool.ppt2video.btn_browse_pptx": "Select .pptx file…",
+  "tool.ppt2video.label_voice_id": "Voice ID:",
+  "tool.ppt2video.use_existing_audio": "Use existing MP3s",
+  "tool.ppt2video.dialog_select_pptx": "Select PowerPoint file",
+  "tool.ppt2video.status_idle": "Ready",
+  "tool.ppt2video.status_pptx_imported": "PPT imported",
+  "tool.ppt2video.status_not_implemented": "This step is not yet implemented",
+  "tool.ppt2video.info_pages_notes": "{pages} page images, {notes} notes exported",
+  "tool.ppt2video.info_audio": "{count} audio files found",
+  "tool.ppt2video.info_subs": "{count} subtitle files found",
+  "tool.ppt2video.error_copy_pptx": "Failed to copy PPT: {e}",
+  "tool.ppt2video.error_no_office": "Microsoft PowerPoint not detected. PPT2Video currently requires Office installed on Windows.",
+  "tool.ppt2video.error_export_png": "Failed to export PNG: {e}",
+  "tool.ppt2video.error_extract_notes": "Failed to extract notes: {e}",
+  "tool.ppt2video.error_tts": "TTS synthesis failed: {e}",
+  "tool.ppt2video.error_no_voice_id": "Please enter a Voice ID",
+  "tool.ppt2video.error_no_notes": "No notes found — please run Step 2 first",
+  "tool.ppt2video.error_no_audio": "No audio found — please run Step 3 first",
+  "tool.ppt2video.error_no_pages": "No page images found — please run Step 2 first",
+  "tool.ppt2video.error_compose": "Compose failed: {e}",
+  "tool.ppt2video.status_exporting": "Exporting PNGs…",
+  "tool.ppt2video.status_extracting_notes": "Extracting notes…",
+  "tool.ppt2video.status_tts_progress": "TTS synthesis {done}/{total}…",
+  "tool.ppt2video.status_generating_subs": "Generating subtitles…",
+  "tool.ppt2video.status_composing": "Composing video…",
+  "tool.ppt2video.status_done": "✓ Done",
+  "tool.ppt2video.status_step_done": "✓ Step {step} done",
+  "tool.ppt2video.status_all_done": "✓ All done → output.mp4",
+  "tool.ppt2video.enable_approx_subs": "Enable approximate subtitles (optional)",
+  "tool.ppt2video.subs_hint": "Character-ratio timing, not precise. Use Speech2Text + Subtitle Burn for accurate subs",
+  "tool.ppt2video.subs_skipped": "Subtitles skipped (not enabled)"
 }

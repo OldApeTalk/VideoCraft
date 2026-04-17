@@ -63,13 +63,24 @@ def synthesize(
     # worked against this SDK version.
     session = Session(api_key)
     total = 0
-    with open(output_path, "wb") as f:
-        for chunk in session.tts(TTSRequest(
-            reference_id=voice_id, text=text, format=audio_format,
-        )):
-            if should_cancel and should_cancel():
-                raise InterruptedError("TTS cancelled")
-            f.write(chunk)
-            total += len(chunk)
-            if on_chunk:
-                on_chunk(total)
+    try:
+        with open(output_path, "wb") as f:
+            for chunk in session.tts(TTSRequest(
+                reference_id=voice_id, text=text, format=audio_format,
+            )):
+                if should_cancel and should_cancel():
+                    raise InterruptedError("TTS cancelled")
+                f.write(chunk)
+                total += len(chunk)
+                if on_chunk:
+                    on_chunk(total)
+    except InterruptedError:
+        raise
+    except Exception as e:
+        msg = str(e)
+        if hasattr(e, "message"):
+            msg = e.message
+        raise RuntimeError(
+            f"Fish Audio TTS error: {msg} "
+            f"(voice_id={voice_id!r}, text_len={len(text)})"
+        ) from e

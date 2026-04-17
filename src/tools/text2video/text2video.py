@@ -402,17 +402,11 @@ class SRTFromTextApp(ToolBase):
         if path:
             self.output_var.set(path)
 
-    def _get_duration(self, audio_path):
-        try:
-            result = subprocess.run(
-                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                 '-of', 'default=noprint_wrappers=1:nokey=1', audio_path],
-                capture_output=True, text=True, check=True)
-            return float(result.stdout.strip())
-        except Exception:
-            return 0.0
-
     def _generate(self):
+        from core.srt_from_text import (
+            get_audio_duration, split_text_to_segments, build_srt_content,
+        )
+
         audio = self.audio_var.get().strip()
         if not audio or not os.path.exists(audio):
             self.status_var.set(tr("tool.tts_srt.error_no_audio"))
@@ -428,14 +422,14 @@ class SRTFromTextApp(ToolBase):
 
         self.set_busy()
         try:
-            duration = self._get_duration(audio)
+            duration = get_audio_duration(audio)
             if duration <= 0:
                 self.set_error(tr("tool.tts_srt.error_cannot_get_duration"))
                 self.status_var.set(tr("tool.tts_srt.error_cannot_get_duration"))
                 return
 
-            segments = self._split_to_segments(raw, self.max_chars_var.get())
-            srt_content = self._build_srt(segments, duration, self.gap_var.get())
+            segments = split_text_to_segments(raw, self.max_chars_var.get())
+            srt_content = build_srt_content(segments, duration, self.gap_var.get())
 
             with open(output, 'w', encoding='utf-8') as f:
                 f.write(srt_content)
@@ -445,62 +439,6 @@ class SRTFromTextApp(ToolBase):
         except Exception as e:
             self.set_error(tr("tool.tts_srt.error_srt_failed", e=e))
             self.status_var.set(tr("tool.tts_srt.status_fail", e=e))
-
-    def _split_to_segments(self, raw, max_chars):
-        """将文本分割为字幕段落（支持角色格式和纯文本）"""
-        import re
-        lines = []
-        for line in raw.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            # 去掉角色名前缀（保留台词）
-            m = re.match(r'^.{1,15}[：:](.+)', line)
-            if m:
-                line = m.group(1).strip()
-            # 按句子分割
-            sentences = re.split(r'(?<=[。！？!?\.…])', line)
-            for s in sentences:
-                s = s.strip()
-                if not s:
-                    continue
-                # 超长句子按 max_chars 切分
-                while len(s) > max_chars:
-                    lines.append(s[:max_chars])
-                    s = s[max_chars:]
-                if s:
-                    lines.append(s)
-        return [l for l in lines if l]
-
-    def _build_srt(self, segments, total_duration, gap):
-        """按字符比例分配时间轴，生成 SRT 字符串"""
-        if not segments:
-            return ""
-        total_chars = sum(len(s) for s in segments)
-        # 总有效时长（扣除段间停顿）
-        total_gap = gap * (len(segments) - 1)
-        speech_time = max(total_duration - total_gap, total_duration * 0.8)
-
-        srt_lines = []
-        cursor = 0.0
-        for i, seg in enumerate(segments):
-            seg_dur = (len(seg) / total_chars) * speech_time
-            start = cursor
-            end = cursor + seg_dur
-            srt_lines.append(f"{i+1}")
-            srt_lines.append(f"{self._fmt_time(start)} --> {self._fmt_time(end)}")
-            srt_lines.append(seg)
-            srt_lines.append("")
-            cursor = end + gap
-        return "\n".join(srt_lines)
-
-    @staticmethod
-    def _fmt_time(seconds):
-        h = int(seconds // 3600)
-        m = int((seconds % 3600) // 60)
-        s = int(seconds % 60)
-        ms = int((seconds % 1) * 1000)
-        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

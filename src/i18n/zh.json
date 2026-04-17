@@ -5,16 +5,12 @@
   "menu.file.recent_empty": "（无历史记录）",
   "menu.file.preferences": "首选项...",
   "menu.file.exit": "退出",
-
   "menu.download": "下载",
   "menu.download.yt_dlp": "yt-dlp 下载器",
-
   "menu.speech": "语音转字幕",
   "menu.speech.lemonfox": "LemonFox API",
-
   "menu.translate": "翻译",
   "menu.translate.gemini": "Gemini 翻译",
-
   "menu.video": "视频",
   "menu.video.subtitle_burn": "字幕烧录",
   "menu.video.word_subtitle": "逐字字幕",
@@ -24,30 +20,24 @@
   "menu.video.auto_split": "自动分割视频",
   "menu.video.convert_bitrate": "码率转换",
   "menu.video.split_workbench": "分段综合工作台",
-
   "menu.subtitle": "字幕",
   "menu.subtitle.extract_all": "提取字幕文字",
   "menu.subtitle.gen_segments": "生成分段描述",
   "menu.subtitle.extract_paragraphs": "提取段落内容",
   "menu.subtitle.refine_segments": "精炼分段",
   "menu.subtitle.gen_titles": "生成标题",
-
   "menu.text2video": "文字转视频",
   "menu.text2video.tts": "① 文字合成语音",
   "menu.text2video.srt_from_text": "② 生成字幕 SRT",
   "menu.text2video.audio_video": "③ 合成视频",
   "menu.text2video.daily_news": "每日要闻合成",
-
   "menu.ai": "AI",
   "menu.ai.console": "AI 控制台",
-
   "menu.publish": "发布",
   "menu.publish.tiktok": "TikTok 发布",
   "menu.publish.youtube": "YouTube 发布",
-
   "menu.help": "帮助",
   "menu.help.about": "关于 VideoCraft",
-
   "hub.welcome.title": "VideoCraft",
   "hub.welcome.hint": "打开一个文件夹以开始工作",
   "hub.welcome.open_folder_btn": "  打开文件夹  ",
@@ -55,7 +45,6 @@
   "hub.log.clear": "清空",
   "hub.sidebar.title": "资源管理器",
   "hub.sidebar.refresh_tooltip": "刷新",
-
   "tool.preferences.title": "首选项",
   "tool.preferences.section_language": "界面语言",
   "tool.preferences.language_label": "当前语言:",
@@ -65,7 +54,6 @@
   "tool.preferences.saved_restart": "✓ 已保存。关闭并重启 VideoCraft 以生效。",
   "tool.preferences.saved_no_change": "✓ 已保存（未变更）。",
   "tool.preferences.coverage_note": "注：部分工具界面仍为中文，将在后续版本完成翻译。",
-
   "tool.translate.title": "Gemini 翻译 SRT",
   "tool.translate.source_label": "SRT 文件:",
   "tool.translate.browse": "浏览",
@@ -77,13 +65,10 @@
   "tool.translate.btn_running": "翻译中…",
   "tool.translate.status_ready": "就绪",
   "tool.translate.status_reading": "正在读取字幕...",
-
   "dialog.common.error": "错误",
   "dialog.common.warning": "警告",
   "dialog.common.info": "提示",
-
   "tool.subtitle.title": "双语字幕工具（分割与烧录）",
-
   "tool.subtitle.preset.frame_title": "参数预设 Preset",
   "tool.subtitle.preset.current_label": "当前预设:",
   "tool.subtitle.preset.save": "保存",
@@ -99,19 +84,16 @@
   "tool.subtitle.preset.overwrite_confirm": "预设『{name}』已存在，是否覆盖？",
   "tool.subtitle.preset.delete_title": "删除确认",
   "tool.subtitle.preset.delete_confirm": "确定删除预设『{name}』？",
-
   "tool.subtitle.video.label": "视频文件:",
   "tool.subtitle.browse": "浏览",
   "tool.subtitle.output.label": "输出文件:",
   "tool.subtitle.output.auto": "自动",
-
   "tool.subtitle.orientation.frame_title": "屏幕方向",
   "tool.subtitle.orientation.horizontal": "横屏",
   "tool.subtitle.orientation.vertical": "竖屏",
   "tool.subtitle.orientation.square": "方形",
   "tool.subtitle.orientation.encode_label": "  |  编码速度:",
   "tool.subtitle.orientation.encode_hint": "(高分辨率建议: veryfast或更快)",
-
   "tool.subtitle.sub1.frame_title": "中文字幕（底部，之上）",
   "tool.subtitle.sub2.frame_title": "英文字幕（底部，最下方）",
   "tool.subtitle.sub.fontsize": "字号:",
@@ -123,14 +105,12 @@
   "tool.subtitle.sub.is_chinese": "中文",
   "tool.subtitle.sub1_name": "字幕1",
   "tool.subtitle.sub2_name": "字幕2",
-
   "tool.subtitle.watermark.frame_title": "水印设置（右上角）",
   "tool.subtitle.watermark.image_radio": "图片水印",
   "tool.subtitle.watermark.text_radio": "文字水印",
   "tool.subtitle.watermark.scale": "比例:",
   "tool.subtitle.watermark.alpha": "透明度(%):",
   "tool.subtitle.watermark.show_date": "显示日期",
-
   "tool.subtitle.progress.duration_unknown": "时长 --:--:--",
   "tool.subtitle.progress.duration_fmt": "时长 {hms}",
   "tool.subtitle.progress.duration_no_ffmpeg": "时长 (无FFmpeg)",
@@ -140,9 +120,7 @@
   "tool.subtitle.progress.remaining_unknown": "剩余 --:--:--",
   "tool.subtitle.progress.remaining_fmt": "剩余 {hms}",
   "tool.subtitle.progress.remaining_calc": "剩余 计算中",
-
   "tool.subtitle.action.start": "开始烧录双语字幕",
-
   "tool.subtitle.dialog.select_watermark_image": "选择水印图片",
   "tool.subtitle.dialog.select_video": "选择视频文件",
   "tool.subtitle.dialog.select_sub1": "选择中文字幕文件（底部，位于英文字幕之上）",
@@ -152,18 +130,15 @@
   "tool.subtitle.dialog.choose_date_color": "选择日期颜色",
   "tool.subtitle.dialog.choose_sub1_color": "选择中文字幕颜色",
   "tool.subtitle.dialog.choose_sub2_color": "选择英文字幕颜色",
-
   "tool.subtitle.filter.png": "PNG 图片",
   "tool.subtitle.filter.all_files": "所有文件",
   "tool.subtitle.filter.video": "视频文件",
   "tool.subtitle.filter.srt": "SRT 字幕文件",
   "tool.subtitle.filter.mp4": "MP4 视频",
-
   "tool.subtitle.warning.no_ffprobe": "未找到ffprobe。请确保已安装FFmpeg并将其添加到系统PATH中。",
   "tool.subtitle.warning.duration_timeout": "获取视频时长超时。",
   "tool.subtitle.warning.duration_failed": "获取视频时长失败: {e}\n您可以继续使用，但进度条可能不准确。",
   "tool.subtitle.warning.processing": "正在处理中，请等待完成。",
-
   "tool.subtitle.error.no_video": "请选择视频文件。",
   "tool.subtitle.error.video_not_found": "视频文件不存在: {path}",
   "tool.subtitle.error.no_sub1": "已勾选显示字幕1，请选择对应 SRT 文件。",
@@ -174,7 +149,6 @@
   "tool.subtitle.error.output_dir_missing": "输出目录不存在: {dir}",
   "tool.subtitle.error.burn_ffmpeg": "字幕烧录失败: FFmpeg 执行失败（返回码 {code}）",
   "tool.subtitle.error.burn_generic": "字幕烧录失败: {e}",
-
   "tool.download.title": "yt-dlp 下载器",
   "tool.download.url_label": "视频链接 (每行一个):",
   "tool.download.btn_get_list": "获取视频列表",
@@ -205,7 +179,6 @@
   "tool.download.error.download_failed": "下载失败: {e}",
   "tool.download.warning.partial": "下载部分失败: {summary}",
   "tool.download.log.all_done": "下载完成: {summary}",
-
   "tool.speech.title": "语音转字幕（LemonFox API）",
   "tool.speech.source_label": "音视频文件:",
   "tool.speech.browse": "浏览",
@@ -257,7 +230,6 @@
   "tool.speech.error.no_result": "未获得有效转写结果，请重试。",
   "tool.speech.error.generic": "错误：{e}\n",
   "tool.speech.error.transcribe_failed": "语音转字幕失败: {e}",
-
   "tool.video.common.browse": "浏览",
   "tool.video.common.input_video": "输入视频文件:",
   "tool.video.common.input_mp3": "输入MP3文件:",
@@ -277,7 +249,6 @@
   "tool.video.common.filter.audio": "音频文件",
   "tool.video.common.filter.srt": "字幕文件",
   "tool.video.common.filter.all_videos": "所有视频",
-
   "tool.video.extract_audio.title": "提取 MP3",
   "tool.video.extract_audio.btn_start": "开始提取",
   "tool.video.extract_audio.status_running": "正在提取音频...",
@@ -285,7 +256,6 @@
   "tool.video.extract_audio.status_fail": "✗ 提取失败: {e}",
   "tool.video.extract_audio.error_failed": "提取 MP3 失败: {e}",
   "tool.video.extract_audio.log_done": "提取 MP3 完成 → {filename}",
-
   "tool.video.convert_bitrate.title": "码率转换",
   "tool.video.convert_bitrate.btn_start": "开始转换",
   "tool.video.convert_bitrate.status_running": "正在转换码率...",
@@ -293,7 +263,6 @@
   "tool.video.convert_bitrate.status_fail": "✗ 转换失败: {e}",
   "tool.video.convert_bitrate.error_failed": "码率转换失败: {e}",
   "tool.video.convert_bitrate.log_done": "码率转换完成 → {filename}",
-
   "tool.video.adjust_volume.title": "调整音量",
   "tool.video.adjust_volume.volume_label": "音量调整:",
   "tool.video.adjust_volume.volume_hint": "(-20dB ~ +20dB，正值增大音量，负值减小音量)",
@@ -303,7 +272,6 @@
   "tool.video.adjust_volume.status_fail": "✗ 音量调整失败: {e}",
   "tool.video.adjust_volume.error_failed": "音量调整失败: {e}",
   "tool.video.adjust_volume.log_done": "音量调整完成 → {filename}",
-
   "tool.video.extract_clip.title": "视频片段提取",
   "tool.video.extract_clip.start_time": "起始时间:",
   "tool.video.extract_clip.end_time": "结束时间:",
@@ -329,7 +297,6 @@
   "tool.video.extract_clip.mode_accurate_short": "精确模式",
   "tool.video.extract_clip.mode_fast_short": "快速模式",
   "tool.video.extract_clip.log_done": "片段提取完成（{mode}）→ {filename}",
-
   "tool.video.auto_split.title": "自动分割视频",
   "tool.video.auto_split.segments_label": "分割段数:",
   "tool.video.auto_split.segments_hint": "(将视频均匀分割为几段，默认3段)",
@@ -353,7 +320,6 @@
   "tool.video.auto_split.util_no_duration": "无法获取视频时长",
   "tool.video.auto_split.util_segment_error": "分割第 {i} 段时出错",
   "tool.video.auto_split.util_error": "分割出错: {e}",
-
   "tool.tts.title": "VideoCraft - 文字合成语音",
   "tool.tts.api_status_unknown": "未配置",
   "tool.tts.api_configured": "已配置 ({masked})",
@@ -399,7 +365,6 @@
   "tool.tts.status_merging": "正在合并音频...",
   "tool.tts.status_done_multi": "完成！{total} 段已合并：{output}",
   "tool.tts.error_tts_multi_failed": "TTS 多角色生成失败: {e}",
-
   "tool.tts_srt.title": "VideoCraft - 生成字幕 SRT",
   "tool.tts_srt.audio_label": "音频文件:",
   "tool.tts_srt.btn_pick": "选择",
@@ -424,7 +389,6 @@
   "tool.tts_srt.status_done": "完成！共 {count} 条字幕 → {output}",
   "tool.tts_srt.status_fail": "✗ 失败：{e}",
   "tool.tts_srt.error_srt_failed": "SRT 生成失败: {e}",
-
   "tool.audio_video.title": "VideoCraft - 多章节音频合成视频",
   "tool.audio_video.chapter_list": "章节列表",
   "tool.audio_video.add_chapter": "＋ 添加章节",
@@ -497,7 +461,6 @@
   "tool.audio_video.status_fail": "生成失败",
   "tool.audio_video.error_compose_failed": "视频生成失败: {e}",
   "tool.audio_video.error_dialog_compose": "视频生成失败：\n{e}",
-
   "tool.daily_news.title": "每日要闻合成",
   "tool.daily_news.status_ready": "就绪",
   "tool.daily_news.files_frame": "文件选择",
@@ -552,7 +515,6 @@
   "tool.daily_news.error_dialog_compose": "合成失败：\n{e}",
   "tool.daily_news.error_ffmpeg_exit": "ffmpeg 返回非零退出码，请检查参数",
   "tool.daily_news.error_no_duration": "无法获取音频时长，请检查文件格式",
-
   "tool.srt.common.srt_file": "SRT字幕文件:",
   "tool.srt.common.output_file": "输出文件:",
   "tool.srt.common.browse": "浏览",
@@ -567,13 +529,11 @@
   "tool.srt.common.filter.txt": "Text files",
   "tool.srt.common.status_done_fmt": "✓ 完成: {filename}",
   "tool.srt.common.status_fail_fmt": "失败: {e}",
-
   "tool.srt.extract_subs.title": "提取字幕文字",
   "tool.srt.extract_subs.btn_run": "提取字幕文字",
   "tool.srt.extract_subs.preview_label": "提取的字幕内容:",
   "tool.srt.extract_subs.status_extracting": "正在提取...",
   "tool.srt.extract_subs.error_failed": "提取全部字幕失败: {e}",
-
   "tool.srt.gen_segments.title": "生成分段描述",
   "tool.srt.gen_segments.btn_run": "生成分段描述",
   "tool.srt.gen_segments.status_running": "正在生成分段描述...",
@@ -581,7 +541,6 @@
   "tool.srt.gen_segments.status_fail": "生成失败",
   "tool.srt.gen_segments.error_failed": "生成分段描述失败: {e}",
   "tool.srt.gen_segments.log_done": "分段描述已生成 → {filename}",
-
   "tool.srt.extract_paragraphs.title": "提取段落内容",
   "tool.srt.extract_paragraphs.btn_run": "提取段落内容",
   "tool.srt.extract_paragraphs.segments_label": "时间戳分割文件:",
@@ -591,7 +550,6 @@
   "tool.srt.extract_paragraphs.status_fail": "提取失败",
   "tool.srt.extract_paragraphs.error_failed": "提取段落失败: {e}",
   "tool.srt.extract_paragraphs.log_done": "段落内容已提取 → {filename}",
-
   "tool.srt.refine.title": "精炼分段",
   "tool.srt.refine.btn_run": "精炼分段",
   "tool.srt.refine.input_label": "段落内容文件:",
@@ -601,7 +559,6 @@
   "tool.srt.refine.status_fail": "精炼失败",
   "tool.srt.refine.error_failed": "精炼分段失败: {e}",
   "tool.srt.refine.log_done": "精炼分段内容已保存 → {filename}",
-
   "tool.srt.gen_titles.title": "生成标题",
   "tool.srt.gen_titles.btn_run": "生成标题",
   "tool.srt.gen_titles.subs_label": "Subs 文件:",
@@ -611,7 +568,6 @@
   "tool.srt.gen_titles.status_fail": "生成失败",
   "tool.srt.gen_titles.error_failed": "生成标题失败: {e}",
   "tool.srt.gen_titles.log_done": "视频标题已生成 → {filename}",
-
   "tool.word_subtitle.title": "逐字字幕烧录",
   "tool.word_subtitle.frame_file": "文件",
   "tool.word_subtitle.frame_style": "字幕样式",
@@ -667,7 +623,6 @@
   "tool.word_subtitle.log_done": "逐字字幕烧录完成 → {filename}",
   "tool.word_subtitle.log_hint_no_words": "提示: JSON 中无 words[]，将按 segment 时间均分\n",
   "tool.word_subtitle.progress_label": "{pct:.1f}%  已用 {elapsed}  剩余 {remain}",
-
   "tool.publish.common.account": "账号",
   "tool.publish.common.info": "发布信息",
   "tool.publish.common.video_file": "视频文件",
@@ -701,7 +656,6 @@
   "tool.publish.common.filter_all": "所有文件",
   "tool.publish.common.logged_in_fmt": "已登录  {name}",
   "tool.publish.common.oauth_done_page": "授权完成，请关闭此页面返回应用。",
-
   "tool.youtube.title": "YouTube 发布",
   "tool.youtube.status_logged_in_email": "已登录  {email}",
   "tool.youtube.secret_file_label": "密钥文件",
@@ -758,7 +712,6 @@
   "tool.youtube.log_pl_added": "已添加到播放列表。",
   "tool.youtube.log_pl_add_failed_http": "添加到播放列表失败: {code}",
   "tool.youtube.log_pl_add_failed": "添加播放列表出错: {e}",
-
   "tool.tiktok.title": "TikTok 发布",
   "tool.tiktok.status_logged_in_openid": "已登录  open_id: {open_id}...",
   "tool.tiktok.btn_config_creds": "配置凭证",
@@ -802,7 +755,6 @@
   "tool.tiktok.error_http": "TikTok 上传 HTTP 错误: {e}",
   "tool.tiktok.log_upload_error": "上传出错: {e}",
   "tool.tiktok.error_upload": "TikTok 上传失败: {e}",
-
   "tool.router.title": "AI 控制台",
   "tool.router.tab_routing": "  Provider & 路由  ",
   "tool.router.tab_prompts": "  Prompts  ",
@@ -868,7 +820,6 @@
   "tool.router.col_last_used": "最后使用时间",
   "tool.router.btn_refresh": "刷新",
   "tool.router.never_used": "从未使用",
-
   "tool.split_workbench.title": "分段综合工作台",
   "tool.split_workbench.label_video": "视频:",
   "tool.split_workbench.label_desc": "分段文件:",
@@ -929,5 +880,50 @@
   "tool.split_workbench.confirm_issues": "检测到以下问题：\n\n{issues}\n\n是否仍要继续？",
   "tool.split_workbench.log_vlc_missing": "VLC 未检测到，预览已禁用",
   "tool.split_workbench.log_player_load_failed": "播放器加载失败: {e}",
-  "tool.split_workbench.log_export_failed": "导出失败: {e}"
+  "tool.split_workbench.log_export_failed": "导出失败: {e}",
+  "menu.video.ppt2video": "PPT 转视频",
+  "tool.ppt2video.title": "PPT 视频生成工作台",
+  "tool.ppt2video.no_project_title": "请先打开工作目录",
+  "tool.ppt2video.no_project_hint": "PPT2Video 需要一个项目目录来存放中间产物，请通过 File → Open Folder 打开。",
+  "tool.ppt2video.label_workdir": "工作目录：",
+  "tool.ppt2video.step1_title": "提交 PPT",
+  "tool.ppt2video.step2_title": "导出页图 + 提取讲稿",
+  "tool.ppt2video.step3_title": "生成每页音频",
+  "tool.ppt2video.step4_title": "生成每页字幕",
+  "tool.ppt2video.step5_title": "合成 MP4",
+  "tool.ppt2video.btn_run_step": "运行此步",
+  "tool.ppt2video.btn_run_all": "运行全部",
+  "tool.ppt2video.btn_run_from_here": "从此步开始到底",
+  "tool.ppt2video.btn_open_workdir": "打开工作目录",
+  "tool.ppt2video.btn_browse_pptx": "选择 .pptx 文件…",
+  "tool.ppt2video.label_voice_id": "Voice ID：",
+  "tool.ppt2video.use_existing_audio": "使用现有 MP3",
+  "tool.ppt2video.dialog_select_pptx": "选择 PowerPoint 文件",
+  "tool.ppt2video.status_idle": "就绪",
+  "tool.ppt2video.status_pptx_imported": "PPT 已导入",
+  "tool.ppt2video.status_not_implemented": "此步骤尚未实现",
+  "tool.ppt2video.info_pages_notes": "已导出 {pages} 页图、{notes} 份讲稿",
+  "tool.ppt2video.info_audio": "已有 {count} 个音频",
+  "tool.ppt2video.info_subs": "已有 {count} 个字幕",
+  "tool.ppt2video.error_copy_pptx": "复制 PPT 失败：{e}",
+  "tool.ppt2video.error_no_office": "未检测到 Microsoft PowerPoint。PPT2Video 当前仅支持本机安装 Office 的 Windows 环境。",
+  "tool.ppt2video.error_export_png": "导出 PNG 失败：{e}",
+  "tool.ppt2video.error_extract_notes": "提取讲稿失败：{e}",
+  "tool.ppt2video.error_tts": "TTS 合成失败：{e}",
+  "tool.ppt2video.error_no_voice_id": "请输入 Voice ID",
+  "tool.ppt2video.error_no_notes": "未找到讲稿文件，请先运行第 2 步",
+  "tool.ppt2video.error_no_audio": "未找到音频文件，请先运行第 3 步",
+  "tool.ppt2video.error_no_pages": "未找到页图文件，请先运行第 2 步",
+  "tool.ppt2video.error_compose": "合成失败：{e}",
+  "tool.ppt2video.status_exporting": "正在导出 PNG…",
+  "tool.ppt2video.status_extracting_notes": "正在提取讲稿…",
+  "tool.ppt2video.status_tts_progress": "TTS 合成中 {done}/{total}…",
+  "tool.ppt2video.status_generating_subs": "正在生成字幕…",
+  "tool.ppt2video.status_composing": "正在合成视频…",
+  "tool.ppt2video.status_done": "✓ 完成",
+  "tool.ppt2video.status_step_done": "✓ 第 {step} 步完成",
+  "tool.ppt2video.status_all_done": "✓ 全部完成 → output.mp4",
+  "tool.ppt2video.enable_approx_subs": "启用近似字幕（可选）",
+  "tool.ppt2video.subs_hint": "按字符比例推时轴，不精确。推荐用 Speech2Text + 字幕烧录工具添加精准字幕",
+  "tool.ppt2video.subs_skipped": "字幕已跳过（未勾选）"
 }

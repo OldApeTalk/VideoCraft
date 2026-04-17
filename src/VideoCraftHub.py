@@ -55,6 +55,7 @@ TOOL_MAP = {
     "youtube-publish":  {"file": "tools/publish/youtube_publish.py", "class": "YouTubePublishApp"},
     "preferences":      {"file": "tools/preferences/preferences.py", "class": "PreferencesApp"},
     "ai-console":       {"file": "tools/router/ai_console.py",       "class": "AIConsoleApp"},
+    "ppt2video":        {"file": "tools/ppt2video/ppt2video.py",     "class": "PPT2VideoApp"},
 }
 
 # ── Tab 状态颜色 ──────────────────────────────────────────────────────────────
@@ -322,6 +323,10 @@ class VideoCraftHub:
                              command=lambda: self.open_tool("word-subtitle"))
         vid_menu.add_command(label=tr("menu.video.split_workbench"),
                              command=lambda: self.open_tool("split-workbench"))
+        vid_menu.add_command(label=tr("menu.video.ppt2video"),
+                             command=lambda: self.open_tool(
+                                 "ppt2video",
+                                 initial_file=self.project.folder if self.project else None))
         vid_menu.add_separator()
         vid_menu.add_command(label=tr("menu.video.extract_mp3"),
                              command=lambda: self.open_tool("extract-audio"))
