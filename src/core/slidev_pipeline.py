@@ -19,6 +19,8 @@ import subprocess
 import shutil
 from typing import Callable
 
+from core.env_check import find_system_edge
+
 ProgressCallback = Callable[[int, int, str], None]  # (done, total, msg)
 
 # Resolve project root relative to this file (src/core/ → project root)
@@ -66,20 +68,6 @@ def _slidev_bin() -> str | None:
 def _playwright_bin() -> str | None:
     for name in ("playwright.cmd", "playwright"):
         p = os.path.join(_NODE_ENV, "node_modules", ".bin", name)
-        if os.path.isfile(p):
-            return p
-    return None
-
-
-_EDGE_CANDIDATES = [
-    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-]
-
-
-def _find_system_edge() -> str | None:
-    """Return path to system Edge (Chromium-based) if available."""
-    for p in _EDGE_CANDIDATES:
         if os.path.isfile(p):
             return p
     return None
@@ -150,7 +138,7 @@ def ensure_node_env(
     # Step 2: browser setup.
     # Prefer the system Edge (already installed on Windows 11, no download).
     # Fall back to downloading Playwright Chromium only if Edge not found.
-    edge = _find_system_edge()
+    edge = find_system_edge()
     if edge:
         if on_log:
             on_log(f"Using system Edge as Chromium browser: {edge}")
@@ -232,7 +220,7 @@ def export_slidev_to_png(
     pages_abs = os.path.abspath(pages_dir)
 
     env = os.environ.copy()
-    edge = _find_system_edge()
+    edge = find_system_edge()
     if edge:
         # Tell Playwright to use the existing system Edge instead of its own Chromium.
         env["PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"] = edge
@@ -301,12 +289,11 @@ def run_step2_slidev(
     pages_dir = os.path.join(workdir, "pages")
     notes_dir = os.path.join(workdir, "notes")
 
-    # Auto-setup node_env on first use, streaming log lines via on_progress msg
-    def _log(msg: str):
-        if on_progress:
-            on_progress(0, 1, msg)
-
-    ensure_node_env(on_log=_log)
+    if _slidev_bin() is None:
+        raise RuntimeError(
+            "Slidev CLI is not installed. "
+            "Go to File \u2192 Settings \u2192 Environment to install it."
+        )
 
     # Notes extracted from .md (no Node needed)
     note_paths = extract_slidev_notes(md_path, notes_dir)
