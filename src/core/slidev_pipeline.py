@@ -71,7 +71,22 @@ def _playwright_bin() -> str | None:
     return None
 
 
+_EDGE_CANDIDATES = [
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+]
+
+
+def _find_system_edge() -> str | None:
+    """Return path to system Edge (Chromium-based) if available."""
+    for p in _EDGE_CANDIDATES:
+        if os.path.isfile(p):
+            return p
+    return None
+
+
 def _chromium_installed() -> bool:
+    """True if our own Playwright Chromium download exists."""
     return os.path.isdir(_BROWSERS_PATH) and any(
         d.startswith("chromium") for d in os.listdir(_BROWSERS_PATH)
         if os.path.isdir(os.path.join(_BROWSERS_PATH, d))
@@ -132,8 +147,14 @@ def ensure_node_env(
         if on_log:
             on_log("node_modules already installed, skipping npm install.")
 
-    # Step 2: playwright install chromium (downloads ~130 MB on first run)
-    if not _chromium_installed():
+    # Step 2: browser setup.
+    # Prefer the system Edge (already installed on Windows 11, no download).
+    # Fall back to downloading Playwright Chromium only if Edge not found.
+    edge = _find_system_edge()
+    if edge:
+        if on_log:
+            on_log(f"Using system Edge as Chromium browser: {edge}")
+    elif not _chromium_installed():
         pw = _playwright_bin()
         if pw is None:
             raise RuntimeError(
@@ -141,7 +162,7 @@ def ensure_node_env(
                 "Try deleting node_env/node_modules and retrying."
             )
         if on_log:
-            on_log("Downloading Chromium for Playwright (~130 MB, one-time)...")
+            on_log("Edge not found. Downloading Chromium (~130 MB, one-time)...")
         _run_logged(
             [pw, "install", "chromium"],
             cwd=_NODE_ENV,
@@ -211,10 +232,15 @@ def export_slidev_to_png(
     pages_abs = os.path.abspath(pages_dir)
 
     env = os.environ.copy()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
+    edge = _find_system_edge()
+    if edge:
+        # Tell Playwright to use the existing system Edge instead of its own Chromium.
+        env["PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"] = edge
+    else:
+        env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
 
     if on_progress:
-        on_progress(0, 1, "starting slidev export (may take 1-2 min)...")
+        on_progress(0, 1, "starting slidev export (launching browser)...")
 
     # Use streaming Popen so log lines surface to the UI in real time.
     last_lines: list[str] = []
