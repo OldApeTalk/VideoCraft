@@ -214,26 +214,31 @@ def export_slidev_to_png(
     env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
 
     if on_progress:
-        on_progress(0, 1, "running slidev export...")
+        on_progress(0, 1, "starting slidev export (may take 1-2 min)...")
 
-    result = subprocess.run(
-        _wrap_cmd([slidev, "export",
-                   "--format", "png",
-                   "--output", pages_abs,
-                   md_abs]),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=os.path.dirname(md_abs),
-        env=env,
-    )
+    # Use streaming Popen so log lines surface to the UI in real time.
+    last_lines: list[str] = []
 
-    if result.returncode != 0:
-        stderr = (result.stderr or result.stdout or "").strip()
-        raise RuntimeError(
-            f"slidev export failed (exit {result.returncode}):\n{stderr[:600]}"
+    def _log(line: str):
+        last_lines.append(line)
+        if on_progress:
+            on_progress(0, 1, line[:80] or "running slidev export...")
+
+    try:
+        _run_logged(
+            [slidev, "export",
+             "--format", "png",
+             "--output", pages_abs,
+             md_abs],
+            cwd=os.path.dirname(md_abs),
+            env=env,
+            on_log=_log,
         )
+    except RuntimeError as e:
+        tail = "\n".join(last_lines[-10:])
+        raise RuntimeError(
+            f"slidev export failed.\nLast output:\n{tail}"
+        ) from e
 
     # Rename 001.png, 002.png ... → page_01.png, page_02.png
     raw_pngs = sorted(
