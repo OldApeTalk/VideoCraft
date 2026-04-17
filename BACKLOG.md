@@ -26,6 +26,9 @@
 | 🟡 P2 | [ ] | SRT 格式转换 | SRT ↔ VTT / ASS，不同平台（B站/YouTube/剪映）格式要求不同（注：word_subtitle 可生成 ASS 卡拉OK效果，但非通用格式转换） |
 | 🟡 P2 | [ ] | yt-dlp 下载时同步获取字幕 | yt-dlp 原生支持，加一个"同时下载字幕"选项，省去手动转录步骤 |
 | 🟡 P2 | [ ] | 视频合并/拼接 | 多个视频片段按顺序合并为一个，自媒体剪辑常见需求 |
+| 🟡 P2 | [ ] | AI 错误契约实施 (X1) | `core/ai/errors.py` 已定义 9 种 `AIError.Kind`（NETWORK/AUTH/QUOTA/RATE_LIMIT/REFUSED/MALFORMED/OVERFLOW/CANCELLED/UNKNOWN）但各 provider 仍直抛 RuntimeError。需要：(a) 给 5 个 provider 各写原生异常→Kind 映射表；(b) UI 加 Kind→恢复动作映射（AUTH→打开 AI 控制台、QUOTA→换 provider 等）。spec 见 [docs/design/04-ai-router.md](docs/design/04-ai-router.md) "错误契约（X1）" 章节 |
+| 🟡 P2 | [ ] | AI 取消传播 wiring (X2) | `CancellationToken` 类已建但未真接入 — provider adapter 没注册 `abort_cb`、UI 没加取消按钮。长任务（翻译 2000 行 / TTS 多角色合成）目前没法中途停。需 wire 全链 + UI 加取消按钮。spec 见 [docs/design/04-ai-router.md](docs/design/04-ai-router.md) "取消传播（X2）" 章节 |
+| 🟡 P2 | [ ] | TTS Voice ID 收藏 | Fish Audio TTS 当前每次合成都要手填 Voice ID（一串 32 位 hex）。AI 控制台加常用 voice 库下拉，或在 TTSApp 加最近用过的下拉 |
 
 ---
 
@@ -37,6 +40,9 @@
 | 🟢 P3 | [ ] | 各工具窗口风格统一 | 大小、配色、按钮样式统一；目前各工具窗口风格不一 |
 | 🟢 P3 | [~] | 输出路径可自定义 | 🟡 yt-dlp / speech2text / video_tools / subtitle_tool 已支持；仅 translate_srt 仍硬编码输出到源文件目录 |
 | 🟢 P3 | [~] | 操作参数持久化 | 🟡 subtitle_tool 已完成 preset 系统（~/.videocraft/presets/subtitle_burn.json，支持命名保存/切换/记忆 last_used）；其他工具待跟进 |
+| 🟢 P3 | [ ] | AI 响应缓存 (X4) | 长 SRT 反复调优 prompt 浪费 tokens。需要：(a) **A 前缀缓存** — Anthropic `cache_control` / Gemini Context Cache / DeepSeek 自动；(b) **B 客户端 SHA256 缓存** — `user_data/ai_cache/`，LRU + 7 天 TTL + 100MB 上限。`core.ai.complete()` 已留 `cache_hint=` 参数位。spec 见 [docs/design/04-ai-router.md](docs/design/04-ai-router.md) "缓存 (X4)" |
+| 🟢 P3 | [ ] | ASR / TTS Test 真实施 | AI 控制台 Lemonfox / Fish Audio 的 Test 按钮目前 disabled 占位。需要：(a) ASR — 在 `prompts/samples/silence-1s.wav` 塞 1 秒静音样本，Test 拿它打 Lemonfox；(b) TTS — provider 配置加 `test_voice_id` 字段，Test 调短文本合成 |
+| 🟢 P3 | [ ] | per-(task, provider) prompt 变体 | `core.prompts.get(task)` 当前一 task 一 prompt。不同 provider 在同一任务上风格差异明显（DeepSeek 喜欢长解释、Gemini 偏简洁）。需要：扩展 prompts 文件命名为 `<task>.<provider>.md`，loader 优先匹配 (task, provider) 后 fallback 到 (task) |
 
 ---
 
