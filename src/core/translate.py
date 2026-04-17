@@ -2,7 +2,7 @@
 
 UI layer calls translate_srt_file() with progress callbacks; this module owns
 all AI orchestration. Per architecture principle 1 (see
-docs/draft/AIRouterAndCoreAPI.md), UI must not touch core.ai directly —
+docs/design/04-ai-router.md), UI must not touch core.ai directly —
 TranslateApp goes through this module.
 
 Phase 1 preserves the batch-with-JSON-schema approach inherited from

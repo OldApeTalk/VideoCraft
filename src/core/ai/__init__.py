@@ -1,6 +1,6 @@
 """core.ai — Unified AI facade for VideoCraft.
 
-Design principles (see docs/draft/AIRouterAndCoreAPI.md):
+Design principles (see docs/design/04-ai-router.md):
   1. Three-layer architecture: UI -> core/<feature> -> core/ai
   2. UI layer must NOT import core.ai directly (except infrastructure tools
      like the AI console / Router tab itself).

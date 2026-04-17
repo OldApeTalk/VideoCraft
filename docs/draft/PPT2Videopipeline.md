@@ -4,7 +4,7 @@
 
 音频侧支持**两条并行路径**共存：API 自动合成（快，已集成）与用户自备 MP3（精修，走 Fish Audio Studio web 导出）。
 
-**依赖**：本管线重度依赖 AI 能力（TTS、可选 ASR、翻译），等 [docs/draft/AIRouterAndCoreAPI.md](AIRouterAndCoreAPI.md) 的 `core/ai` 统一门面就位后再实施。
+**依赖**：本管线重度依赖 AI 能力（TTS、可选 ASR、翻译）。`core/ai` 统一门面已就位（详见 [docs/design/04-ai-router.md](../design/04-ai-router.md)）。
 
 ---
 
@@ -165,7 +165,7 @@ PPT 产物包含两类信息：
 
 #### b. API 自动合成
 
-场景：一次成型、批量、迭代快。走 `core.ai.tts(...)`（待 [AIRouterAndCoreAPI](AIRouterAndCoreAPI.md) 落地）。当前代码 [text2video.py:234](../../src/tools/text2video/text2video.py#L234) TTSApp 已有 Fish Audio SDK 直调，迁移到 core.ai 后本管线直接调门面。
+场景：一次成型、批量、迭代快。走 `core.tts.synthesize_text(...)` feature 层 → `ai.tts(...)` 门面（详见 [docs/design/04-ai-router.md](../design/04-ai-router.md)）。
 
 ### 4. 图 + 音 → 视频（第四步：合成）
 
@@ -217,5 +217,5 @@ PPT 产物包含两类信息：
 ## 关联 BACKLOG 项
 
 - 本条：[BACKLOG.md:12](../../BACKLOG.md#L12) 🔴 P1「PPT 视频生成管线」
-- **前置依赖**：[docs/draft/AIRouterAndCoreAPI.md](AIRouterAndCoreAPI.md) core.ai 门面（Router + core.ai 优先级高于本管线，需先落地）
+- **前置依赖**：core.ai 门面 + AI 控制台已就位 — 详见 [docs/design/04-ai-router.md](../design/04-ai-router.md)
 - 已完成基础：Done「text2video TTS 重构（Fish Audio）」— 音频侧基础

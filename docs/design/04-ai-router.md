@@ -1,124 +1,344 @@
-# AI Router 设计
+# AI 架构 — core.ai 门面 + AI 控制台
 
-VideoCraft 的统一 AI 路由层。所有需要调用大模型的工具都通过 `router` 单例，避免各模块分别管理 provider / key / 降级逻辑。
+VideoCraft 所有 AI 能力（文本 LLM、ASR、TTS）经统一门面 `core.ai` 路由，
+UI 不直接调任何 SDK。Hub 内 AI 控制台（`tools/router/ai_console.py`）
+集中管理 provider key、任务路由、prompt、调用统计。
 
-## 文件
+---
 
-- [src/ai_router.py](../../src/ai_router.py) — 核心路由，进程内单例 `router`
-- [src/router_manager.py](../../src/router_manager.py) — 管理 UI（Provider & Key / 档位配置 / 调用统计）
-- `keys/providers.json` — 持久化配置（首次运行自动生成；gitignored）
-- `keys/*.key` — 独立存储的 API Key 文件（向后兼容）
+## 架构原则（5 条铁律）
 
-## 档位
+任何 AI 相关代码必须满足。
 
-| 档位 | 常量 | 适用场景 |
-|------|------|---------|
-| 高档 | `TIER_PREMIUM` | 高精度推理、长文翻译 |
-| 中档 | `TIER_STANDARD` | 常规翻译、字幕处理 |
-| 低档 | `TIER_ECONOMY` | 高频批量、简单任务 |
+### 1. 严格三层分层
 
-每档独立配置 Provider + Model；未配置时按 `priority` 自动降级。
-
-## Provider 类型
-
-| 类型 | 内置条目 | 需要 API Key | 调用方式 |
-|------|---------|------------|---------|
-| `gemini` | Gemini | ✅ | `google.generativeai` SDK |
-| `openai_compatible` | DeepSeek / Custom | ✅ | `openai` SDK + `base_url` |
-| `claude_code` | ClaudeCode | ❌ | 本地 `claude -p` CLI subprocess |
-
-**Groq 已于 2026-04 移除**，原因是实测 Llama / gpt-oss / qwen 系列在 VideoCraft 的翻译/分段任务上 NLP 质量不达标。未来如需接更多模型，计划通过中转式 router（OpenRouter / one-api）作为 `openai_compatible` 的 `base_url` 统一接入，而不是给每家单独建条目。老 `providers.json` 会在启动时自动清理残留的 Groq 条目和指向它的 tier_routing。
-
-## 两种补全 API
-
-### 纯文本：`complete()`
-
-```python
-from ai_router import router, TIER_STANDARD
-
-text = router.complete(prompt, tier=TIER_STANDARD)
+```
+┌─────────────────────────────────────────┐
+│ UI Layer (tools/)                       │
+│  - TranslateApp / Speech2TextApp / ... │
+│  - 不感知 AI 存在，禁 import core.ai   │
+└──────────────┬──────────────────────────┘
+               │ business APIs
+               ▼
+┌─────────────────────────────────────────┐
+│ Core Business Layer (core/)             │
+│  - translate.py / asr.py / tts.py      │
+│  - srt_ops.py / prompts.py             │
+│  - 处理 chunking / 进度 / 错误         │
+└──────────────┬──────────────────────────┘
+               │ AI infrastructure
+               ▼
+┌─────────────────────────────────────────┐
+│ Core AI Infrastructure (core/ai/)       │
+│  - complete / complete_json / asr / tts │
+│  - Router / providers/ / 配置 / 统计   │
+└─────────────────────────────────────────┘
 ```
 
-Provider 返回什么就给调用方什么（去首尾空白）。消费方自己决定怎么解析，历史上翻译/分段/标题生成都走这条。
+UI 调 `core.translate.translate_srt(...)` 等 feature API；feature 内才
+`from core import ai`。**例外**：AI 控制台本身、未来 AI playground
+等"基础设施工具"允许直接 import core.ai。
 
-### 结构化 JSON：`complete_json()`
+### 2. 自描述接口
+
+`core.ai.describe(task, tier)` 返回 capability 元数据
+（max_input_tokens / supports_stream / supports_json /
+safe_concurrency / latency_p50_ms / 实际 provider+model）。Phase 1 是
+placeholder；M7 / Phase 2 时填真实值，feature 层可据此决定整块/分批/
+流式策略。
+
+### 3. ASR / TTS 对称封装
+
+固定功能 API（ASR/TTS）和 LLM 共享门面结构：调用 pattern 一致，provider
+差异藏在元数据里，无损切换 provider 不改 feature 代码。
+
+### 4. Prompt 对 UI 隐藏
+
+UI 工具层禁止出现 prompt 字符串 / 编辑框。Prompts 存在 `prompts/*.md`
+（由 `core/prompts.py` 管理）。唯一可视化入口：AI 控制台 → Prompts tab。
+
+### 5. Prompt 驱动功能同理
+
+subtitle.segments / refine / titles 这类"表面像业务功能、实际是 prompt
+驱动"的 task 也归入此范式 — UI 调 `core.srt_ops.generate_segments(srt)`，
+完全不见 prompt 字符串。
+
+---
+
+## 文件布局
+
+```
+src/
+├── core/
+│   ├── ai/
+│   │   ├── __init__.py            # 对外门面 facade
+│   │   ├── router.py              # AIRouter 类 + task→provider 映射
+│   │   ├── tiers.py               # TIER_* 常量（向后兼容；UI 已不暴露）
+│   │   ├── errors.py              # AIError + 9 种 Kind 枚举（contract，未填）
+│   │   ├── cancellation.py        # CancellationToken（contract，未 wire）
+│   │   ├── config.py              # 默认 + providers.json I/O + TASKS 目录
+│   │   ├── stats.py               # 线程安全调用计数
+│   │   └── providers/
+│   │       ├── gemini.py          # call / call_json / list_models
+│   │       ├── openai_compat.py   # DeepSeek + Custom 共享
+│   │       ├── claude_code.py     # `claude -p` subprocess
+│   │       ├── lemonfox.py        # ASR HTTP + 上传进度 + 重试
+│   │       ├── fish_audio.py      # TTS SDK + 流式 + 取消
+│   │       └── _json_utils.py     # JSON fence 剥离 + 解析
+│   ├── translate.py               # feature 层
+│   ├── asr.py                     # feature 层
+│   ├── tts.py                     # feature 层
+│   ├── srt_ops.py                 # subtitle.* feature 层
+│   └── prompts.py                 # prompt hub 加载/保存/重置
+├── tools/
+│   └── router/
+│       └── ai_console.py          # AIConsoleApp Hub tab
+├── ai_router.py                   # 薄兼容 shim（只剩 TIER_* 常量）
+└── ...
+
+prompts/                           # 仓库根，shipped + 用户编辑
+├── translate.md
+├── subtitle.segments.md
+├── subtitle.refine.md
+└── subtitle.titles.md
+
+keys/                              # 仓库根，gitignored
+├── providers.json                 # router 配置（auto-生成 + 迁移）
+└── *.key                          # 各 provider API key
+```
+
+---
+
+## core.ai 门面 API
 
 ```python
-SCHEMA = {
-    "type": "object",
-    "properties": {
-        "translations": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "index": {"type": "integer"},
-                    "text":  {"type": "string"},
-                },
-                "required": ["index", "text"],
-            },
-        },
-    },
-    "required": ["translations"],
+from core import ai
+
+# 文本 LLM
+text = ai.complete(prompt, task="translate", tier=ai.TIER_STANDARD,
+                   provider=None, model=None)
+obj  = ai.complete_json(prompt, schema={...}, task="subtitle.refine")
+
+# 语音识别
+result = ai.asr(audio_path, task="asr.transcribe", language="en",
+                translate=False, speaker_labels=False, on_event=...)
+# returns: provider 原始 verbose_json dict
+
+# 语音合成
+ai.tts(text, output_path, task="tts.synthesize", voice_id="...",
+       audio_format="mp3", should_cancel=lambda: stop, on_chunk=...)
+
+# 元数据
+cap     = ai.describe(task, tier)
+ok      = ai.is_tts_sdk_available("fish_audio")
+models  = ai.list_models("Gemini")        # 远端拉取（仅 LLM）
+
+# 单例（基础设施工具用）
+from core.ai.router import router
+```
+
+`task` 参数命名空间化（`translate` / `subtitle.segments` / `subtitle.refine` /
+`subtitle.titles` / `asr.transcribe` / `tts.synthesize`）；`tier` 参数
+向后兼容但实际路由已不依赖 tier — Router 单选 `task → (provider, model)`。
+
+UI 层规约：`tools/` 下禁止 `import ai_router` / `from fish_audio_sdk import ...` /
+直接调 Lemonfox HTTP — 全部走 `from core import translate, asr, tts, srt_ops`。
+
+---
+
+## Provider 池
+
+| 类型 | 内置条目 | 需要 API Key | 调用方式 | list_models |
+|------|---------|--------------|---------|-------------|
+| `gemini` | Gemini | ✅ | `google.generativeai` SDK | ✅ |
+| `openai_compatible` | DeepSeek / Custom | ✅ | `openai` SDK + `base_url` | ✅ |
+| `claude_code` | ClaudeCode | ❌ CLI 自管 | 本地 `claude -p` subprocess | ❌（固定别名）|
+| `lemonfox` (ASR) | LemonFox | ✅ | HTTP POST + 上传进度 + 重试 | ❌ |
+| `fish_audio` (TTS) | Fish Audio | ✅ | `fish_audio_sdk` 流式 | ❌ |
+
+**Groq** 在 2026-04 移除 — 实测 Llama / qwen 系列 NLP 质量不达标。未来扩展走 OpenRouter / one-api 中转作为 `openai_compatible` 的 base_url。
+
+**ClaudeCode** subprocess 设计要点：
+- 无 API Key，依赖本机 `claude` CLI 登录态
+- prompt 走 stdin 避开 Windows 32KB 命令行长度上限
+- `--permission-mode bypassPermissions` 安全（VideoCraft 只取纯文本输出）
+- Windows 上用 `shutil.which()` 解析 `.cmd` 路径再交 subprocess（npm 装的 CLI 必须）
+- `_normalize_providers()` 升级时自动回填 _DEFAULT_PROVIDERS 新条目到老 providers.json
+
+---
+
+## AI 控制台（`tools/router/ai_console.py`）
+
+Hub 内 tab，三个子 Notebook：
+
+### Tab 1: Provider & 路由
+单一表格。每行 = (provider, model) 组合。LLM 多模型 provider 展开多行；ASR/TTS 各一行。每个 task 一列，column 内 radio 单选。
+
+- Key 状态 + Edit 按钮 + Test 按钮（每 provider 第一行）
+- Edit 对话框：API Key + Base URL（openai_compat）+ 模型列表 + [🔄 从 API 刷新] 按钮 + executable/timeout（claude_code）+ timeout/retries（ASR）
+- Test 按钮：LLM 调短 `complete()` 真测；ASR/TTS disabled 占位（待样本数据）
+- 选 radio 即时持久化，不需要"保存"
+- Provider 未配 key → 整组 radio disabled + 灰显
+- 没 key 的 provider 不出现在下拉/radio 中（保留之前选过的值作历史显示）
+
+### Tab 2: Prompts
+左 task 列表（被改的 ● 标记），右 Text 编辑器 + 占位符提示 + Save / Reset 按钮。
+- Save → `prompts/<task>.md`
+- Reset → 写回 `core.prompts.DEFAULTS[task]`
+
+### Tab 3: 调用统计
+Treeview 显示每 provider 的 calls / errors / error_rate / last_used。
+
+---
+
+## Prompt Hub (`core/prompts.py`)
+
+```python
+from core import prompts as p
+
+p.get("translate")                        # 读 prompts/translate.md，缺则返回 DEFAULTS
+p.set("translate", new_text)              # 写文件
+p.reset("translate") -> str               # 写回 DEFAULTS 内置默认
+p.is_overridden("translate") -> bool      # 当前文件是否与 DEFAULTS 不同
+p.placeholders("translate") -> list[str]  # 文档化占位符
+p.list_tasks() -> dict_keys
+```
+
+双重存在：`prompts/<task>.md` 是用户编辑面，`DEFAULTS` 字典是 Reset 兜底。
+文件被删 → 自动 fallback 到 DEFAULTS。
+
+调用方约定：feature 层 `prompt = explicit_prompt or _prompts.get(task)`，
+即 `prompt=` 参数仍可外部覆盖（M7 等场景）。
+
+---
+
+## 数据模型
+
+`keys/providers.json`（auto 生成 + auto 迁移）：
+
+```json
+{
+  "providers":     {... LLM provider 配置（key_file / models / type / ...）},
+  "asr_providers": {... ASR provider 配置},
+  "tts_providers": {... TTS provider 配置},
+  "tier_routing":  {... 兼容旧字段，UI 已不用},
+  "task_routing":  {
+    "translate":         {"provider": "DeepSeek", "model": "deepseek-chat"},
+    "subtitle.segments": {"provider": "ClaudeCode", "model": "sonnet"},
+    "subtitle.refine":   {"provider": "ClaudeCode", "model": "sonnet"},
+    "subtitle.titles":   {"provider": "ClaudeCode", "model": "sonnet"},
+    "asr.transcribe":    {"provider": "lemonfox", "model": ""},
+    "tts.synthesize":    {"provider": "fish_audio", "model": ""}
+  }
 }
-
-result = router.complete_json(prompt, schema=SCHEMA, tier=TIER_STANDARD)
-# → {"translations": [{"index": 1, "text": "你好"}, ...]}
 ```
 
-Provider 被强制按 schema 返回 JSON，router 负责 parse。失败抛 `RuntimeError` 带原始输出片段。
+`task_routing` 是 flat schema：每个 task 单 (provider, model)。早期 M6 用 3-tier
+嵌套结构 `{task: {tier: cell}}`，redesign 后 `_migrate_task_routing` 在加载时
+自动 collapse 到 standard tier 的值。
 
-各 provider 的 JSON 实现策略：
+---
 
-- **Gemini** — 原生 `generation_config.response_schema`，schema 用 OpenAPI-style dict 直接传入。
-- **OpenAI 兼容** — `response_format={"type":"json_object"}`（DeepSeek 不支持 `json_schema` strict mode，只支持 object 模式）+ 把 schema JSON dump 到 system prompt 作为指令。
-- **ClaudeCode** — `claude -p --output-format json` 返回信封 `{"type":"result","result":"..."}`，`result` 字段是模型原始输出，router 在 prompt 里要求模型返回 JSON 后再 `json.loads` 一次拆出内层。
+## 当前实施状态 vs Phase 2 留位
 
-所有 provider 的输出都经过 `_strip_json_fence` 兜底剥 markdown ```json ... ``` 代码围栏。
+| 议题 | 当前状态 | Phase 2 / 未来 |
+|---|---|---|
+| 三层分层 | ✅ 强制落地 | — |
+| core.ai 门面 | ✅ complete / complete_json / asr / tts / describe / list_models / is_tts_sdk_available | — |
+| AI 控制台 | ✅ 三 tab：Provider+路由 / Prompts / 统计 | 加调用费用估算 / 错误率列 |
+| Task 命名空间 | ✅ translate / subtitle.* / asr / tts | 加 vision.* / embed.* / prompt.* |
+| Prompt hub | ✅ `prompts/*.md` + AI 控制台 Prompts tab | per-(task, provider) 变体 |
+| 错误契约 (X1) | ⚠️ AIError + 9 Kind 已定义但 provider 仍抛 RuntimeError | 给每 provider 写原生异常→Kind 映射；UI 加 Kind→动作按钮映射表 |
+| 取消传播 (X2) | ⚠️ CancellationToken 类已建，未 wire 到 provider HTTP abort | provider adapter 注册 abort_cb；feature 层 chunk 边界 throw_if_cancelled；UI 加取消按钮 |
+| 成本预估 (X3) | ✅ token 统计（无 $）| 永不做 $ 估算 |
+| 缓存 (X4) | ❌ no-op（API 留 `cache_hint=None` 位）| A 前缀缓存（Anthropic cache_control / Gemini Context Cache）+ B 客户端 SHA256 缓存 |
+| 流式 (X5) | ⚠️ chunk 级（feature 层分批回调）| token 级 + partial result 协议（callback 已"partial result ready"语义，向前兼容）|
+| 并发 (X6) | ❌ 串行（`max_concurrency=1`）| ThreadPoolExecutor + provider semaphore；`safe_concurrency` 字段已留 |
+| API Key 存储 | `keys/providers.json` 在仓库根 | 与 BACKLOG L17「用户数据绿色化」协同迁 `user_data/keys/` |
+| ASR / TTS Test | ❌ 按钮 disabled 占位 | bundle 1s 样本 wav；TTS 加 `test_voice_id` 字段 |
+| TTS Voice ID 收藏 | ❌ 每次手填 | 加常用 voice 库（独立 tab 或下拉）|
 
-## ClaudeCode subprocess 设计要点
+---
 
-- **无 API Key**：依赖本机 `claude` CLI 自己的登录态，不读 `keys/*.key`。`_has_auth()` 辅助让 `claude_code` 类型跳过 key 文件检查。
-- **默认关闭**（`enabled=False`）：用户必须在 Router Manager 显式勾选启用。
-- **prompt 走 stdin**：避开 Windows 命令行 ~32KB 长度上限，支持长批次翻译 prompt。
-- **`--permission-mode bypassPermissions`**：router 消费方只做纯文本/JSON 补全，不让模型用 Write/Edit，所以在本机跑安全。
-- **`FileNotFoundError` 友好包装**：如果 `claude` 不在 PATH，抛出提示用户安装并配置完整路径的 `RuntimeError`，而不是 Python traceback。
-- **自动回填**：`_normalize_providers()` 在启动时把 `_DEFAULT_PROVIDERS` 里的新增条目（如 ClaudeCode）写入老 `providers.json`，保证升级用户也能看到新 provider。
+## 错误契约（X1，未实施）
 
-与参考 Web Chat 工程的区别：那边用 `claude-agent-sdk` + `can_use_tool` 回调实现浏览器 modal 审批 mutating 工具，需要 ProactorEventLoop 补丁、SSE、approval Future、文件路径 sandbox。**本地 app 场景下这些全都不需要** —— VideoCraft 只要 headless `claude -p` 同步补全。
+落地时实施。**9 种 AIError.Kind**：
 
-## 消费方迁移现状
+| Kind | 含义 | 可重试 | 谁重试 |
+|---|---|---|---|
+| NETWORK | DNS / TCP / TLS / timeout | ✅ | core.ai（指数退避 1/2/4s）|
+| AUTH | Key 无效 / 过期 | ❌ | — |
+| QUOTA | 配额耗尽 | ❌ | — |
+| RATE_LIMIT | 瞬时过频 | ✅ | core.ai（按 Retry-After，上限 60s）|
+| REFUSED | 安全过滤拒绝 | ❌ | — |
+| MALFORMED | JSON schema 不合格 | ⚠️ | feature 层决定 |
+| OVERFLOW | 超 context window | ❌ | — |
+| CANCELLED | 用户主动取消 | ❌ | — |
+| UNKNOWN | 未分类 | ❌ | — |
 
-| 消费方 | API | 状态 |
-|--------|-----|------|
-| `tools/translate/translate_srt.py` | `complete_json` | ✅ 已迁移，用 `_TRANSLATE_SCHEMA` 约束 `{"translations":[{"index","text"}]}`，删除原 50 行 `【N】` 正则解析 |
-| `core/srt_ops.py`（标题/分段/描述润色） | `complete` | 保留纯文本路径 |
-| `tools/subtitle/srt_tools.py` | `complete` | 保留纯文本路径 |
-| `tools/text2video/text2video.py` | `complete` | 保留纯文本路径 |
+**AIError 结构**（`core/ai/errors.py` 已定义）：
+```python
+class AIError(Exception):
+    kind: Kind
+    provider: str
+    message: str
+    retry_after: float | None
+    raw: Exception | None
+```
 
-老 `complete()` API 不动，未迁移的消费方**零修改**继续工作。待翻译路径稳定运行一段时间后再决定是否把其他消费方跟进到 JSON 路径。
+**三层重试分工**：core.ai 管 transport（NETWORK/RATE_LIMIT），feature 管
+semantic（MALFORMED 重写 prompt、OVERFLOW 自动分块），UI 管 user
+（"重试"按钮）。
 
-## 翻译 JSON 路径的容错
+**UI 映射表**：每 Kind 配一条人话 + 推荐动作（如 AUTH → "打开 AI 控制台"）。
+Phase 1 各 provider 仍直接抛 RuntimeError；Phase 2 实施时一次性写 provider
+原生异常 → Kind 映射表。
 
-`translate_srt.py` 在 `complete_json` 失败或字幕数量不匹配时**按字幕行回退**：
+---
 
-- 整批次 JSON 调用失败 → 该批次所有字幕填充原文，继续下一批
-- 部分 `index` 缺失 → 缺失位置填充原文
-- 不抛异常到 UI，翻译任务不中断
+## 取消传播（X2，未 wire）
 
-原设计里的"模型乱加 markdown fence / 多余引号"等脆弱性问题在 JSON mode 下被 `_strip_json_fence` + 严格 schema 约束彻底消除。
+```python
+class CancellationToken:
+    def cancel(self): ...                    # UI 调
+    def throw_if_cancelled(self, provider): ...  # feature 层调
+    def register_abort(self, cb): ...        # provider adapter 调
+```
 
-## 管理 UI（`router_manager.py`）
+**取消语义 = 完全原子丢弃**，不保留半程产出。理由：translation 等
+context-coupled task 的半程数据会造成后续质量割裂（模型失去前半段
+建立的术语/语气约定，重跑得到风格不一致）。"独立批量任务"出现时再
+单独讨论恢复。
 
-三个标签页：
+**响应时间承诺**：provider 支持 HTTP abort 时 <1s；降级最差 30s
+等当前调用完成；兜底 60s 硬超时。
 
-1. **Provider & Key** —— 列出所有 provider（含 ASR / TTS）状态与启用开关。Edit 弹窗按 `type` 条件渲染：
-   - `gemini` / `openai_compatible` → API Key + （openai 额外）Base URL + 模型列表
-   - `claude_code` → 可执行路径 + 超时 + 模型列表 + 灰色提示（"需先 `claude login`，无需 API Key"）。**不**显示 API Key 和 Base URL
-2. **档位配置** —— 为 premium / standard / economy 三档分别选 Provider + Model 下拉
-3. **调用统计** —— Treeview 显示 calls / errors / error_rate / last_used
+---
+
+## 不做 $ 估算的理由
+
+- 无 provider 查价 API
+- 爬 provider 官网脆弱且违反 ToS
+- 内置价格表维护难过时
+- Provider 分层定价 / 缓存折扣 / 批处理折扣让 $ 数字 ±30% 误差
+- 用户自己最清楚自家账单（他们申请的 key）
+
+仅显示 token 数让用户自己换算；Router tab 永远不展示 $。
+
+---
 
 ## 历史
 
-- **Phase 1（2026-03）** — 三档路由 + Gemini / Groq / DeepSeek / Custom 四 provider；消费方 SrtTools / Translate-srt-gemini 迁移
-- **2026-04** — Groq 删除 + `complete_json` API + translate_srt 切 JSON schema + ClaudeCode subprocess provider 上线（Part A–F 六步实施，参见 commit 历史）
+- **2026-03 Phase 1** — 三档路由 + Gemini/Groq/DeepSeek/Custom；消费方
+  SrtTools / Translate-srt-gemini 迁移
+- **2026-04 上半** — Groq 删除 + `complete_json` API + translate_srt 切
+  JSON schema + ClaudeCode subprocess provider 上线
+- **2026-04 中（M1~M5）** — `core/ai/` 包脚手架 → translate / srt_ops /
+  asr / tts feature 层迁移；UI 全部走 core feature；旧 ai_router.py
+  压缩为 TIER_* shim
+- **2026-04 中（M6 + redesign）** — `RouterManagerWindow` Toplevel
+  替换为 `AIConsoleApp` Hub tab；功能 × 档位矩阵；试用后 collapse
+  tier 维度（task→provider+model 单选）；删 Enabled 勾子；加 Test +
+  Refresh 按钮
+- **2026-04 中（L16）** — Prompt hub：4 个 prompt 抽离到
+  `prompts/*.md`；AI 控制台 Prompts tab

@@ -4,7 +4,7 @@ Phase 1 defines the contract; providers still raise plain RuntimeError as
 before. Phase 7 will add provider-specific native-exception mapping so that
 feature/UI layers can branch on `e.kind`.
 
-UI mapping (see docs/draft/AIRouterAndCoreAPI.md): each Kind has a recommended
+UI mapping (see docs/design/04-ai-router.md): each Kind has a recommended
 action button that dispatches to the right remediation (AUTH -> open Router
 tab, QUOTA -> switch provider, etc.).
 """

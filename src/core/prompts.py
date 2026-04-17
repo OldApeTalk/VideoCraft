@@ -4,7 +4,7 @@ Every prompt is a markdown file under `<repo>/prompts/<task_id>.md`. The
 file content IS the prompt template, with `{placeholder}` substitution
 done by the caller via `str.format(**vars)`.
 
-Per architecture principle 4 (see docs/draft/AIRouterAndCoreAPI.md):
+Per architecture principle 4 (see docs/design/04-ai-router.md):
 prompts MUST NOT live in tool UIs. Feature layer (core/srt_ops, core/
 translate, ...) calls `prompts.get(task_id)` to fetch the template, then
 fills placeholders before passing to ai.complete().
@@ -14,8 +14,8 @@ Reset path: each task has a built-in default constant in this module
 target in the AI Console UI).
 
 Phase 1 limitations (intentional):
-  - Single prompt per task. Per-(task, provider) variants — discussed
-    in the AIRouterAndCoreAPI draft — are deferred.
+  - Single prompt per task. Per-(task, provider) variants are
+    deferred (Phase 2; see design doc).
   - Storage path is `<repo>/prompts/`; user override layer in
     `<repo>/user_data/prompts/` will land with BACKLOG L17 portable
     refactor. For now, edits write directly to the shipped path.

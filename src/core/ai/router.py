@@ -115,7 +115,7 @@ class AIRouter:
         be written against the API shape. Phase 7 will fill real data
         (max_input_tokens, supports_stream, supports_json, etc.).
 
-        Reserved fields (see docs/draft/AIRouterAndCoreAPI.md):
+        Reserved fields (see docs/design/04-ai-router.md):
             max_input_tokens:          int, default 0 (unknown)
             supports_json:             bool
             supports_stream:           bool, always False in Phase 1
