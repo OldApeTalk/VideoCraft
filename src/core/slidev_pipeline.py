@@ -19,7 +19,6 @@ import subprocess
 import shutil
 from typing import Callable
 
-from core.env_check import find_system_edge
 
 ProgressCallback = Callable[[int, int, str], None]  # (done, total, msg)
 
@@ -135,14 +134,8 @@ def ensure_node_env(
         if on_log:
             on_log("node_modules already installed, skipping npm install.")
 
-    # Step 2: browser setup.
-    # Prefer the system Edge (already installed on Windows 11, no download).
-    # Fall back to downloading Playwright Chromium only if Edge not found.
-    edge = find_system_edge()
-    if edge:
-        if on_log:
-            on_log(f"Using system Edge as Chromium browser: {edge}")
-    elif not _chromium_installed():
+    # Step 2: install Playwright Chromium into node_env/playwright-browsers/
+    if not _chromium_installed():
         pw = _playwright_bin()
         if pw is None:
             raise RuntimeError(
@@ -150,7 +143,7 @@ def ensure_node_env(
                 "Try deleting node_env/node_modules and retrying."
             )
         if on_log:
-            on_log("Edge not found. Downloading Chromium (~130 MB, one-time)...")
+            on_log("Downloading Playwright Chromium (~130 MB, one-time)...")
         _run_logged(
             [pw, "install", "chromium"],
             cwd=_NODE_ENV,
@@ -220,22 +213,15 @@ def export_slidev_to_png(
     pages_abs = os.path.abspath(pages_dir)
 
     env = os.environ.copy()
+    env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
 
-    # Build the export command. Use --executable-path (Slidev CLI flag) rather
-    # than PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH (env var) — the CLI flag is
-    # reliably forwarded to Playwright regardless of version.
     cmd = [
         slidev, "export",
         "--format", "png",
         "--output", pages_abs,
         "--timeout", "60000",   # 60 s per slide; prevents silent hangs
+        md_abs,
     ]
-    edge = find_system_edge()
-    if edge:
-        cmd += ["--executable-path", edge]
-    else:
-        env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
-    cmd.append(md_abs)
 
     if on_progress:
         on_progress(0, 1, "starting slidev export (launching browser)...")

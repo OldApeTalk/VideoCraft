@@ -67,15 +67,13 @@ def check_slidev() -> str | None:
 
 
 def check_browser() -> str | None:
-    """Return 'Edge (system)' or 'Chromium' or None."""
-    if find_system_edge():
-        return "Edge (system)"
+    """Return 'Chromium (playwright)' if the Playwright-managed Chromium is installed, else None."""
     if os.path.isdir(_BROWSERS_PATH) and any(
         d.startswith("chromium")
         for d in os.listdir(_BROWSERS_PATH)
         if os.path.isdir(os.path.join(_BROWSERS_PATH, d))
     ):
-        return "Chromium"
+        return "Chromium (playwright)"
     return None
 
 
