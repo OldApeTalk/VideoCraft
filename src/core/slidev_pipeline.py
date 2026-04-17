@@ -72,6 +72,13 @@ def _playwright_bin() -> str | None:
     return None
 
 
+def _playwright_chromium_pkg() -> bool:
+    """True if playwright-chromium npm package is installed (Slidev requires it)."""
+    return os.path.isdir(
+        os.path.join(_NODE_ENV, "node_modules", "playwright-chromium")
+    )
+
+
 def _chromium_installed() -> bool:
     """True if our own Playwright Chromium download exists."""
     return os.path.isdir(_BROWSERS_PATH) and any(
@@ -93,6 +100,7 @@ def _run_logged(cmd: list[str], cwd: str, env: dict,
     cmd = _wrap_cmd(cmd)
     proc = subprocess.Popen(
         cmd, cwd=cwd, env=env,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace",
     )
@@ -120,8 +128,9 @@ def ensure_node_env(
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
 
-    # Step 1: npm install (installs @slidev/cli + playwright npm package)
-    if _slidev_bin() is None:
+    # Step 1: npm install — also re-runs if playwright-chromium is missing,
+    # since Slidev's importPlaywright() requires that specific package.
+    if _slidev_bin() is None or not _playwright_chromium_pkg():
         if on_log:
             on_log("Installing @slidev/cli + playwright (npm install)...")
         _run_logged(
@@ -282,10 +291,16 @@ def run_step2_slidev(
     pages_dir = os.path.join(workdir, "pages")
     notes_dir = os.path.join(workdir, "notes")
 
-    if _slidev_bin() is None:
+    if _slidev_bin() is None or not _playwright_chromium_pkg():
         raise RuntimeError(
-            "Slidev CLI is not installed. "
-            "Go to File \u2192 Settings \u2192 Environment to install it."
+            "Slidev CLI or playwright-chromium is not installed. "
+            "Go to File \u2192 Settings \u2192 Environment and click Install."
+        )
+
+    if not _chromium_installed():
+        raise RuntimeError(
+            "Playwright Chromium browser is not installed. "
+            "Go to File \u2192 Settings \u2192 Environment and click Install."
         )
 
     # Notes extracted from .md (no Node needed)
