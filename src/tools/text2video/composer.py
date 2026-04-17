@@ -19,7 +19,6 @@ try:
 except ImportError:
     _PIL_OK = False
 
-import core.srt_from_text as _srt_gen
 import core.tts as _tts
 import core.video_compose as _vcompose
 import core.video_concat as _vconcat
@@ -235,13 +234,6 @@ class MediaSegmentComposerApp(ToolBase):
         ttk.Button(row, text=tr("composer.btn_gen_audio"),
                    command=lambda s=seg: self._generate_audio_single(s)).pack(side="left")
 
-        # Subtitle checkbox (project-wide)
-        sub_var = tk.BooleanVar(value=self._project.enable_subtitles)
-        ttk.Checkbutton(parent, text=tr("composer.enable_subtitles"),
-                        variable=sub_var,
-                        command=lambda v=sub_var: self._toggle_subtitles(v)
-                        ).pack(anchor="w", pady=(4, 2))
-
         ttk.Button(parent, text=tr("composer.btn_done"),
                    command=lambda s=seg: self._toggle_expand(s.id)
                    ).pack(anchor="e", pady=(6, 0))
@@ -281,10 +273,6 @@ class MediaSegmentComposerApp(ToolBase):
         if new_text != seg.text:
             seg.text = new_text
             self._schedule_save()
-
-    def _toggle_subtitles(self, var: tk.BooleanVar):
-        self._project.enable_subtitles = var.get()
-        self._schedule_save()
 
     def _pick_image(self, seg: MediaSegment):
         path = filedialog.askopenfilename(
@@ -465,22 +453,12 @@ class MediaSegmentComposerApp(ToolBase):
                     self.log(f"Skip segment {i + 1}: no image (PIL missing)")
                     continue
 
-                srt_path = None
-                if proj.enable_subtitles and seg.text.strip():
-                    srt_path = os.path.join(tmp_dir, f"{i:04d}.srt")
-                    try:
-                        _srt_gen.generate_srt_from_text(
-                            seg.text, seg.audio_path, srt_path)
-                    except Exception as e:
-                        self.log(f"  SRT skipped for #{i + 1}: {e}")
-                        srt_path = None
-
                 out_mp4 = os.path.join(tmp_dir, f"{i:04d}.mp4")
                 self.log(f"Composing #{i + 1}/{len(proj.segments)}…")
                 _vcompose.compose_chapter(
                     image=image,
                     audio=seg.audio_path,
-                    srt=srt_path,
+                    srt=None,
                     output=out_mp4,
                     width=proj.resolution[0],
                     height=proj.resolution[1],

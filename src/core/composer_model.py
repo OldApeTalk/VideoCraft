@@ -47,7 +47,6 @@ class MediaSegment:
 class ComposerProject:
     segments: list[MediaSegment] = field(default_factory=list)
     voice_id: str = ""
-    enable_subtitles: bool = True
     output_path: str = ""
     resolution: tuple[int, int] = (1920, 1080)
 
@@ -55,7 +54,6 @@ class ComposerProject:
         return {
             "segments": [s.to_dict() for s in self.segments],
             "voice_id": self.voice_id,
-            "enable_subtitles": self.enable_subtitles,
             "output_path": self.output_path,
             "resolution": list(self.resolution),
         }
@@ -65,7 +63,6 @@ class ComposerProject:
         return cls(
             segments=[MediaSegment.from_dict(s) for s in d.get("segments", [])],
             voice_id=d.get("voice_id", ""),
-            enable_subtitles=d.get("enable_subtitles", True),
             output_path=d.get("output_path", ""),
             resolution=tuple(d.get("resolution", [1920, 1080])),
         )

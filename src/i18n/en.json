@@ -962,7 +962,6 @@
   "composer.add_segment": "+ Add Segment",
   "composer.no_audio": "⚠ No audio",
   "composer.no_text": "(no text)",
-  "composer.enable_subtitles": "Generate subtitles from text",
   "composer.btn_edit": "Edit",
   "composer.btn_fold": "Collapse",
   "composer.btn_delete": "Delete",

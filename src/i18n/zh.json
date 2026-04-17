@@ -962,7 +962,6 @@
   "composer.add_segment": "+ 手动添加一段",
   "composer.no_audio": "⚠ 无音频",
   "composer.no_text": "（无文字）",
-  "composer.enable_subtitles": "从文字生成字幕",
   "composer.btn_edit": "编辑",
   "composer.btn_fold": "收起",
   "composer.btn_delete": "删除",
