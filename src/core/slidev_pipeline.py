@@ -220,12 +220,22 @@ def export_slidev_to_png(
     pages_abs = os.path.abspath(pages_dir)
 
     env = os.environ.copy()
+
+    # Build the export command. Use --executable-path (Slidev CLI flag) rather
+    # than PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH (env var) — the CLI flag is
+    # reliably forwarded to Playwright regardless of version.
+    cmd = [
+        slidev, "export",
+        "--format", "png",
+        "--output", pages_abs,
+        "--timeout", "60000",   # 60 s per slide; prevents silent hangs
+    ]
     edge = find_system_edge()
     if edge:
-        # Tell Playwright to use the existing system Edge instead of its own Chromium.
-        env["PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"] = edge
+        cmd += ["--executable-path", edge]
     else:
         env["PLAYWRIGHT_BROWSERS_PATH"] = _BROWSERS_PATH
+    cmd.append(md_abs)
 
     if on_progress:
         on_progress(0, 1, "starting slidev export (launching browser)...")
@@ -240,10 +250,7 @@ def export_slidev_to_png(
 
     try:
         _run_logged(
-            [slidev, "export",
-             "--format", "png",
-             "--output", pages_abs,
-             md_abs],
+            cmd,
             cwd=os.path.dirname(md_abs),
             env=env,
             on_log=_log,
