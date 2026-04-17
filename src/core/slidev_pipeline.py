@@ -55,8 +55,17 @@ def _find_npm() -> str:
     return npm
 
 
+_SLIDEV_MJS = os.path.join(
+    _NODE_ENV, "node_modules", "@slidev", "cli", "bin", "slidev.mjs"
+)
+
+
 def _slidev_bin() -> str | None:
     """Return path to local slidev binary if installed, else None."""
+    # Prefer the .mjs entry directly — avoids cmd /c argument-dropping bug
+    # where Windows cmd.exe ignores args after a quoted .cmd path.
+    if os.path.isfile(_SLIDEV_MJS):
+        return _SLIDEV_MJS
     for name in ("slidev.cmd", "slidev"):
         p = os.path.join(_NODE_ENV, "node_modules", ".bin", name)
         if os.path.isfile(p):
@@ -88,8 +97,15 @@ def _chromium_installed() -> bool:
 
 
 def _wrap_cmd(cmd: list[str]) -> list[str]:
-    """On Windows, .cmd files must be invoked via cmd /c to run correctly."""
-    if os.name == "nt" and cmd and cmd[0].lower().endswith(".cmd"):
+    """Resolve the correct executable for .cmd/.mjs scripts on Windows."""
+    if not cmd:
+        return cmd
+    first = cmd[0]
+    if first.lower().endswith(".mjs"):
+        # Invoke .mjs via node.exe — avoids cmd /c argument-dropping bug.
+        return [_find_node()] + cmd
+    if os.name == "nt" and first.lower().endswith(".cmd"):
+        # Fallback for other .cmd tools (e.g. npm, playwright).
         return ["cmd", "/c"] + cmd
     return cmd
 
