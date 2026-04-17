@@ -120,24 +120,12 @@ class TranslateApp(ToolBase):
         tk.Entry(master, textvariable=self.srt_path_var, width=50).grid(row=3, column=1, sticky="w")
         tk.Button(master, text=tr("tool.translate.browse"), command=self.select_srt).grid(row=3, column=2, padx=10)
 
-        # ── Row 4: Prompt 编辑 ─────────────────────────────────────────────────
-        tk.Label(master, text=tr("tool.translate.prompt_label")).grid(row=4, column=0, padx=10, pady=5, sticky="ne")
-        self.translate_prompt_text = tk.Text(master, height=10, width=50, wrap=tk.WORD)
-        self.translate_prompt_text.grid(row=4, column=1, columnspan=2, sticky="w", padx=(0, 10))
-        default_translate_prompt = """You are a professional SRT subtitle translator. Translate the following subtitles from {source_lang_name} to {target_lang_name}.
-
-The input is a batch of {batch_size} subtitles, each prefixed with a 【number】 marker to identify its position. Use the marker's number as the `index` in your response.
-
-Rules:
-1. Translate each subtitle independently. Do NOT merge, split, add, or remove subtitles — return exactly {batch_size} items.
-2. Preserve line breaks and punctuation within each subtitle.
-3. Do not wrap translations in quotation marks unless quotes are part of the original meaning.
-4. Ensure natural, fluent {target_lang_name}.
-
-Input subtitles (batch size = {batch_size}):
-{numbered_input}
-"""
-        self.translate_prompt_text.insert(tk.END, default_translate_prompt)
+        # ── Row 4: Prompt 提示 ─────────────────────────────────────────────────
+        # Per architecture principle 4 the prompt is not editable here;
+        # tune it via AI 控制台 → Prompts tab if needed.
+        tk.Label(master, text=tr("tool.translate.prompt_managed_hint"),
+                 fg="gray", font=("Arial", 8), wraplength=560, justify="left",
+                 ).grid(row=4, column=0, columnspan=3, sticky="w", padx=10, pady=(2, 0))
 
         # ── Row 5: 翻译按钮 ────────────────────────────────────────────────────
         self.trans_btn = tk.Button(master, text=tr("tool.translate.btn_start"),
@@ -157,8 +145,7 @@ Input subtitles (batch size = {batch_size}):
         if path:
             self.srt_path_var.set(path)
 
-    def _run_translation(self, srt_path, source_lang, target_lang,
-                         custom_prompt, batch_size):
+    def _run_translation(self, srt_path, source_lang, target_lang, batch_size):
         """Worker thread: delegate to core.translate, post status to main thread."""
         from i18n import tr as _tr
 
@@ -177,7 +164,6 @@ Input subtitles (batch size = {batch_size}):
                 srt_path,
                 source_lang=source_lang,
                 target_lang=target_lang,
-                custom_prompt=custom_prompt,
                 batch_size=batch_size,
                 progress_cb=on_progress,
                 log_cb=print,
@@ -193,11 +179,6 @@ Input subtitles (batch size = {batch_size}):
             finish()
 
     def translate_srt(self):
-        custom_prompt = self.translate_prompt_text.get("1.0", tk.END).strip()
-        if not custom_prompt:
-            self.status_var.set("⚠ 请输入Prompt提示语")
-            return
-
         srt_path    = self.srt_path_var.get()
         source_lang = get_lang_code(self.source_lang_var.get())
         target_lang = get_lang_code(self.target_lang_var.get())
@@ -217,7 +198,7 @@ Input subtitles (batch size = {batch_size}):
 
         threading.Thread(
             target=self._run_translation,
-            args=(srt_path, source_lang, target_lang, custom_prompt, batch_size),
+            args=(srt_path, source_lang, target_lang, batch_size),
             daemon=True
         ).start()
 

@@ -12,65 +12,9 @@ import re
 import srt
 
 from core import ai
+from core import prompts as _prompts
 from core.ai.tiers import TIER_PREMIUM
 from core.subtitle_ops import read_srt
-
-
-# ── Default prompts ──────────────────────────────────────────────────────────
-# Inlined here as the single source of truth for each task. The L16 Prompt
-# hub will eventually load these from prompts/*.md and pass them through the
-# same call sites, so the function signatures stay stable.
-
-_DEFAULT_SEGMENTS_PROMPT = """# 生成时间戳分段
-
-【
-
-1、你知道youtube的视频分段的格式吧？请学习这种分段格式：
-
-xx:xx 标题
-
-xx:xx 标题
-
-xx:xx 标题
-
-2、请根据srt字幕内容，生成youtube分段描述（中文）
-
-3、如有记者提问，优先以记者提问内容作为标题
-
-4、时:分:秒，这是时间戳的基本格式，不要弄错了
-
-】
-
-以下是SRT字幕内容：
-
-{subtitle_content}
-
-请根据以上字幕内容生成YouTube分段描述，格式为每行一个分段，格式为：时:分:秒 标题"""
-
-
-_DEFAULT_REFINE_PROMPT = """## 精炼全部分段
-
-【
-请一次性对全部分段内容进行总结提炼，每个段落提炼后不超过128个字。
-对于问答段落，保留精炼后的问题和回答，保持问答说话人的视角，不要改为第三方转述。
-输出格式为：
-时间戳 标题
-精炼内容
-
-分段之间空一行，不要添加解释。
-】
-
-以下是全部分段内容：
-{all_segments_content}
-"""
-
-
-_DEFAULT_TITLES_PROMPT = """## 生成标题
-
-【
-给这个视频起个合适的名字，新闻性十足、概括核心焦点，稍微长些没关系
-
-】"""
 
 
 # ── Subtitle → plain text helpers ────────────────────────────────────────────
@@ -197,7 +141,7 @@ def generate_youtube_segments(srt_path, prompt=None, tier=None):
         content = sub.content.replace('\n', ' ')
         subtitle_content += f'[{time_str}] {content}\n'
 
-    template = prompt if prompt is not None else _DEFAULT_SEGMENTS_PROMPT
+    template = prompt if prompt is not None else _prompts.get("subtitle.segments")
     final_prompt = template.replace("{subtitle_content}", subtitle_content)
 
     _tier = tier or TIER_PREMIUM
@@ -277,7 +221,7 @@ def generate_video_titles(subs_path, prompt=None, tier=None):
         AI-generated title text.
     """
     subs_content = read_srt(subs_path)
-    base_prompt = prompt if prompt is not None else _DEFAULT_TITLES_PROMPT
+    base_prompt = prompt if prompt is not None else _prompts.get("subtitle.titles")
     full_prompt = (
         f"{base_prompt}\n\n"
         f"以下是视频的分段描述内容：\n\n{subs_content}\n\n"
@@ -351,7 +295,7 @@ def refine_segment_descriptions(paragraphs_path, prompt=None, tier=None):
         )
     all_segments_content = '\n'.join(combined_segments).strip()
 
-    template = prompt if prompt is not None else _DEFAULT_REFINE_PROMPT
+    template = prompt if prompt is not None else _prompts.get("subtitle.refine")
 
     full_prompt = template
     full_prompt = full_prompt.replace('{all_segments_content}', all_segments_content)

@@ -19,6 +19,7 @@ from typing import Callable
 import srt
 
 from core import ai
+from core import prompts as _prompts
 from core.ai.tiers import TIER_STANDARD
 from core.subtitle_ops import read_srt
 
@@ -206,7 +207,7 @@ def translate_srt_file(
     *,
     source_lang: str,
     target_lang: str,
-    custom_prompt: str,
+    custom_prompt: str | None = None,
     batch_size: int = 100,
     tier: str = TIER_STANDARD,
     progress_cb: Callable[[int, int, str], None] | None = None,
@@ -218,8 +219,11 @@ def translate_srt_file(
         srt_path:      Path to input .srt file.
         source_lang:   ISO code of source language ("en", "auto", ...).
         target_lang:   ISO code of target language.
-        custom_prompt: Prompt template with placeholders — {source_lang_name},
-                       {target_lang_name}, {batch_size}, {numbered_input}.
+        custom_prompt: Optional prompt template override. When None (the
+                       normal case), loads `prompts.get("translate")` from
+                       the Prompt hub. Placeholders the template must
+                       contain: {source_lang_name}, {target_lang_name},
+                       {batch_size}, {numbered_input}.
         batch_size:    Subtitles per AI call. Defaults to 100.
         tier:          "premium" | "standard" | "economy".
         progress_cb:   Optional (done_batches, total_batches, status_msg)
@@ -241,6 +245,8 @@ def translate_srt_file(
                            completes with a partial translation.
     """
     subs = list(srt.parse(read_srt(srt_path)))
+
+    template = custom_prompt if custom_prompt is not None else _prompts.get("translate")
 
     source_lang_name = SUPPORTED_LANGUAGES.get(source_lang, ('Unknown', '未知'))[0]
     target_lang_name = SUPPORTED_LANGUAGES.get(target_lang, ('Unknown', '未知'))[0]
@@ -273,7 +279,7 @@ def translate_srt_file(
         cur_batch_size  = len(batch_contents)
         numbered_input  = '\n\n'.join(batch_contents)
 
-        prompt = (custom_prompt
+        prompt = (template
                   .replace("{source_lang_name}", source_lang_name)
                   .replace("{target_lang_name}", target_lang_name)
                   .replace("{batch_size}", str(cur_batch_size))
