@@ -28,7 +28,6 @@ class PreferencesApp(ToolBase):
         master.title(tr("tool.preferences.title"))
         master.geometry("700x860")
         master.resizable(True, True)
-        master.minsize(580, 600)
 
         # Scrollable root
         canvas = tk.Canvas(master, highlightthickness=0)
