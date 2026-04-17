@@ -1,5 +1,26 @@
 # AI Router tab 化 + core.ai 统一门面
 
+> **STATUS（2026-04-17）**：核心已上线。BACKLOG L15 + L16 关闭。
+>
+> **已交付**：
+> - core/ai 三层分层 + 统一门面（M1~M5）
+> - AIConsoleApp Hub tab 替代旧 Toplevel（M6）
+> - 路由模型在 redesign 中**简化**：取消 tier 维度，从「功能 × 档位」矩阵改为「task × provider+model」单选；TranslateApp 的高/中/低 radiobutton 移除；Enabled 勾子移除（has_auth 即可用）
+> - Test 按钮（LLM 真测）+ 从 API 刷新模型列表（Gemini / OpenAI-compat）
+> - Prompt hub（L16）：`prompts/*.md` + `core.prompts` API + AI 控制台 Prompts tab
+>
+> **未交付（架构留位 / Phase 2 议题）**：
+> - **错误契约 (X1, M7)**：9 种 AIError.Kind 的 provider 异常映射；目前各 provider 仍直接抛 RuntimeError
+> - **取消传播 (X2)**：CancellationToken HTTP abort 真实接入；目前框架已建好但未 wire
+> - **缓存层 (X4)**：A 前缀缓存 + B 完全响应缓存，API 留位 cache_hint=None
+> - **流式 (X5)**：token 级流式，目前只有 chunk 级
+> - **并发 (X6)**：feature 层并发；目前固定串行
+> - **per-provider prompt 变体**：当前 prompt hub 是 task→单 prompt
+> - **ASR/TTS 真测试**：需要样本 wav / voice_id，目前按钮 disabled 占位
+> - **TTS Voice ID 收藏**：未实现，留待后续
+>
+> 下文是当初 draft 的设计内容，**保留作历史参考**，部分 schema（如 3-tier 矩阵）已被 redesign 替换。
+
 ## 目标
 
 VideoCraft 目前所有 AI 能力（文本 LLM、ASR、TTS）散落在各个工具模块里各自调 SDK / API / Router。本 draft 提出一揽子架构升级，作为长期 AI 架构基础 — 所有重度依赖 AI 的功能（PPT2Video、字幕工作台、翻译等）都建立在这一层上。
