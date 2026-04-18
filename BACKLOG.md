@@ -50,6 +50,7 @@
 
 | 完成时间 | 功能 | 备注 |
 |---------|------|------|
+| 2026-04-18 | subprocess 编码统一 | Windows 下 text-mode subprocess 默认走 GBK，ffmpeg/ffprobe 输出含非 ASCII UTF-8 字节（如 0xb4）时 `_readerthread` 抛 `UnicodeDecodeError`；异常死在线程里被吞掉，表面功能无感但 stdout/stderr 内容静默丢失，对依赖输出解析的调用（ffprobe 时长/JSON、分辨率探测、ffmpeg stderr 诊断）是未爆雷。统一 13 处 text-mode 调用点为 `encoding="utf-8", errors="replace"`，对齐 slidev_pipeline / video_concat 等新代码风格。commit 075a1cb |
 | 2026-04 | Prompt 集中管理（L16 closed）| 4 个 prompt 抽离到 `prompts/*.md`：translate / subtitle.{segments,refine,titles}。新建 `core/prompts.py` 提供 get/set/reset/is_overridden API（DEFAULTS 内置作 Reset 兜底）。core/srt_ops.py 删 50+ 行硬编码常量；core/translate.py 改 hub 加载；TranslateApp UI 删 prompt Text 编辑框（架构原则 4 落实）。AI 控制台新增 Prompts tab：左 task 列表（被改的 ● 标记） + 右 Text 编辑器 + 占位符提示 + Save / Reset。i18n +11 keys（zh/en 882 对称）|
 | 2026-04 | AI 架构重构：core/ai 门面 + AI 控制台 + 路由矩阵（L15 closed） | 三阶段交付：① M1~M5 把 LLM/ASR/TTS 全部 AI 调用收拢到 `core/ai/`（router + providers/* + facade），UI 层一律走 core feature 不直 import SDK；② M6 把旧 Toplevel `RouterManagerWindow` 改造为 Hub tab `AIConsoleApp`，引入「功能 × 档位」矩阵；③ 试用后 redesign：取消 tier 维度（数据 schema 压扁、TranslateApp 删高/中/低 radiobutton）、Keys+Matrix 合并单 tab、删 Enabled 勾子、加 Test 按钮（LLM）+「从 API 刷新」模型列表（Gemini / OpenAI-compat）。架构契约（AIError 9 种 Kind / CancellationToken / describe / cache / streaming / concurrency）暂留 stub，详见 [docs/design/04-ai-router.md](docs/design/04-ai-router.md) |
 | 2026-04 | 视频分割后端统一 + splitvideo 旧入口清理 | 新建 `core/video_split.py`：`SplitMode` 枚举（fast / keyframe_snap / accurate）+ `probe_keyframes()` 带 (path, mtime) 缓存 + `split_one()` 统一入口；`core/video_concat.split_segments()` 加 `mode` 参数（默认 `KEYFRAME_SNAP`）；综合工作台 UI 新增"分割模式"下拉 + 悬停 tooltip + 探测关键帧状态提示；删除 `tools/video/split_video.py` 整文件 + Hub TOOL_MAP / 菜单 / 右键 Operation 的 splitvideo 引用；i18n 同步 zh/en 双语（删 19 键 + 增 8 键，仍保持 875 对 875 对称）。`extract-clip` / `auto-split` 两入口按用户决策保留，跟进项已转为 P2 |
@@ -95,6 +96,7 @@
 
 | 需求 | 说明 |
 |------|------|
+| subprocess 编码规范持续观察 | 2026-04-18 统一修过 13 处 text-mode 调用点后，后续新增外部进程调用须显式传 `encoding="utf-8", errors="replace"`（或等价 `errors="ignore"`）。观察点：(a) 是否还冒出新的 `_readerthread UnicodeDecodeError` / `Thread-N` 报错；(b) 新贡献者是否漏加编码参数；(c) 若反复出问题，考虑抽 `core/shell.py` 统一 wrapper 强制默认值。当前刻意不做 wrapper，先观察几个版本 |
 | 全工程中文注释英文化 | 将所有 .py 文件中的中文注释统一改为英文，提升代码可读性与国际化 |
 | 开发规范文档整理 | 代码风格、文档规则、命名规范等，待产品稳定后统一整理 |
 | 字幕文件命名规则优化 | ASR/翻译产出的中英文 SRT 文件名存在可读性或冲突问题，需要重新梳理命名规则（哪些后缀表示哪种语言/阶段、与烧录输出如何区分） |
