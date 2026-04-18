@@ -34,7 +34,7 @@ def find_system_edge() -> str | None:
 
 def _run_version(cmd: list[str]) -> str | None:
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        r = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=5)
         if r.returncode == 0:
             return (r.stdout.strip() or r.stderr.strip()) or None
     except Exception:

@@ -85,7 +85,8 @@ def _get_video_resolution(video_path: str) -> tuple[int, int]:
              "-of", "csv=s=x:p=0",
              video_path],
             stderr=subprocess.DEVNULL,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         ).strip()
         w, h = out.split("x")
         return int(w), int(h)

@@ -1060,7 +1060,7 @@ class AudioVideoApp(ToolBase):
             r = subprocess.run(
                 ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                  '-of', 'default=noprint_wrappers=1:nokey=1', path],
-                capture_output=True, text=True, check=True)
+                capture_output=True, encoding="utf-8", errors="replace", check=True)
             return float(r.stdout.strip())
         except Exception:
             return 0.0
@@ -1403,7 +1403,7 @@ class DailyNewsApp(ToolBase):
             r = subprocess.run(
                 ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                  '-of', 'default=noprint_wrappers=1:nokey=1', path],
-                capture_output=True, text=True, check=True)
+                capture_output=True, encoding="utf-8", errors="replace", check=True)
             return float(r.stdout.strip())
         except Exception:
             return 0.0

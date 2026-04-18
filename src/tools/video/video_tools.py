@@ -118,7 +118,7 @@ def get_video_duration(input_video):
     cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
            '-of', 'default=noprint_wrappers=1:nokey=1', input_video]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+        result = subprocess.run(cmd, capture_output=True, encoding='utf-8', errors='replace')
         duration = float(result.stdout.strip())
         return duration
     except:
@@ -132,7 +132,7 @@ def get_keyframe_times(input_video):
            '-show_entries', 'packet=pts_time,flags', 
            '-of', 'csv=print_section=0', input_video]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+        result = subprocess.run(cmd, capture_output=True, encoding='utf-8', errors='replace')
         keyframes = []
         for line in result.stdout.strip().split('\n'):
             parts = line.split(',')

@@ -71,7 +71,7 @@ def get_video_resolution(video_path):
     try:
         cmd = ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
                '-show_entries', 'stream=width,height', '-of', 'csv=p=0', video_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=10)
         if result.returncode == 0:
             width, height = map(int, result.stdout.strip().split(','))
             return width, height
@@ -441,11 +441,11 @@ class SubtitleToolApp(ToolBase):
         try:
             cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                    '-of', 'default=noprint_wrappers=1:nokey=1', file_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=10)
             if result.returncode != 0:
                 cmd2 = ['ffprobe', '-i', file_path, '-v', 'quiet',
                         '-print_format', 'json', '-show_format']
-                result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=10)
+                result2 = subprocess.run(cmd2, capture_output=True, encoding="utf-8", errors="replace", timeout=10)
                 if result2.returncode == 0:
                     duration_str = json.loads(result2.stdout)['format']['duration']
                 else:
@@ -931,7 +931,7 @@ class SubtitleToolApp(ToolBase):
     def _run_ffmpeg(self, cmd, output_path, temp_sub1, temp_sub2, orig_sub1, orig_sub2):
         start_time = time.time()
         try:
-            process = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, encoding='utf-8')
+            process = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
             duration_pattern = re.compile(r'Duration: (\d+):(\d+):(\d+\.\d+)')
             time_pattern     = re.compile(r'time=(\d+):(\d+):(\d+\.\d+)')
             total_duration   = self.video_duration if self.video_duration > 0 else None
