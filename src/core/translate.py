@@ -254,11 +254,16 @@ def translate_srt_file(
     if log_cb:
         log_cb(f"准备翻译 {len(subs)} 条字幕")
 
-    subtitle_contents = [f"【{i+1}】{sub.content}" for i, sub in enumerate(subs)]
-    batches = [
-        {'start_idx': i, 'contents': subtitle_contents[i:i + batch_size]}
-        for i in range(0, len(subtitle_contents), batch_size)
-    ]
+    # Number markers are batch-local (1..cur_batch_size) so the model's
+    # returned `index` maps directly to a slot inside the current batch.
+    # Using a global numbering here would break batches after the first,
+    # because the matcher below treats `index` as batch-local.
+    raw_contents = [sub.content for sub in subs]
+    batches = []
+    for i in range(0, len(raw_contents), batch_size):
+        slice_ = raw_contents[i:i + batch_size]
+        numbered = [f"【{j+1}】{text}" for j, text in enumerate(slice_)]
+        batches.append({'start_idx': i, 'contents': numbered})
     total = len(batches)
 
     if log_cb:
