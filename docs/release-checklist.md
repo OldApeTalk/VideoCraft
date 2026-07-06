@@ -37,10 +37,10 @@
 - [ ] ⚠️ **tag 必须等于 `desktop/package.json` 的版本**（installer 版本取自 package.json，对不上 CI fail fast）。
 - [ ] `git tag -a vX.Y.Z -m "<release note>"` → `git push origin <branch>` → `git push origin vX.Y.Z`。
 
-## 5. CI → 草稿 Release → publish（见 [`packaging.md`](packaging.md) §4.5-4.7）
+## 5. CI → 草稿 Release → 人工 publish（见 [`packaging.md`](packaging.md) §4.5-4.7）
 - [ ] tag 触发 `.github/workflows/build-windows.yml`；`gh run watch <run-id> -R dosmoon/VideoCraft --exit-status` 盯到绿。
 - [ ] GitHub → Releases 草稿：把 `--generate-notes` 初稿替换为**中英双语** release note，核对挂载的 `*-setup.exe` + `.blockmap`。
-- [ ] 点 **Publish release** 才公开（不发就删草稿，从未对外）。
+- [ ] **停在草稿状态**，等待负责人验包确认；由负责人在 GitHub 页面**手动点 Publish release** 才公开（不发就删草稿，从未对外）。
 
 ## 6. 收尾
 - [ ] 更新 [`task.md`](task.md)：记 `vX.Y.Z` 已发布（精简接力指针）。
