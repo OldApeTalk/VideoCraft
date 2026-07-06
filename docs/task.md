@@ -5,7 +5,13 @@
 
 ---
 
-## ✅ 当前状态(2026-06-27) = v0.3.7 已发布（TTS 配音）
+## ✅ 当前状态(2026-07-06) = v0.3.8 已发布（源视频 MP3）
+
+> 本轮(2026-07-06)：① **切发布 v0.3.8**（PATCH）——源视频详情页新增 MP3 抽取/播放/快速定位；重新生成后音频控件用 mtime cache-buster 刷新；yt-dlp bump 到 `2026.7.4`；版本号三处对齐（`desktop/package.json` + `pyproject.toml` + `src/__init__.py`）并 `uv lock` 同步。② 验证：`pytest tests` = 163 passed；desktop typecheck 通过；`build_sidecar.ps1` 冻结 + HTTP smoke OK；`fetch_ffmpeg.ps1` 幂等；`generate_build_info.ps1` OK；本地 `pnpm -C desktop build:win` 产出 `VideoCraft-0.3.8-setup.exe`；CI run `28799944951` 绿。③ tag `v0.3.8` → 草稿 Release 双语 notes → **已 publish**（2026-07-06 14:46 UTC，<https://github.com/dosmoon/VideoCraft/releases/tag/v0.3.8>）。⏸ `d:\tmp\e2e_ytdlp.py` 本机不存在，安装器真机手点未在本会话执行；真签名仍 deferred（需证书）。
+
+---
+
+## 📦 上轮(2026-06-27) = v0.3.7 已发布（TTS 配音）
 
 > 本轮(2026-06-27)：① **切发布 v0.3.7**（PATCH）——版本号三处对齐（`desktop/package.json` 权威 + `pyproject.toml` + `src/__init__.py`，并修了 `__init__.py` 里误导的 "single source of truth" 注释）；yt-dlp 已 latest（2026.6.9）无需 bump；`uv lock` 同步项目版本；pytest 163 全绿。tag `v0.3.7` → CI 绿 → 草稿 Release（双语 notes）→ **已 publish**（2026-06-27 13:31 UTC，<https://github.com/dosmoon/VideoCraft/releases/tag/v0.3.7>）。⏸ 真签名仍 deferred（需证书）。
 > ② **新增统一发布单** [`release-checklist.md`](release-checklist.md)：把散在 versioning / packaging §4 / packaging-design §10 的发布步骤合成一份可勾选驱动单（只列 action + 链回权威源），packaging.md §4 加互链。
