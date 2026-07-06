@@ -58,6 +58,7 @@ describe("NewsVideoModel", () => {
     expect(m.sourceDir).toBe(`${INST}/source`);
     expect(m.subtitlesDir).toBe(`${INST}/subtitles`);
     expect(m.sourceVideoPath).toBe(`${INST}/source/video.mp4`);
+    expect(m.sourceAudioPath).toBe(`${INST}/source/audio.mp3`);
     expect(m.subtitlePath("zh")).toBe(`${INST}/subtitles/zh.srt`);
   });
 
@@ -149,9 +150,11 @@ describe("NewsVideoModel", () => {
     const m = new NewsVideoModel(fs, INST);
     expect(await m.getArtifact("source")).toBeNull(); // absent
     fs.files.set(m.sourceVideoPath, "v");
+    fs.files.set(m.sourceAudioPath, "a");
     fs.files.set(`${INST}/subtitles/zh.srt`, "1\n");
     fs.files.set(`${INST}/subtitles/zh.hotclips.json`, "{}");
     expect(await m.getArtifact("source")).toBe(m.sourceVideoPath);
+    expect(await m.getArtifact("source_audio")).toBe(m.sourceAudioPath);
     expect(await m.getArtifact("subtitle:zh")).toBe(`${INST}/subtitles/zh.srt`);
     expect(await m.getArtifact("analysis:zh:hotclips")).toBe(`${INST}/subtitles/zh.hotclips.json`);
     expect(await m.getArtifact("analysis:zh:nope")).toBeNull(); // unknown kind

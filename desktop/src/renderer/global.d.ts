@@ -81,6 +81,7 @@ interface VcApi {
     outDir: string;
     segments: { name: string; startSec: number; durationSec: number }[];
   }): Promise<{ written: string[]; failed: { name: string; error: string }[] }>;
+  extractMp3(params: { inputPath: string; outputPath: string }): Promise<string>;
   showInFolder(absPath: string): Promise<void>;
   openPath(absPath: string): Promise<string>;
   openExternal(url: string): Promise<void>;

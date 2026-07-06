@@ -17,12 +17,15 @@
 import type { Fs } from "../../renderer/ipc/fs";
 
 export const SOURCE_VIDEO_FILENAME = "video.mp4";
+export const SOURCE_AUDIO_FILENAME = "audio.mp3";
 export const SOURCE_META_FILENAME = "meta.json";
 
 export const sourceDir = (instanceDir: string): string => `${instanceDir}/source`;
 export const subtitlesDir = (instanceDir: string): string => `${instanceDir}/subtitles`;
 export const sourceVideoPath = (instanceDir: string): string =>
   `${sourceDir(instanceDir)}/${SOURCE_VIDEO_FILENAME}`;
+export const sourceAudioPath = (instanceDir: string): string =>
+  `${sourceDir(instanceDir)}/${SOURCE_AUDIO_FILENAME}`;
 export const sourceMetaPath = (instanceDir: string): string =>
   `${sourceDir(instanceDir)}/${SOURCE_META_FILENAME}`;
 

@@ -70,6 +70,10 @@ const api = {
   }): Promise<{ written: string[]; failed: { name: string; error: string }[] }> {
     return ipcRenderer.invoke("vc:splitChapters", params);
   },
+  /** Extract source video audio into an MP3 file. */
+  extractMp3(params: { inputPath: string; outputPath: string }): Promise<string> {
+    return ipcRenderer.invoke("vc:extractMp3", params);
+  },
   /** Reveal a file in the OS file manager. */
   showInFolder(absPath: string): Promise<void> {
     return ipcRenderer.invoke("vc:showInFolder", absPath);

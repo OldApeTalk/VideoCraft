@@ -38,6 +38,7 @@ import {
 } from "./schema";
 import {
   sourceDir,
+  sourceAudioPath,
   sourceMetaPath,
   sourceStatus,
   sourceVideoPath,
@@ -122,6 +123,9 @@ export class NewsVideoModel {
   }
   get sourceVideoPath(): string {
     return sourceVideoPath(this.instanceDir);
+  }
+  get sourceAudioPath(): string {
+    return sourceAudioPath(this.instanceDir);
   }
   get sourceMetaPath(): string {
     return sourceMetaPath(this.instanceDir);
@@ -343,6 +347,7 @@ export class NewsVideoModel {
   /** Resolve an artifact key to an absolute file path; null if absent.
    *
    *   source                  → source/video.mp4
+   *   source_audio            → source/audio.mp3
    *   source_meta             → source/meta.json
    *   basic_info              → source/basic_info.json
    *   context                 → source/context.json
@@ -357,6 +362,7 @@ export class NewsVideoModel {
 
   private artifactPath(key: string): string | null {
     if (key === "source") return this.sourceVideoPath;
+    if (key === "source_audio") return this.sourceAudioPath;
     if (key === "source_meta") return this.sourceMetaPath;
     if (key === "basic_info") return basicInfoPath(this.sourceDir);
     if (key === "context") return contextPath(this.sourceDir);

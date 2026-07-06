@@ -41,6 +41,7 @@ const MEDIA_MIME: Record<string, string> = {
   ".webm": "video/webm",
   ".mkv": "video/x-matroska",
   ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg",
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -466,6 +467,12 @@ ipcMain.handle("vc:ffmpegEncode:finish", (_e, id: number) => ffmpeg.finishJob(id
 ipcMain.handle("vc:ffmpegEncode:abort", (_e, id: number) => ffmpeg.abortJob(id));
 // Publish-side per-chapter split: stream-copy the rendered mp4 into chapters/*.mp4.
 ipcMain.handle("vc:splitChapters", (_e, params: ffmpeg.SplitChaptersParams) => ffmpeg.splitChapters(params));
+ipcMain.handle("vc:extractMp3", (_e, params: ffmpeg.ExtractMp3Params) =>
+  ffmpeg.extractMp3({
+    inputPath: assertInProject(params.inputPath),
+    outputPath: assertInProject(params.outputPath),
+  }),
+);
 
 // ── vc:fs:* — generic project-scoped file I/O (ADR-0008) ─────────────────────
 // readJson/readText/list/stat degrade to null/[]/{exists:false} on a missing

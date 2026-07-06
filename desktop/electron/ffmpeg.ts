@@ -220,6 +220,11 @@ export interface SplitChaptersResult {
   failed: { name: string; error: string }[];
 }
 
+export interface ExtractMp3Params {
+  inputPath: string;
+  outputPath: string;
+}
+
 /** Run an ffmpeg invocation to completion, capturing the stderr tail. */
 function runFfmpeg(ff: string, args: string[]): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve) => {
@@ -276,6 +281,29 @@ export async function splitChapters(p: SplitChaptersParams): Promise<SplitChapte
     }
   }
   return { written, failed };
+}
+
+/** Extract the source video's audio track to a project-local MP3 file. */
+export async function extractMp3(p: ExtractMp3Params): Promise<string> {
+  const ff = resolveFfmpeg();
+  if (!ff) throw new Error("ffmpeg not found");
+  await mkdir(dirname(p.outputPath), { recursive: true });
+  const tmp = p.outputPath + ".part";
+  const args = [
+    "-y", "-hide_banner", "-loglevel", "error",
+    "-i", p.inputPath,
+    "-vn",
+    "-codec:a", "libmp3lame",
+    "-q:a", "2",
+    "-f", "mp3", tmp,
+  ];
+  const r = await runFfmpeg(ff, args);
+  if (r.code !== 0) {
+    await rm(tmp).catch(() => {});
+    throw new Error(r.stderr || `ffmpeg exited ${r.code}`);
+  }
+  await rename(tmp, p.outputPath);
+  return p.outputPath;
 }
 
 /** Kill every live job (app quit). */

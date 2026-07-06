@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { sourceAudioPath } from "@materials/news_video/paths.js";
 import { rpc, RpcError, type AcquireSource, type SourceMeta } from "../../ipc/client";
 import { useJob } from "../../ipc/runJob";
 import { tr } from "../../i18n/tr";
@@ -44,6 +45,10 @@ function fmtDuration(sec?: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${m}:${String(ss).padStart(2, "0")}`;
 }
 
+function fmtNativeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 const INPUT: React.CSSProperties = {
   padding: "4px 8px",
   background: "#1a1a1e",
@@ -66,11 +71,30 @@ const BTN_GHOST: React.CSSProperties = {
   background: "#2a2a2e",
   color: "#ddd",
 };
+const ROW_BTN: React.CSSProperties = {
+  background: "#2a2a2e",
+  color: "#ccc",
+  border: "1px solid #3a3a40",
+  borderRadius: 4,
+  padding: "1px 6px",
+  fontSize: 12,
+  cursor: "pointer",
+};
+const PATH_TEXT: React.CSSProperties = {
+  color: "#ddd",
+  fontSize: 12,
+  wordBreak: "break-all",
+};
 
 export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTabProps) {
   const [meta, setMeta] = useState<SourceMeta | null>(null);
   const [filled, setFilled] = useState(false);
   const [srcUrl, setSrcUrl] = useState("");
+  const [sourcePath, setSourcePath] = useState("");
+  const [mp3Path, setMp3Path] = useState("");
+  const [mp3Mtime, setMp3Mtime] = useState<number | null>(null);
+  const [mp3Busy, setMp3Busy] = useState(false);
+  const [mp3Error, setMp3Error] = useState("");
   const [mode, setMode] = useState<"local" | "link">("local");
   const [url, setUrl] = useState("");
   const [useRange, setUseRange] = useState(false);
@@ -92,9 +116,21 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
       setFilled(isFilled);
       if (isFilled) {
         const path = await rpc.getArtifact(type, instance, "source");
+        setSourcePath(path ?? "");
         setSrcUrl(path ? window.vc.mediaUrl(path) : "");
+        const audioPath = await rpc.getArtifact(type, instance, "source_audio");
+        setMp3Path(audioPath ?? "");
+        if (audioPath) {
+          const st = await window.vc.fs.stat(audioPath);
+          setMp3Mtime(st.mtimeMs ?? null);
+        } else {
+          setMp3Mtime(null);
+        }
       } else {
+        setSourcePath("");
         setSrcUrl("");
+        setMp3Path("");
+        setMp3Mtime(null);
       }
     } catch (err) {
       setLoadErr(err instanceof RpcError ? `[${err.code}] ${err.message}` : String(err));
@@ -135,6 +171,12 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
             setLoadErr(err instanceof RpcError ? `[${err.code}] ${err.message}` : String(err));
           }
         }
+        try {
+          const instanceDir = await rpc.materialInstanceDir(type, instance);
+          await window.vc.fs.remove(sourceAudioPath(instanceDir));
+        } catch {
+          /* stale generated audio is best-effort cleanup */
+        }
         setReimport(false);
         onChanged();
         await reload();
@@ -153,6 +195,32 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
     if (!url.trim()) return;
     await acquire({ origin: "link", url: url.trim(), ...rangeParams() });
   }, [acquire, url, rangeParams]);
+
+  const generateMp3 = useCallback(async () => {
+    if (!sourcePath || mp3Busy) return;
+    setMp3Busy(true);
+    setMp3Error("");
+    try {
+      const instanceDir = await rpc.materialInstanceDir(type, instance);
+      const outputPath = sourceAudioPath(instanceDir);
+      const out = await window.vc.extractMp3({ inputPath: sourcePath, outputPath });
+      setMp3Path(out);
+      const st = await window.vc.fs.stat(out);
+      setMp3Mtime(st.mtimeMs ?? null);
+    } catch (err) {
+      setMp3Error(fmtNativeError(err));
+    } finally {
+      setMp3Busy(false);
+    }
+  }, [type, instance, sourcePath, mp3Busy]);
+
+  const playMp3 = useCallback(() => {
+    if (mp3Path) void window.vc.openPath(mp3Path);
+  }, [mp3Path]);
+
+  const locateMp3 = useCallback(() => {
+    if (mp3Path) void window.vc.showInFolder(mp3Path);
+  }, [mp3Path]);
 
   const showPicker = !filled || reimport;
 
@@ -187,6 +255,50 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
               {tr("material.source.reimport_btn")}
             </button>
           )}
+        </div>
+      )}
+
+      {filled && (
+        <div style={{ padding: "10px 12px", background: "#1c1c20", borderRadius: 6, border: "1px solid #2a2a2e" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{ color: "#ddd", fontSize: 13, fontWeight: 600 }}>{tr("material.source.mp3_title")}</div>
+            {mp3Path && mp3Mtime !== null && (
+              <span style={{ color: "#777", fontSize: 12 }}>{new Date(mp3Mtime).toISOString()}</span>
+            )}
+            <button
+              onClick={() => void generateMp3()}
+              disabled={!sourcePath || mp3Busy}
+              style={{ ...BTN, marginLeft: "auto", padding: "4px 10px", fontSize: 12 }}
+            >
+              {mp3Busy
+                ? tr("material.source.mp3_generating")
+                : mp3Path
+                  ? tr("material.source.mp3_regenerate")
+                  : tr("material.source.mp3_generate")}
+            </button>
+          </div>
+          {mp3Path ? (
+            <>
+              <audio
+                key={mp3Mtime ?? mp3Path}
+                src={`${window.vc.mediaUrl(mp3Path)}?v=${encodeURIComponent(String(mp3Mtime ?? ""))}`}
+                controls
+                style={{ display: "block", width: "100%", marginBottom: 8 }}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ ...PATH_TEXT, flex: 1 }}>{mp3Path}</span>
+                <button onClick={playMp3} style={ROW_BTN} title={tr("material.source.mp3_play")}>
+                  ▶
+                </button>
+                <button onClick={locateMp3} style={ROW_BTN} title={tr("material.source.mp3_locate")}>
+                  📁
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ color: "#888", fontSize: 12 }}>{tr("material.source.mp3_empty")}</div>
+          )}
+          {mp3Error && <div style={{ color: "#ff6b6b", fontSize: 12, marginTop: 8 }}>✗ {mp3Error}</div>}
         </div>
       )}
 
