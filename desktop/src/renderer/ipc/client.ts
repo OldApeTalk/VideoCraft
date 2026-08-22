@@ -375,6 +375,10 @@ export interface AcquireSource {
   // HH:MM:SS / MM:SS time strings (validated server-side); omit for the whole video.
   clip_range?: { start: string; end: string } | null;
   title?: string;
+  // Download preferences (origin=link only). Omit both for the default
+  // (<=1080p, codec-agnostic — usually AV1/VP9, smaller than H.264).
+  max_height?: number; // 0 = unlimited (best available)
+  codec_pref?: "auto" | "h264";
 }
 
 // ADR-0008 terminal state: the three plugins (clip / news_desk / news_video) run

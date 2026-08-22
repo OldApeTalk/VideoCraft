@@ -69,6 +69,10 @@ class Source:
     duration_sec: float | None = None
     width: int | None = None
     height: int | None = None
+    # Download preferences (origin=link only; ignored for local). None = default
+    # (max_height 1080, codec_pref "auto" — unconstrained, may pick AV1/VP9/H.264).
+    max_height: int | None = None
+    codec_pref: str | None = None        # "auto" | "h264"
 
     def to_dict(self) -> dict:
         d: dict = {"origin": self.origin}
@@ -86,6 +90,10 @@ class Source:
             d["width"] = self.width
         if self.height is not None:
             d["height"] = self.height
+        if self.max_height is not None:
+            d["max_height"] = self.max_height
+        if self.codec_pref is not None:
+            d["codec_pref"] = self.codec_pref
         return d
 
     @staticmethod
@@ -101,6 +109,8 @@ class Source:
             duration_sec=d.get("duration_sec"),
             width=d.get("width"),
             height=d.get("height"),
+            max_height=d.get("max_height"),
+            codec_pref=d.get("codec_pref"),
         )
 
 

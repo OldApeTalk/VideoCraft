@@ -9,7 +9,9 @@ import never destroys the existing source (staging + atomic swap).
 """
 
 import core.source_acquire as sa
-from core.source_acquire import _build_link_opts, _ffmpeg_cut, parse_hms, acquire
+from core.source_acquire import (
+    _build_link_opts, _build_format_selector, _ffmpeg_cut, parse_hms, acquire,
+)
 from core.project_schema import ClipRange, Source, ORIGIN_LINK
 
 
@@ -38,6 +40,34 @@ def test_link_opts_prefers_aac_audio_unconstrained_video():
     # The AAC-preferred selector must come before the codec-agnostic audio fallback.
     assert fmt.index("bestaudio[ext=m4a]") < fmt.index("bestvideo[height<=1080]+bestaudio/")
     assert opts["merge_output_format"] == "mp4"
+
+
+def test_format_selector_default_matches_prior_behavior():
+    """No override (max_height/codec_pref both None) must reproduce the exact
+    string the two tests above pin — the download-options UI must be additive,
+    never change the out-of-the-box download for users who don't touch it."""
+    assert _build_format_selector(None, None) == _build_link_opts("out.mp4", None, None)["format"]
+
+
+def test_format_selector_max_height_overrides_default_1080():
+    fmt = _build_format_selector(480, None)
+    assert "[height<=480]" in fmt
+    assert "[height<=1080]" not in fmt
+
+
+def test_format_selector_unlimited_height_omits_filter():
+    fmt = _build_format_selector(0, None)
+    assert "height<=" not in fmt
+
+
+def test_format_selector_h264_pref_prepends_avc1_then_falls_back():
+    fmt = _build_format_selector(1080, "h264")
+    agnostic_fallback = _build_format_selector(1080, None)
+    assert "[vcodec^=avc1]" in fmt
+    # The avc1-constrained candidates must be tried before the codec-agnostic
+    # fallback — never hard-fail just because a video has no H.264 stream.
+    assert fmt.endswith(agnostic_fallback)
+    assert fmt.index("[vcodec^=avc1]") < len(fmt) - len(agnostic_fallback)
 
 
 def test_ffmpeg_cut_uses_no_pipes_and_stream_copy(monkeypatch):
@@ -105,7 +135,7 @@ def test_acquire_success_swaps_staging_into_dest(tmp_path, monkeypatch):
     dest = tmp_path / "video.mp4"
     dest.write_bytes(b"OLD")
 
-    def fake_link(url, staging, meta, clip, cb, tok):
+    def fake_link(url, staging, meta, clip, cb, tok, **_kwargs):
         # _acquire_* leaves the finished file exactly at `staging`.
         with open(staging, "wb") as f:
             f.write(b"NEW")

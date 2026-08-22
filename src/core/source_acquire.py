@@ -140,7 +140,9 @@ def acquire(
             if not source.url:
                 raise AcquireError(ERR_URL_INVALID, "未提供视频链接", "Source.url is empty")
             result = _acquire_link(source.url, staging, dest_meta_path,
-                                   source.clip_range, progress_cb, cancel_token)
+                                   source.clip_range, progress_cb, cancel_token,
+                                   max_height=source.max_height,
+                                   codec_pref=source.codec_pref)
         elif source.origin == ORIGIN_LOCAL:
             if not source.imported_from:
                 raise AcquireError(ERR_OTHER, "未指定本地文件",
@@ -191,6 +193,9 @@ def _acquire_link(
     clip_range: ClipRange | None,
     progress_cb: ProgressCb,
     cancel_token: CancelToken | None,
+    *,
+    max_height: int | None = None,
+    codec_pref: str | None = None,
 ) -> AcquireResult:
     """Download via yt-dlp into dest_video_path (fixed filename)."""
     import yt_dlp
@@ -209,7 +214,8 @@ def _acquire_link(
     # (FFmpegFD), which reports no progress through our hook and is slow — it looks
     # frozen. Instead we clip the finished file locally below (fast stream-copy,
     # with progress).
-    opts = _build_link_opts(dest_video_path, progress_cb, cancel_token)
+    opts = _build_link_opts(dest_video_path, progress_cb, cancel_token,
+                             max_height=max_height, codec_pref=codec_pref)
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -277,10 +283,51 @@ class _CancelledByHook(Exception):
     """Internal: raised from yt-dlp progress hook on cancel. Not exported."""
 
 
+_DEFAULT_MAX_HEIGHT = 1080
+
+
+def _build_format_selector(max_height: int | None, codec_pref: str | None) -> str:
+    """Build the yt-dlp format selector string.
+
+    Pin AAC (m4a) audio always: the browser's decodeAudioData silently yields
+    no sound for Opus-in-mp4, and the audio stream is only a few MB either way.
+
+    Video codec defaults UNCONSTRAINED ("auto") so YouTube serves its best
+    stream at the requested height (typically AV1, ~1/3 smaller than H.264,
+    with VP9 as YouTube's fallback when a video has no AV1 encode — both are
+    decoded by the WebCodecs Demuxer same as H.264). The earlier H.264 pin
+    blamed AV1 for a preview crash that was actually the Win11 26200 sandbox
+    bug (fixed app-wide with --no-sandbox), so that justification is gone.
+
+    codec_pref="h264" is an opt-in escape hatch (advanced download options) for
+    users who need the file playable/editable elsewhere without VP9/AV1
+    support — falls back to the codec-agnostic selector at the same height
+    rather than failing outright when no H.264 stream exists.
+    """
+    # None = unset -> default 1080; 0 = explicit "unlimited" -> no height filter.
+    h = _DEFAULT_MAX_HEIGHT if max_height is None else max_height
+    height_filter = f"[height<={h}]" if h else ""
+    agnostic = (
+        f"bestvideo{height_filter}+bestaudio[ext=m4a]/"
+        f"bestvideo{height_filter}+bestaudio/"
+        f"best{height_filter}/best"
+    )
+    if codec_pref == "h264":
+        return (
+            f"bestvideo{height_filter}[vcodec^=avc1]+bestaudio[ext=m4a]/"
+            f"bestvideo{height_filter}[vcodec^=avc1]+bestaudio/"
+            f"best{height_filter}[vcodec^=avc1]/"
+            f"{agnostic}"
+        )
+    return agnostic
+
+
 def _build_link_opts(
     dest_path: str,
     progress_cb: ProgressCb,
     cancel_token: CancelToken | None,
+    max_height: int | None = None,
+    codec_pref: str | None = None,
 ) -> dict:
     """Compose yt-dlp opts: fixed outtmpl, JS runtime, progress hook.
 
@@ -294,22 +341,7 @@ def _build_link_opts(
     opts.update({
         # Fixed filename — no template interpolation, dest_path is literal.
         "outtmpl": dest_path,
-        # Pin AAC (m4a) audio; leave the video codec UNCONSTRAINED so YouTube
-        # serves its best stream at <=1080p (typically AV1, ~1/3 smaller than
-        # H.264). The whole decode path is codec-agnostic: the renderer's <video>
-        # preview decodes AV1 natively, the WebCodecs compositor (Demuxer accepts
-        # av01 + an isConfigSupported guard), and export re-encodes to H.264
-        # regardless of source. The earlier H.264 pin blamed AV1 for a preview
-        # crash that was actually the Win11 26200 sandbox bug (fixed app-wide with
-        # --no-sandbox), so that justification is gone. Audio stays AAC: the
-        # browser's decodeAudioData silently yields no sound for Opus-in-mp4, and
-        # the audio stream is only a few MB either way. Degrade progressively if
-        # m4a audio isn't offered.
-        "format": (
-            "bestvideo[height<=1080]+bestaudio[ext=m4a]/"
-            "bestvideo[height<=1080]+bestaudio/"
-            "best[height<=1080]/best"
-        ),
+        "format": _build_format_selector(max_height, codec_pref),
         "merge_output_format": "mp4",
         "noplaylist": True,
         "file_access_retries": 5,

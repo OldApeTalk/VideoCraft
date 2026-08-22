@@ -100,6 +100,9 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
   const [useRange, setUseRange] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [maxHeight, setMaxHeight] = useState("1080");
+  const [codecPref, setCodecPref] = useState<"auto" | "h264">("auto");
   const [reimport, setReimport] = useState(false);
   const [loadErr, setLoadErr] = useState("");
   const job = useJob();
@@ -148,6 +151,17 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
     return {};
   }, [useRange, rangeStart, rangeEnd]);
 
+  // Only meaningful for origin=link — a local file's codec/resolution is
+  // whatever it already is. "1080" is the same default the backend applies
+  // when this is omitted, so leaving Advanced untouched is a no-op either way.
+  const downloadParams = useCallback((): Pick<AcquireSource, "max_height" | "codec_pref"> => {
+    const out: Pick<AcquireSource, "max_height" | "codec_pref"> = {};
+    const h = Number(maxHeight);
+    if (Number.isFinite(h)) out.max_height = h;
+    if (codecPref !== "auto") out.codec_pref = codecPref;
+    return out;
+  }, [maxHeight, codecPref]);
+
   const acquire = useCallback(
     async (source: AcquireSource) => {
       const res = await job.run<{ title?: string; duration_sec?: number; width?: number; height?: number }>(
@@ -193,8 +207,8 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
 
   const acquireLink = useCallback(async () => {
     if (!url.trim()) return;
-    await acquire({ origin: "link", url: url.trim(), ...rangeParams() });
-  }, [acquire, url, rangeParams]);
+    await acquire({ origin: "link", url: url.trim(), ...rangeParams(), ...downloadParams() });
+  }, [acquire, url, rangeParams, downloadParams]);
 
   const generateMp3 = useCallback(async () => {
     if (!sourcePath || mp3Busy) return;
@@ -321,6 +335,51 @@ export function SourceTab({ type, instance, refreshKey, onChanged }: MaterialTab
               onChange={(e) => setUrl(e.target.value)}
               style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
             />
+          )}
+
+          {mode === "link" && (
+            <div>
+              <button
+                onClick={() => setShowAdvanced((v) => !v)}
+                disabled={job.running}
+                style={{ ...BTN_GHOST, padding: "3px 8px", fontSize: 12 }}
+              >
+                {showAdvanced ? "▾ " : "▸ "}
+                {tr("material.source.advanced_toggle")}
+              </button>
+              {showAdvanced && (
+                <div style={{ display: "flex", gap: 16, marginTop: 8, padding: "8px 10px", background: "#1a1a1e", borderRadius: 4 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#bbb" }}>
+                    {tr("material.source.resolution_label")}
+                    <select
+                      value={maxHeight}
+                      disabled={job.running}
+                      onChange={(e) => setMaxHeight(e.target.value)}
+                      style={INPUT}
+                    >
+                      <option value="2160">4K (2160p)</option>
+                      <option value="1440">1440p</option>
+                      <option value="1080">1080p ({tr("common.recommended")})</option>
+                      <option value="720">720p</option>
+                      <option value="480">480p</option>
+                      <option value="0">{tr("material.source.resolution_unlimited")}</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#bbb" }}>
+                    {tr("material.source.codec_label")}
+                    <select
+                      value={codecPref}
+                      disabled={job.running}
+                      onChange={(e) => setCodecPref(e.target.value as "auto" | "h264")}
+                      style={INPUT}
+                    >
+                      <option value="auto">{tr("material.source.codec_auto")}</option>
+                      <option value="h264">{tr("material.source.codec_h264")}</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Optional clip range */}
