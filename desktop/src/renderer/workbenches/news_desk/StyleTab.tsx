@@ -699,6 +699,11 @@ export function StyleTab(props: {
               <ChapterScheduleList
                 schedule={selected["schedule"] as NewsDeskChapterRow[] | undefined}
                 onSeek={(sec) => previewRef.current?.seek(sec)}
+                onEditRow={(index, rowPatch) => {
+                  const schedule = (selected["schedule"] as NewsDeskChapterRow[] | undefined) ?? [];
+                  const next = schedule.map((row, i) => (i === index ? { ...row, ...rowPatch } : row));
+                  onPatch(selected, { schedule: next });
+                }}
               />
             )}
           </>
