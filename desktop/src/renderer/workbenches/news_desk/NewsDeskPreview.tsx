@@ -200,9 +200,10 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
 
     const tick = () => {
       if (!playingRef.current) return;
+      const nowMs = performance.now();
       const pos = audio?.hasAudio
         ? audio.currentTime
-        : wallFrom + (performance.now() - wallStart) / 1000;
+        : wallFrom + (nowMs - wallStart) / 1000;
       if (pos >= dur - 1 / FPS) {
         tRef.current = dur;
         setT(dur);

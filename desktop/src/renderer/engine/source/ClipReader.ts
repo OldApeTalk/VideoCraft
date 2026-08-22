@@ -86,30 +86,23 @@ export class ClipReader implements VideoSource {
 
     const mediaTime = this.sourceInUs + clamp(clipTimeUs, 0, this.durationUs);
 
-    if (this.needsRepositionFor(mediaTime)) {
-      this.beginSeek(mediaTime);
-    }
+    if (this.needsRepositionFor(mediaTime)) this.beginSeek(mediaTime);
 
     this.startPumpIfIdle();
 
     let candidate = this.buffer.pickAt(mediaTime);
+    if (!candidate) {
+      candidate = await this.waitForFrameAt(mediaTime, FRAME_WAIT_BUDGET_MS);
+    }
+    if (!candidate && this.buffer.size() > 0) {
+      // Final fallback: caller asked for a time BEFORE the first producible
+      // frame (e.g., target=0 on a video that starts at pts=266ms).
+      candidate = this.buffer.pickEarliest();
+    }
     if (candidate) {
       this.buffer.trimBefore(mediaTime - TRIM_BEHIND_US);
-      return candidate;
     }
-
-    candidate = await this.waitForFrameAt(mediaTime, FRAME_WAIT_BUDGET_MS);
-    if (candidate) {
-      this.buffer.trimBefore(mediaTime - TRIM_BEHIND_US);
-      return candidate;
-    }
-    // Final fallback: caller asked for a time BEFORE the first producible
-    // frame (e.g., target=0 on a video that starts at pts=266ms). Return the
-    // earliest buffered frame so the consumer always sees something.
-    if (this.buffer.size() > 0) {
-      return this.buffer.pickEarliest();
-    }
-    return null;
+    return candidate;
   }
 
   /**
@@ -201,8 +194,18 @@ export class ClipReader implements VideoSource {
     // Buffer empty AND a seek is in flight → no reposition; pump will produce.
     if (!Number.isFinite(earliest) && this.pumpRunning) return false;
     if (!Number.isFinite(earliest)) return true;
-    if (mediaTime < earliest) return true;
-    if (mediaTime > latest + FORWARD_LOOKAHEAD_US) return true;
+    if (mediaTime < earliest || mediaTime > latest + FORWARD_LOOKAHEAD_US) {
+      // Only a real reposition if the target now belongs to a DIFFERENT GOP
+      // (a different nearest keyframe) than the one already being decoded.
+      // Reseeking to the SAME keyframe we're already pumping from discards
+      // all decode progress and restarts from scratch for no gain — if the
+      // real-time target keeps outrunning a lagging-but-still-progressing
+      // pump, this fires on nearly every call, so the pump is perpetually
+      // reset before it ever gets an uninterrupted run to catch up. That
+      // livelock is exactly what reads on screen as the picture "walking
+      // forward a bit, then snapping back" while audio/timeline stay smooth.
+      return this.mediaSource.index.findKeyframeAtOrBefore(mediaTime) !== this.seek.keyIdx;
+    }
     return false;
   }
 

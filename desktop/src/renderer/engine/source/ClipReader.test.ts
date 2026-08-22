@@ -162,3 +162,87 @@ describe("ClipReader.frameAtExact — high-fps export", () => {
     reader.dispose();
   });
 });
+
+/**
+ * Regression test for the news_desk VP9 "picture walks forward then snaps
+ * back" bug (task.md 续 — reproduced live against the real downloaded file
+ * outside the app: real decode measured at ~18x realtime, yet playback
+ * visibly oscillated because `needsRepositionFor` reseeked back to the SAME
+ * keyframe on nearly every call).
+ *
+ * The trigger: once a fast-moving real-time target outruns the buffer
+ * (`mediaTime > latest + FORWARD_LOOKAHEAD_US`) or falls behind it
+ * (`mediaTime < earliest`), the OLD code unconditionally reseeked — even
+ * when the target was still inside the GOP already being decoded. That
+ * discarded the pump's progress and restarted from the identical keyframe,
+ * so a lagging-but-progressing pump never got an uninterrupted run to catch
+ * up: every call re-triggered the same discard-and-restart, which reads on
+ * screen as the picture perpetually snapping back toward the GOP's start.
+ */
+describe("ClipReader — same-GOP reposition livelock", () => {
+  it("does not reseek when the target is still within the currently-decoding GOP", () => {
+    vi.stubGlobal("VideoDecoder", FakeVideoDecoder);
+    vi.stubGlobal("EncodedVideoChunk", FakeEncodedVideoChunk);
+
+    // One keyframe at index 0, the next at index 200 — a single big GOP
+    // spanning the whole probed range, matching the real VP9 file's ~5.3s GOPs.
+    const reader = new ClipReader(fakeSource(30, 400, /* keyframeEvery */ 200)) as unknown as {
+      seek: { cursor: number; keyIdx: number; targetMediaUs: number } | null;
+      pumpRunning: boolean;
+      buffer: { push: (f: VideoFrame) => void };
+      needsRepositionFor: (mediaTime: number) => boolean;
+      dispose: () => void;
+    };
+
+    // An active seek into the first GOP, buffer holding only early frames —
+    // the exact shape of a pump that's lagging a fast-moving real-time target.
+    reader.seek = { cursor: 5, keyIdx: 0, targetMediaUs: 0 };
+    reader.pumpRunning = true;
+    reader.buffer.push(makeFrame(100_000));
+    reader.buffer.push(makeFrame(133_000));
+
+    // Target is >1s (FORWARD_LOOKAHEAD_US) past the buffer's latest frame but
+    // still inside the SAME GOP (next keyframe is index 200, far later) — must
+    // NOT reseek; the pump is already positioned correctly and just needs to
+    // keep running.
+    expect(reader.needsRepositionFor(5_000_000)).toBe(false);
+
+    // A target that has actually moved into the NEXT GOP must still trigger a
+    // real reseek (regression guard the other direction).
+    const nextGopUs = Math.round((200 * 1_000_000) / 30);
+    expect(reader.needsRepositionFor(nextGopUs)).toBe(true);
+
+    reader.dispose();
+  });
+
+  it("end-to-end: a real-time target racing far ahead within one GOP never returns a backward-jumping frame", async () => {
+    vi.stubGlobal("VideoDecoder", FakeVideoDecoder);
+    vi.stubGlobal("EncodedVideoChunk", FakeEncodedVideoChunk);
+
+    const fps = 30;
+    const n = 400;
+    // Single GOP for the whole test range.
+    const reader = new ClipReader(fakeSource(fps, n, /* keyframeEvery */ n + 1));
+
+    const timestamps: number[] = [];
+    let target = 0;
+    for (let i = 0; i < 10; i++) {
+      const frame = await reader.frameAt(target);
+      if (frame) {
+        timestamps.push(frame.timestamp);
+        frame.close();
+      }
+      // Each jump is well past FORWARD_LOOKAHEAD_US (1s) — the livelock
+      // trigger — but still inside this single-GOP source.
+      target += 2_000_000;
+    }
+
+    for (let i = 1; i < timestamps.length; i++) {
+      expect(timestamps[i]!, `frame #${i} must not regress behind #${i - 1}`).toBeGreaterThanOrEqual(
+        timestamps[i - 1]!,
+      );
+    }
+
+    reader.dispose();
+  });
+});
