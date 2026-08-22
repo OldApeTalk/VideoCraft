@@ -28,3 +28,9 @@ class EnvComponent:
     install: Optional[InstallFn] = None
     info_url: Optional[str] = None   # download/install guide URL
     visible: bool = True             # hide from UI but keep detectable
+    # Module name to probe for the sys.modules-already-imported check (python
+    # category only). A successful install() only lands new files on disk —
+    # if this process already `import`-ed the old copy, Python's module cache
+    # keeps serving it until the app restarts, no matter how fresh py-extra
+    # is. None for non-python components (the check doesn't apply).
+    import_name: Optional[str] = None

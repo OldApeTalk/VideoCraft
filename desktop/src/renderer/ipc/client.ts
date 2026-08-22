@@ -266,6 +266,11 @@ export interface EnvDetect {
   version: string | null;
   source: string | null; // system | managed | pip
   path: string | null;
+  // Only set on an env.install result: true when this running app already
+  // had the old copy loaded, so the fresh install won't actually be used
+  // until the app restarts (py-extra files on disk don't retroactively
+  // affect an already-imported module).
+  restart_required?: boolean;
 }
 
 /** CUDA runtime + GPU status (gpu.status). */

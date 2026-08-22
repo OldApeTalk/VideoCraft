@@ -478,6 +478,7 @@
   "settings.update": "更新",
   "settings.installing": "安装中…",
   "settings.updating": "更新中…",
+  "settings.env.restart_required": "已装好新版本，但需要完全退出并重新打开应用才会生效（不是重新打开项目）。",
   "settings.guide": "安装指引",
   "settings.section_about": "关于",
   "settings.about_blurb": "一台「剪辑师是 AI」的节目生成器。",

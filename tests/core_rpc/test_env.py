@@ -66,6 +66,7 @@ def test_env_install_streams_log_then_detects(ctx, emit, monkeypatch):
     def fake_install(cid, on_log):
         on_log("line-1")
         on_log("line-2")
+        return True  # e.g. yt_dlp was already imported by this sidecar
 
     monkeypatch.setattr(env, "install_one", fake_install)
     import core_rpc.methods.env as envmod
@@ -77,4 +78,9 @@ def test_env_install_streams_log_then_detects(ctx, emit, monkeypatch):
     assert _wait(lambda: emit.of("event.job"))
     logs = [p.get("line") for p in emit.of("progress.env.install")]
     assert logs == ["line-1", "line-2"]
-    assert emit.of("event.job")[-1]["result"]["source"] == "managed"
+    result = emit.of("event.job")[-1]["result"]
+    assert result["source"] == "managed"
+    # The UI must be told when a restart is needed for the fresh install to
+    # actually take effect (overwriting py-extra never touches an
+    # already-imported module cached in sys.modules).
+    assert result["restart_required"] is True

@@ -178,17 +178,25 @@ function EnvRow({
   const [installing, setInstalling] = useState(false);
   const [line, setLine] = useState("");
   const [err, setErr] = useState("");
+  const [restartNeeded, setRestartNeeded] = useState(false);
 
   const install = async () => {
     setInstalling(true);
     setErr("");
     setLine("");
+    setRestartNeeded(false);
     try {
       const h = await runJob<EnvDetect>(
         () => rpc.envInstall(meta.id),
         (p) => p.line && setLine(String(p.line)),
       );
-      onDetected(await h.promise);
+      const result = await h.promise;
+      onDetected(result);
+      // The install genuinely succeeded (new files are in py-extra) — but if
+      // this sidecar had already `import`-ed the old copy, it keeps serving
+      // that cached module until a full restart, no matter what's on disk.
+      // Without this, the update looks like a no-op with zero explanation.
+      setRestartNeeded(!!result.restart_required);
     } catch (e) {
       setErr(fmtErr(e));
     } finally {
@@ -233,6 +241,9 @@ function EnvRow({
         </div>
       )}
       {err && <div style={{ fontSize: 11, color: "#d98b8b", marginTop: 4 }}>✗ {err}</div>}
+      {restartNeeded && (
+        <div style={{ fontSize: 11, color: "#d9a441", marginTop: 4 }}>⚠ {tr("settings.env.restart_required")}</div>
+      )}
     </div>
   );
 }

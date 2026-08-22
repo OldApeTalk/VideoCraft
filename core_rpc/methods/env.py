@@ -70,12 +70,14 @@ def detect_all(ctx: Context) -> dict[str, Any]:
 def install(ctx: Context, component_id: str) -> dict[str, Any]:
     """Install / upgrade a component (job — pip or Node download). Log lines stream
     as `progress.env.install` (field `line`); the terminal event carries the fresh
-    detect result."""
+    detect result plus `restart_required` (see core.env.install_one — a python
+    package already `import`-ed by this running sidecar keeps serving the old
+    module from sys.modules no matter how fresh the file on disk is)."""
 
     def work(job: Any) -> dict[str, Any]:
         from core.env import install_one
 
-        install_one(component_id, lambda line: job.progress(line=line))
-        return _detect(component_id)
+        restart_required = install_one(component_id, lambda line: job.progress(line=line))
+        return {**_detect(component_id), "restart_required": restart_required}
 
     return {"job_id": ctx.jobs.start("env.install", work)}

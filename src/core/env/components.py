@@ -38,25 +38,29 @@ _COMPONENTS: list[EnvComponent] = [
     EnvComponent(
         id="yt-dlp", label_key="env.label.ytdlp", category="python",
         detect=_d.detect_pip("yt-dlp", "yt_dlp"), install=upgrade_pip("yt-dlp"),
+        import_name="yt_dlp",
     ),
     EnvComponent(
         id="fish-audio-sdk", label_key="env.label.fish_sdk", category="python",
         detect=_d.detect_pip("fish-audio-sdk", "fish_audio_sdk"), install=install_pip("fish-audio-sdk"),
+        import_name="fish_audio_sdk",
     ),
     EnvComponent(
         id="openai", label_key="env.label.openai_sdk", category="python",
         detect=_d.detect_pip("openai", "openai"), install=upgrade_pip("openai"),
+        import_name="openai",
     ),
     EnvComponent(
         id="Pillow", label_key="env.label.pillow", category="python",
         detect=_d.detect_pip("Pillow", "PIL"), install=upgrade_pip("Pillow"),
+        import_name="PIL",
     ),
     # google-genai is a hidden detection — used by AI Console internally,
     # not surfaced as a top-level "tool" the user manages.
     EnvComponent(
         id="google-genai", label_key="env.label.google_genai", category="python",
         detect=_d.detect_pip("google-genai", "google.genai"), install=upgrade_pip("google-genai"),
-        visible=False,
+        visible=False, import_name="google.genai",
     ),
 ]
 
@@ -76,10 +80,25 @@ def detect_one(component_id: str) -> DetectResult:
     return _BY_ID[component_id].detect()
 
 
-def install_one(component_id: str, on_log: Callable[[str], None]) -> None:
+def install_one(component_id: str, on_log: Callable[[str], None]) -> bool:
     """Install / upgrade a single component. Raises KeyError on unknown id,
-    NotImplementedError if the component has no installer."""
+    NotImplementedError if the component has no installer.
+
+    Returns True when a running-process restart is needed for the freshly
+    installed copy to actually take effect: overwriting py-extra's files
+    never touches an already-`import`-ed module sitting in sys.modules, so
+    if THIS process already loaded the old copy before the upgrade, it keeps
+    serving that cached module no matter how fresh the files on disk are —
+    only a full app restart re-imports from scratch. Checked against
+    import_name AFTER install (not before): the point is "will this
+    installed copy be used going forward", which install() itself could not
+    have affected either way.
+    """
     comp = _BY_ID[component_id]
     if comp.install is None:
         raise NotImplementedError(f"Component {component_id!r} is not auto-installable")
     comp.install(on_log)
+    if not comp.import_name:
+        return False
+    import sys
+    return comp.import_name in sys.modules
