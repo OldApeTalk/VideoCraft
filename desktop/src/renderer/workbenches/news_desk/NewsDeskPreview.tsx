@@ -98,6 +98,13 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
   const audioRef = useRef<AudioPlayback | null>(null);
   const rafRef = useRef<number | null>(null);
   const playingRef = useRef(false);
+  // FPS counter (opt-in via the toggle below): timestamps of completed paints
+  // in the last second, so the displayed number reflects actual render
+  // throughput — not the rAF callback rate, which is capped at the display's
+  // refresh rate regardless of whether a paint kept up.
+  const fpsSamplesRef = useRef<number[]>([]);
+  const fpsLastUpdateRef = useRef(0);
+  const showFpsRef = useRef(false);
 
   const [status, setStatus] = useState<EngineStatus>("loading");
   const [message, setMessage] = useState("");
@@ -105,6 +112,8 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [audioOn, setAudioOn] = useState(false);
+  const [showFps, setShowFps] = useState(false);
+  const [fps, setFps] = useState(0);
 
   // Render the frame at `sec`: GPU draws the source, the editor layer draws the
   // dim + crop box + overlays-in-box on top. latest-wins so scrub/drag stay live.
@@ -160,6 +169,18 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
           }
         }
         frame?.close();
+
+        if (showFpsRef.current) {
+          const now = performance.now();
+          const samples = fpsSamplesRef.current;
+          samples.push(now);
+          while (samples.length > 0 && samples[0]! < now - 1000) samples.shift();
+          if (now - fpsLastUpdateRef.current > 250) {
+            fpsLastUpdateRef.current = now;
+            setFps(samples.length);
+          }
+        }
+
         target = pending.current;
       }
     } finally {
@@ -553,6 +574,32 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
           >
             {audioOn ? "♪" : "🔇"}
           </span>
+          <button
+            onClick={() => {
+              const next = !showFps;
+              showFpsRef.current = next;
+              setShowFps(next);
+              if (!next) {
+                fpsSamplesRef.current = [];
+                setFps(0);
+              }
+            }}
+            title={tr("news_desk.preview.fps_toggle")}
+            style={{
+              flex: "0 0 auto",
+              border: "1px solid #444",
+              borderRadius: 4,
+              background: showFps ? "#2a4a2a" : "#2a2a2a",
+              color: showFps ? "#9fe89f" : "#888",
+              cursor: "pointer",
+              fontSize: 11,
+              padding: "3px 6px",
+              fontVariantNumeric: "tabular-nums",
+              minWidth: 44,
+            }}
+          >
+            {showFps ? `${fps} fps` : "fps"}
+          </button>
         </div>
       )}
     </div>

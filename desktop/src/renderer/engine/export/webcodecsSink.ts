@@ -225,19 +225,28 @@ export async function createWebCodecsSink(
   return {
     async consume(backend, prepared, index) {
       if (encodeError) throw encodeError;
-      // Render into the GPU canvas and capture it straight into a VideoFrame —
-      // no copyTextureToBuffer/mapAsync readback; captured synchronously right
-      // after submit so it reflects exactly this frame's draw.
-      const rp = backend.beginPass();
-      if (!rp) throw new Error("render failed (no GPU target)");
-      paintPreparedFrame(backend, rp, prepared);
-      backend.endPass(rp);
+      // Render into an offscreen target and read it back via
+      // copyTextureToBuffer + mapAsync (renderOffscreenToBytes) rather than
+      // capturing the swapchain canvas straight into a VideoFrame.
+      // queue.submit() only QUEUES the draw — it doesn't wait for the GPU to
+      // finish — so capturing the canvas immediately after (no await) races
+      // the GPU: on this machine it lost that race for real decoded frames
+      // (drawn via importExternalTexture, which is heavier than a canvas
+      // blit) roughly 35% of the time, each loss re-encoding the PREVIOUS
+      // frame's content — exactly the stutter baked into exported files.
+      // mapAsync can only resolve once the GPU has actually written the
+      // buffer, so this path is correctly synchronized.
+      const result = await backend.renderOffscreenToBytes((rp) => paintPreparedFrame(backend, rp, prepared));
+      if (!result) throw new Error("render failed (no GPU target)");
 
-      const canvas = backend.canvasElement;
-      if (!canvas) throw new Error("render failed (no canvas)");
-      const frame = new VideoFrame(canvas, {
+      const pixelFormat: VideoPixelFormat = result.format === "bgra8unorm" ? "BGRA" : "RGBA";
+      const frame = new VideoFrame(result.data, {
+        format: pixelFormat,
+        codedWidth: result.width,
+        codedHeight: result.height,
         timestamp: Math.round(index * frameDurUs),
         duration: Math.round(frameDurUs),
+        layout: [{ offset: 0, stride: result.bytesPerRow }],
       });
       encoder.encode(frame, { keyFrame: index % fps === 0 });
       frame.close();

@@ -113,6 +113,7 @@
   "news_desk.preview.pause": "暂停",
   "news_desk.preview.audio_loaded": "音轨已加载",
   "news_desk.preview.audio_none": "无音轨 / 解码失败(静音)",
+  "news_desk.preview.fps_toggle": "显示/隐藏渲染帧率",
   "news_desk.style.preset_label": "预设",
   "news_desk.style.tb_mode": "模式",
   "news_desk.style.tb_aspect": "比例",

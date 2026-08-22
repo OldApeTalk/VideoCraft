@@ -65,11 +65,6 @@ export class Backend {
     return this.device;
   }
 
-  /** The backing canvas — captured as a VideoFrame source during export. */
-  get canvasElement(): HTMLCanvasElement | null {
-    return this.canvas;
-  }
-
   get textureFormat(): GPUTextureFormat {
     return this.format;
   }

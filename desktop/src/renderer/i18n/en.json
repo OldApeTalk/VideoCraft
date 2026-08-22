@@ -113,6 +113,7 @@
   "news_desk.preview.pause": "Pause",
   "news_desk.preview.audio_loaded": "Audio track loaded",
   "news_desk.preview.audio_none": "No audio track / decode failed (muted)",
+  "news_desk.preview.fps_toggle": "Show/hide render FPS",
   "news_desk.style.preset_label": "Preset",
   "news_desk.style.tb_mode": "Mode",
   "news_desk.style.tb_aspect": "Aspect",
