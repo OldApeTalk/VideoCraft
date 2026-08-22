@@ -85,6 +85,24 @@ export class ClipReader implements VideoSource {
   /** Bumped on every seek; the pump samples this to know when to bail. */
   private generation = 0;
 
+  /**
+   * Count of decode() calls submitted to the decoder but not yet resolved via
+   * its output callback. decoder.decode() is asynchronous — output arrives
+   * later, on the decoder's own schedule — so buffer.hasSpace() (which only
+   * reflects frames ALREADY decoded and buffered) can't backpressure the
+   * pump: it stays "true" for every sample submitted before the first output
+   * arrives, letting the pump race arbitrarily far ahead. Once outputs do
+   * arrive in a burst, everything past the ring's capacity gets silently
+   * dropped in the output callback — with no in-flight tracking, the reader
+   * ends up with only the ring's-worth of frames per GOP and nothing else,
+   * which read as a "stuck" picture/stutter once the reposition livelock fix
+   * let the pump actually run long enough to hit it. Gating on in-flight
+   * count (submitted, not yet resolved) instead keeps outstanding decodes
+   * bounded to what the ring can actually hold, so nothing gets dropped.
+   */
+  private inFlight = 0;
+  private inFlightWaiters: Array<() => void> = [];
+
   private frameAvailableSubs = new Set<() => void>();
   private disposed = false;
 
@@ -112,6 +130,16 @@ export class ClipReader implements VideoSource {
     this.startPumpIfIdle();
 
     let candidate = this.buffer.pickAt(mediaTime);
+    // A target behind everything buffered can never be satisfied by waiting —
+    // the pump only decodes forward, so pickAt(mediaTime) will keep missing
+    // for the full budget no matter how long we poll (this is the routine
+    // case where the pump has raced a bit ahead of a real-time target within
+    // the same GOP, not a rare edge case — polling anyway was burning the
+    // full FRAME_WAIT_BUDGET_MS on a large fraction of calls and reading as
+    // preview stutter). Go straight to the earliest-available fallback.
+    if (!candidate && mediaTime < this.buffer.earliestPts()) {
+      candidate = this.buffer.pickEarliest();
+    }
     if (!candidate) {
       candidate = await this.waitForFrameAt(mediaTime, FRAME_WAIT_BUDGET_MS);
     }
@@ -202,6 +230,7 @@ export class ClipReader implements VideoSource {
     this.disposed = true;
     this.generation++;
     this.disposeDecoder();
+    this.resetInFlight();
     this.frameAvailableSubs.clear();
     this.buffer.dispose();
   }
@@ -234,21 +263,16 @@ export class ClipReader implements VideoSource {
     this.generation++;
     this.disposeDecoder();
     this.buffer.clear();
+    // The old decoder is closed and abandons any decodes it had in flight
+    // (their output callback will never fire), so their in-flight slots must
+    // be released here — otherwise the count would drift upward forever
+    // across seeks and eventually wedge the pump on a phantom backlog.
+    this.resetInFlight();
     const keyIdx = this.mediaSource.index.findKeyframeAtOrBefore(mediaTime);
     this.seek = { cursor: keyIdx, keyIdx, targetMediaUs: mediaTime };
-    // eslint-disable-next-line no-console
-    console.warn("[ClipReader] beginSeek", { mediaTime, keyIdx, generation: this.generation });
   }
 
   private startPumpIfIdle(): void {
-    // eslint-disable-next-line no-console
-    console.warn("[ClipReader] startPumpIfIdle", {
-      pumpRunning: this.pumpRunning,
-      disposed: this.disposed,
-      hasSeek: !!this.seek,
-      cursor: this.seek?.cursor,
-      totalSamples: this.mediaSource.samples.length,
-    });
     if (this.pumpRunning || this.disposed) return;
     if (!this.seek) return;
     if (this.seek.cursor >= this.mediaSource.samples.length) return;
@@ -256,9 +280,36 @@ export class ClipReader implements VideoSource {
     void this.runPump(this.generation);
   }
 
+  /**
+   * True while fewer than RING_CAPACITY decodes are outstanding (submitted to
+   * the decoder but not yet resolved via its output callback). This is the
+   * pump's real backpressure signal — see the `inFlight` field comment for
+   * why `buffer.hasSpace()` alone can't do this job.
+   */
+  private hasInFlightSpace(): boolean {
+    return this.inFlight < RING_CAPACITY;
+  }
+
+  private awaitInFlightSpace(): Promise<void> {
+    if (this.hasInFlightSpace()) return Promise.resolve();
+    return new Promise((res) => this.inFlightWaiters.push(res));
+  }
+
+  private releaseInFlightSlot(): void {
+    this.inFlight = Math.max(0, this.inFlight - 1);
+    while (this.inFlightWaiters.length > 0 && this.hasInFlightSpace()) {
+      this.inFlightWaiters.shift()!();
+    }
+  }
+
+  private resetInFlight(): void {
+    this.inFlight = 0;
+    const waiters = this.inFlightWaiters;
+    this.inFlightWaiters = [];
+    for (const w of waiters) w();
+  }
+
   private async runPump(myGeneration: number): Promise<void> {
-    let decodeCalls = 0;
-    const t0 = performance.now();
     try {
       if (!this.decoder) this.initDecoder();
       if (!this.decoder) return;
@@ -269,15 +320,25 @@ export class ClipReader implements VideoSource {
         this.seek &&
         this.seek.cursor < this.mediaSource.samples.length
       ) {
-        if (!this.buffer.hasSpace()) {
-          // eslint-disable-next-line no-console
-          console.warn("[ClipReader] pump awaiting space", { gen: myGeneration, decodeCalls, cursor: this.seek.cursor, bufSize: this.buffer.size() });
-          await this.buffer.awaitSpace();
+        // Both caps matter: hasInFlightSpace() bounds decodes already
+        // submitted-but-not-yet-resolved (the fix — async decoders resolve
+        // later, so this is the only thing that stops the pump racing ahead
+        // before the first output arrives); buffer.hasSpace() still matters
+        // once outputs DO start resolving faster than the consumer drains
+        // them (a synchronous/instant decoder resolves within the same
+        // decode() call, so inFlight alone never blocks it — buffer.hasSpace()
+        // is what bounds that case, exactly as it always has). Only await
+        // whichever is ACTUALLY blocking — awaiting one that already has
+        // space resolves immediately, so racing both when just one is full
+        // would spin the loop with no real wait.
+        const blockedOn: Array<Promise<void>> = [];
+        if (!this.hasInFlightSpace()) blockedOn.push(this.awaitInFlightSpace());
+        if (!this.buffer.hasSpace()) blockedOn.push(this.buffer.awaitSpace());
+        if (blockedOn.length > 0) {
+          await Promise.race(blockedOn);
           continue;
         }
         if (this.disposed || this.generation !== myGeneration || !this.seek) {
-          // eslint-disable-next-line no-console
-          console.warn("[ClipReader] pump bailing (stale generation)", { gen: myGeneration, curGen: this.generation, decodeCalls });
           break;
         }
 
@@ -295,11 +356,9 @@ export class ClipReader implements VideoSource {
               data: sample.data,
             }),
           );
-          decodeCalls++;
+          this.inFlight++;
         } catch (err) {
           this.decoderError = err instanceof Error ? err : new Error(String(err));
-          // eslint-disable-next-line no-console
-          console.warn("[ClipReader] decode() threw", { gen: myGeneration, cursor: i, err: String(err) });
           break;
         }
 
@@ -308,11 +367,7 @@ export class ClipReader implements VideoSource {
         // Stop feeding past clip end, with a B-frame margin so output reaches
         // sourceOut.
         if (sample.cts_us >= this.sourceOutUs) {
-          if (sample.cts_us >= this.sourceOutUs + 250_000) {
-            // eslint-disable-next-line no-console
-            console.warn("[ClipReader] pump breaking (past sourceOut)", { gen: myGeneration, cursor: i, decodeCalls });
-            break;
-          }
+          if (sample.cts_us >= this.sourceOutUs + 250_000) break;
         }
 
         // Yield occasionally so the output handler runs.
@@ -322,8 +377,6 @@ export class ClipReader implements VideoSource {
       }
     } finally {
       this.pumpRunning = false;
-      // eslint-disable-next-line no-console
-      console.warn("[ClipReader] pump exiting", { gen: myGeneration, decodeCalls, elapsedMs: performance.now() - t0, cursor: this.seek?.cursor, bufSize: this.buffer.size() });
     }
   }
 
@@ -331,6 +384,11 @@ export class ClipReader implements VideoSource {
     try {
       const decoder = new VideoDecoder({
         output: (frame) => {
+          // A decode this callback resolves was counted against
+          // hasInFlightSpace() when submitted — release its slot regardless
+          // of what happens to the frame below (buffered, or dropped as
+          // outside the clip window / a disposed reader).
+          this.releaseInFlightSlot();
           // Drop frames outside the clip window (with margin).
           if (
             frame.timestamp < this.sourceInUs - 100_000 ||
@@ -340,12 +398,6 @@ export class ClipReader implements VideoSource {
             return;
           }
           if (this.disposed || !this.buffer.hasSpace()) {
-            // eslint-disable-next-line no-console
-            console.warn("[ClipReader] DROPPED decoded frame (ring full)", {
-              timestamp: frame.timestamp,
-              disposed: this.disposed,
-              bufSize: this.buffer.size(),
-            });
             frame.close();
             return;
           }
