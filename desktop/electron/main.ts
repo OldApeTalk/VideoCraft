@@ -152,6 +152,21 @@ const isENOENT = (err: unknown): boolean =>
 // dodges the access-denied/corruption seen when a crashed instance left a
 // locked cache in %APPDATA%.
 app.setPath("userData", appPaths.userData);
+// Chromium drops a renderer's OS process priority to IDLE the instant its
+// window stops being the foreground window — NOT tied to occlusion/document
+// hidden (confirmed live: on Windows, per Electron's own docs, occlusion only
+// affects visibility on macOS; Windows only flips on minimize/hide) and NOT
+// controllable via webPreferences.backgroundThrottling (that only throttles
+// in-page JS timers/rAF, a separate mechanism — see ClipReader's yieldMC fix).
+// Measured on this machine: Get-Process showed the main renderer's
+// PriorityClass flip Idle→Normal purely from SetForegroundWindow, no
+// minimize/occlusion involved. IDLE priority starves the whole render
+// process's CPU timeslice, which is why export (decode + GPU submit + encode,
+// all on that process) stalls the instant the window isn't foreground — no
+// amount of JS-side scheduling trickery can outrun an OS-level Idle class.
+// This switch is the standard fix (used by e.g. Puppeteer/Playwright to keep
+// background tabs at full speed).
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
 // The GPU process intermittently crashed at startup with "Buffer handle is
 // null / SharedImage failed" (a GPU-sandbox shared-memory failure in this
