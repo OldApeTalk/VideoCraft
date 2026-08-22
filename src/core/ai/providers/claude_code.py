@@ -309,18 +309,26 @@ def _run(cmd: list, cfg: dict, prompt: str, *, cancel_token=None) -> str:
     result.stdout = stdout or ""
     result.stderr = stderr or ""
     if result.returncode != 0:
-        tail = (result.stderr or "").strip().splitlines()[-10:]
-        joined = " | ".join(tail).lower()
-        # Sniff the CLI's stderr for known failure modes; default to UNKNOWN.
+        err_tail = (result.stderr or "").strip().splitlines()[-10:]
+        out_tail = (result.stdout or "").strip().splitlines()[-10:]
+        # A hard failure (crash, killed before it could flush) can leave stderr
+        # completely empty while the actual reason sits in stdout — the CLI's
+        # --output-format json/text writes there even on failure. Sniffing and
+        # reporting stderr only turned every one of those into an
+        # undiagnosable "CLI failed: <no stderr>"; fall back to stdout for both.
+        joined = " | ".join(err_tail + out_tail).lower()
+        # Sniff for known failure modes; default to UNKNOWN.
         kind = Kind.UNKNOWN
-        if "not authorized" in joined or "not logged in" in joined:
+        if any(k in joined for k in (
+            "not authorized", "not logged in", "authenticate", "oauth",
+        )):
             kind = Kind.AUTH
         elif "rate limit" in joined or "429" in joined:
             kind = Kind.RATE_LIMIT
         elif "context" in joined and "exceed" in joined:
             kind = Kind.OVERFLOW
-        raise AIError(kind, "ClaudeCode",
-                      "CLI failed: " + (" | ".join(tail) or "<no stderr>"))
+        detail = " | ".join(err_tail) or " | ".join(out_tail) or "<no output>"
+        raise AIError(kind, "ClaudeCode", "CLI failed: " + detail)
     return (result.stdout or "").strip()
 
 
