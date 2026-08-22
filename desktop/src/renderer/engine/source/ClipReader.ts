@@ -25,6 +25,27 @@ import type { TimeUs, VideoSource } from "../types";
 import { FrameRingBuffer } from "./FrameRingBuffer";
 import { MediaSource } from "./MediaSource";
 
+/**
+ * Zero-delay yield that stays fast while the window is occluded/unfocused.
+ * setTimeout(fn, 0) is subject to Chromium's background timer throttling
+ * (clamped to ~1/s, worse after minutes hidden) once the renderer isn't the
+ * foreground window — runPump()'s per-sample yield hit exactly that, starving
+ * decode and pausing export whenever the app wasn't on top (a3669ff tried
+ * disabling backgroundThrottling globally to fix this, but that broke the
+ * rAF-driven GPU preview instead — see acf066a / main.ts). postMessage tasks
+ * aren't covered by that intervention, so this bypasses it without touching
+ * webPreferences.
+ */
+const yieldQueue: Array<() => void> = [];
+const yieldChannel = new MessageChannel();
+yieldChannel.port1.onmessage = () => yieldQueue.shift()?.();
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    yieldQueue.push(resolve);
+    yieldChannel.port2.postMessage(null);
+  });
+}
+
 const RING_CAPACITY = 8;
 /** How far past the buffer's latest frame still counts as in-range before a seek. */
 const FORWARD_LOOKAHEAD_US = 1_000_000; // 1s
@@ -273,7 +294,7 @@ export class ClipReader implements VideoSource {
 
         // Yield occasionally so the output handler runs.
         if ((i & 0x7) === 0) {
-          await new Promise<void>((res) => setTimeout(res, 0));
+          await yieldToEventLoop();
         }
       }
     } finally {
