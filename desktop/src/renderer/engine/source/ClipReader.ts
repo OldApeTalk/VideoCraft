@@ -236,9 +236,19 @@ export class ClipReader implements VideoSource {
     this.buffer.clear();
     const keyIdx = this.mediaSource.index.findKeyframeAtOrBefore(mediaTime);
     this.seek = { cursor: keyIdx, keyIdx, targetMediaUs: mediaTime };
+    // eslint-disable-next-line no-console
+    console.warn("[ClipReader] beginSeek", { mediaTime, keyIdx, generation: this.generation });
   }
 
   private startPumpIfIdle(): void {
+    // eslint-disable-next-line no-console
+    console.warn("[ClipReader] startPumpIfIdle", {
+      pumpRunning: this.pumpRunning,
+      disposed: this.disposed,
+      hasSeek: !!this.seek,
+      cursor: this.seek?.cursor,
+      totalSamples: this.mediaSource.samples.length,
+    });
     if (this.pumpRunning || this.disposed) return;
     if (!this.seek) return;
     if (this.seek.cursor >= this.mediaSource.samples.length) return;
@@ -247,6 +257,8 @@ export class ClipReader implements VideoSource {
   }
 
   private async runPump(myGeneration: number): Promise<void> {
+    let decodeCalls = 0;
+    const t0 = performance.now();
     try {
       if (!this.decoder) this.initDecoder();
       if (!this.decoder) return;
@@ -258,10 +270,14 @@ export class ClipReader implements VideoSource {
         this.seek.cursor < this.mediaSource.samples.length
       ) {
         if (!this.buffer.hasSpace()) {
+          // eslint-disable-next-line no-console
+          console.warn("[ClipReader] pump awaiting space", { gen: myGeneration, decodeCalls, cursor: this.seek.cursor, bufSize: this.buffer.size() });
           await this.buffer.awaitSpace();
           continue;
         }
         if (this.disposed || this.generation !== myGeneration || !this.seek) {
+          // eslint-disable-next-line no-console
+          console.warn("[ClipReader] pump bailing (stale generation)", { gen: myGeneration, curGen: this.generation, decodeCalls });
           break;
         }
 
@@ -279,8 +295,11 @@ export class ClipReader implements VideoSource {
               data: sample.data,
             }),
           );
+          decodeCalls++;
         } catch (err) {
           this.decoderError = err instanceof Error ? err : new Error(String(err));
+          // eslint-disable-next-line no-console
+          console.warn("[ClipReader] decode() threw", { gen: myGeneration, cursor: i, err: String(err) });
           break;
         }
 
@@ -289,7 +308,11 @@ export class ClipReader implements VideoSource {
         // Stop feeding past clip end, with a B-frame margin so output reaches
         // sourceOut.
         if (sample.cts_us >= this.sourceOutUs) {
-          if (sample.cts_us >= this.sourceOutUs + 250_000) break;
+          if (sample.cts_us >= this.sourceOutUs + 250_000) {
+            // eslint-disable-next-line no-console
+            console.warn("[ClipReader] pump breaking (past sourceOut)", { gen: myGeneration, cursor: i, decodeCalls });
+            break;
+          }
         }
 
         // Yield occasionally so the output handler runs.
@@ -299,6 +322,8 @@ export class ClipReader implements VideoSource {
       }
     } finally {
       this.pumpRunning = false;
+      // eslint-disable-next-line no-console
+      console.warn("[ClipReader] pump exiting", { gen: myGeneration, decodeCalls, elapsedMs: performance.now() - t0, cursor: this.seek?.cursor, bufSize: this.buffer.size() });
     }
   }
 
@@ -315,6 +340,12 @@ export class ClipReader implements VideoSource {
             return;
           }
           if (this.disposed || !this.buffer.hasSpace()) {
+            // eslint-disable-next-line no-console
+            console.warn("[ClipReader] DROPPED decoded frame (ring full)", {
+              timestamp: frame.timestamp,
+              disposed: this.disposed,
+              bufSize: this.buffer.size(),
+            });
             frame.close();
             return;
           }
