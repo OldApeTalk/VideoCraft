@@ -98,6 +98,14 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
   const audioRef = useRef<AudioPlayback | null>(null);
   const rafRef = useRef<number | null>(null);
   const playingRef = useRef(false);
+  // Timeline position (sec) of the last renderAt() call during playback, so
+  // tick() can throttle actual GPU renders to the content's own frame rate
+  // instead of firing one per rAF callback — on a high-refresh-rate display
+  // that's 100+ calls/sec redrawing the SAME decoded frame over and over,
+  // burning GPU/CPU time that decode needs and directly reads as stutter.
+  // The playhead (tRef/setT) still updates every rAF tick for a smooth
+  // scrubber; only the expensive render is throttled.
+  const lastRenderedPosRef = useRef(-Infinity);
   // FPS counter (opt-in via the toggle below): timestamps of completed paints
   // in the last second, so the displayed number reflects actual render
   // throughput — not the rAF callback rate, which is capped at the display's
@@ -218,6 +226,7 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
 
     playingRef.current = true;
     setPlaying(true);
+    lastRenderedPosRef.current = -Infinity;
 
     const tick = () => {
       if (!playingRef.current) return;
@@ -234,7 +243,10 @@ export function NewsDeskPreview(props: NewsDeskPreviewProps) {
       }
       tRef.current = pos;
       setT(pos);
-      void renderAt(pos);
+      if (pos - lastRenderedPosRef.current >= 1 / FPS) {
+        lastRenderedPosRef.current = pos;
+        void renderAt(pos);
+      }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
