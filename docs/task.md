@@ -5,7 +5,13 @@
 
 ---
 
-## ✅ 当前状态(2026-07-06) = v0.3.8 已发布（源视频 MP3）
+## ✅ 当前状态(2026-08-22) = v0.3.9 已发布（yt-dlp 打包态升级 bug 修复）
+
+> 本轮(2026-08-22)：① 排查用户报告「打包版 yt-dlp 更新无效」——根因是 PyInstaller 把 yt-dlp 打进 PYZ 归档走 `sys.meta_path` 冻结 importer，CPython 解析永远先查 meta_path 再查 sys.path，py-extra prepend 拦不住；修法 = `core_rpc.spec` 加 `module_collection_mode={"yt_dlp": "py"}` 让它以松散源码文件形式落盘，走标准 PathFinder。② 连带发现并修复第二个独立 bug：`pip install --target --upgrade` 不清理旧 dist-info，连续升级后版本号显示可能卡在旧值（`importlib.metadata` 挑中哪份不保证最新）；修法 = `runtime_extras.install()` 成功后才清理旧 dist-info，失败不动任何文件。两处修复 + 3 个新测试详见 [`design/packaging-design.md`](design/packaging-design.md) §5.3 的 🐛 记录。③ **切发布 v0.3.9**（PATCH）——yt-dlp bump 到 `2026.8.19`；版本号三处对齐；`uv lock` 同步。④ 验证：`pytest tests` = 167 passed（本会话未跑 desktop typecheck / 本地 build:win，只走了 CI）；CI run `32563664057` 绿。⑤ tag `v0.3.9` → 草稿 Release 双语 notes → **已 publish**（2026-08-22 09:31 UTC，<https://github.com/dosmoon/VideoCraft/releases/tag/v0.3.9>）。⏸ 真签名仍 deferred（需证书）。README.markdown 未改——版本徽章走 `releases/latest` 动态解析，历史上从未在切版本时改动过。
+
+---
+
+## 📦 上轮(2026-07-06) = v0.3.8 已发布（源视频 MP3）
 
 > 本轮(2026-07-06)：① **切发布 v0.3.8**（PATCH）——源视频详情页新增 MP3 抽取/播放/快速定位；重新生成后音频控件用 mtime cache-buster 刷新；yt-dlp bump 到 `2026.7.4`；版本号三处对齐（`desktop/package.json` + `pyproject.toml` + `src/__init__.py`）并 `uv lock` 同步。② 验证：`pytest tests` = 163 passed；desktop typecheck 通过；`build_sidecar.ps1` 冻结 + HTTP smoke OK；`fetch_ffmpeg.ps1` 幂等；`generate_build_info.ps1` OK；本地 `pnpm -C desktop build:win` 产出 `VideoCraft-0.3.8-setup.exe`；CI run `28799944951` 绿。③ tag `v0.3.8` → 草稿 Release 双语 notes → **已 publish**（2026-07-06 14:46 UTC，<https://github.com/dosmoon/VideoCraft/releases/tag/v0.3.8>）。⏸ `d:\tmp\e2e_ytdlp.py` 本机不存在，安装器真机手点未在本会话执行；真签名仍 deferred（需证书）。
 
