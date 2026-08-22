@@ -188,7 +188,7 @@ base 冻结(无 faster-whisper/llama/CUDA)≈ Python 运行时 + 上述纯/轻�
 ## 10. 发布 checklist(切发布版前)
 
 > 完整操作步骤(本地/CI 打包、tag→草稿 Release→publish)见 [`../packaging.md`](../packaging.md);版本号规则见 [`../versioning.md`](../versioning.md)。本节只列**切发布前的依赖刷新**要点。
-> yt-dlp 是唯一必须追新的包(追 YouTube 变化);内置那份过期会让首次运行下载失败。环境页「更新」按钮(→ py-extra)是逃生口,但首发那份必须新鲜。其余依赖按 dep-update 周期主动 bump。
+> **必须追新的包 = 直接对话外部云端 API 的 SDK**(`yt-dlp` / `openai` / `google-genai` / `fish-audio-sdk`)——服务商随时可能改协议,老 SDK 说不上话(2026-08-22 实锤:openai 2.30.0 打 xAI 直接报"key 不对",升到 3.3.1 才通,根因是新版换了底层 HTTP 客户端;不是 key 的问题,是 SDK 太老)。内置那份过期会让首次运行就连不上;环境页「更新」按钮(→ py-extra)是逃生口,但首发那份必须新鲜。**不追新**:不跟外部 AI API 打交道的包(`srt` / `json-repair` / `Pillow` 等)按 dep-update 周期主动 bump 即可,没必要每次发布都跟着一起追,平白多担风险。
 
 0. **定版本号 + bump**:按 [`../versioning.md`](../versioning.md) 改 `desktop/package.json` 的 `version`(同步 `pyproject.toml`),发布时打 annotated tag `vX.Y.Z` + release note。
 1. **bump yt-dlp 到 latest**:改 `pyproject.toml` `[project.dependencies]` 的 `yt-dlp==<latest>`。

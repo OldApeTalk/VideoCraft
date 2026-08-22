@@ -88,7 +88,10 @@ a = Analysis(
     # on-disk package, so py-extra's copy — prepended at sys.path[0] — wins for
     # real, including its own submodule imports (setting propagates to the
     # whole yt_dlp.* subtree, see PyInstaller's _get_module_collection_mode).
-    module_collection_mode={"yt_dlp": "py"},
+    # openai gets the same treatment: it's another env-dashboard "update"
+    # target (upgrade_pip("openai") in core/env/components.py) — same
+    # meta_path-vs-sys.path shadowing bug would otherwise apply to it too.
+    module_collection_mode={"yt_dlp": "py", "openai": "py"},
     noarchive=False,
 )
 

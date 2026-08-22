@@ -20,7 +20,7 @@
 - ℹ️ **无需手改**：App「关于/帮助」对话框、设置关于卡片走 `app.getVersion()`；版权年 `appInfo.ts` 取当前年；Windows `FileVersion` = `<ver>.<run#>` 由 CI 派生 —— 全部自动跟随 `package.json`。
 
 ## 2. 依赖刷新（见 [`packaging-design.md`](design/packaging-design.md) §10）
-- [ ] `yt-dlp` bump 到 latest（`pyproject.toml` `[project.dependencies]`）—— 唯一必须追新的包；已是 latest 则跳过。
+- [ ] 四个必须追新的包（直接对话外部云端 API 的 SDK）逐一 bump 到 latest（`pyproject.toml` `[project.dependencies]`）：`yt-dlp` / `openai` / `google-genai` / `fish-audio-sdk`；已是 latest 的跳过。SDK 大版本跳变（如 1.x→2.x）先跑一遍对应 provider 的 import/构造 smoke test 再定，见 packaging-design.md §10 的实例。
 - [ ] `uv lock` 重生成 `uv.lock`（项目版本号也会顺带更新到 `X.Y.Z`）。
 - [ ] `myenv/Scripts/python.exe -m pytest tests/` 全绿（含 `test_dependency_pins`）。
 
