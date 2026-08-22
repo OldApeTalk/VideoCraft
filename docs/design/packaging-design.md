@@ -133,6 +133,9 @@ base 冻结(无 faster-whisper/llama/CUDA)≈ Python 运行时 + 上述纯/轻�
 
 **⚠️ 剩余打包态终验(GUI/真机盲区)**:① 真包 faster-whisper/llama-cpp 到 py-extra(six 已证 pip 机制;真包额外验 llama-cpp CPU wheel 从 abetlen 索引、ctranslate2 binary wheel 在冻结 interpreter tag 匹配)② 装后 ASR/本地 LLM 真能跑(py-extra prepend + warmup import 链)③ CUDA wheels 装 py-extra 后 `nvidia/*/bin` DLL 解析。装 installer 后 GUI 走一遍。
 
+**🐛 这个盲区里真出过 bug(2026-08-22 发现+修)——yt-dlp 升级在打包态形同虚设**:`ensure_on_sys_path()` 只是 prepend py-extra 到 `sys.path`,但 yt-dlp 作为纯 Python 依赖被 PyInstaller 默认打进 `PYZ` 归档,走的是它自己的 `sys.meta_path` 冻结 importer——CPython 的 import 解析永远先查 `sys.meta_path` 再查 `sys.path`,所以 py-extra 排第几都拦不住。现象:环境页点"更新"→ pip 真的把新版装进了 py-extra、退出码 0,但打包态运行时 `import yt_dlp` 永远还是命中冻结的旧代码,**且版本号显示也可能不准**(见下一条,两个独立 bug 叠加)。修法:`core_rpc.spec` 的 `Analysis(module_collection_mode={"yt_dlp": "py"})`——把 yt_dlp 整棵子树(含所有 extractor 子模块,设置对顶层包生效会递归传给子模块)改成松散 `.py` 文件而非塞进 PYZ,走标准 `sys.path` PathFinder 解析,py-extra 才能真正 shadow 得住。回归测试见 `tests/test_packaging_spec.py`(只能做"spec 里配置项还在"的形状检查,**真正的打包态验证仍待下次 `build_sidecar.ps1` 之后手验**)。
+**🐛 配套 bug——`runtime_extras.install()` 重复升级后版本号显示不动**:`pip install --target --upgrade` 不会删除同目录里上一次装的旧 `<pkg>-<旧版本>.dist-info`,连续两次升级后目录里新旧 dist-info 并存,`importlib.metadata.version()` 挑中哪份不保证是最新(实测复现过直接选中旧的)。修:`install()` 成功(`rc==0`)后才清理该包除最新 mtime 外的所有 dist-info——刻意不在升级前先删,失败时磁盘上的旧版本原封不动。见 `tests/core/test_runtime_extras.py` 的 `test_install_prunes_stale_dist_info_on_success` / `test_install_leaves_stale_dist_info_on_failure`。
+
 ---
 
 ## 6. 二进制依赖

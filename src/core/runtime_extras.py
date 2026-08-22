@@ -117,6 +117,21 @@ def install(packages: Iterable[str],
         # while it was empty won't see the just-written package. Invalidate so the
         # freshly installed extra is importable in THIS running sidecar, no restart.
         importlib.invalidate_caches()
+        # pip --target never removes a superseded version's dist-info (it only
+        # has an "install into an empty-ish dir" story, no upgrade-in-place
+        # bookkeeping), so a second upgrade leaves the OLD dist-info sitting
+        # next to the new one. importlib.metadata then has two candidates for
+        # the same project and can resolve either — observed picking the
+        # stale one, so env.detect_all's version display gets stuck even
+        # though the actual module files on disk did upgrade. Prune runs only
+        # after rc == 0, so a failed/interrupted install never touches the
+        # previously-working dist-info — there's always a working version on
+        # disk, worst case the old one.
+        target = py_extra_dir()
+        for pkg in pkgs:
+            # pkgs are pip specs (e.g. "faster-whisper==1.2.1"); dist-info dirs
+            # are named after the bare project name, so strip the pin first.
+            _prune_stale_versions(target, pkg.split("==", 1)[0], on_line)
     return rc
 
 
@@ -215,43 +230,75 @@ def _dist_info_dirs(target: str, pkg: str) -> list[str]:
     return out
 
 
-def _remove_distribution(target: str, pkg: str, on_line) -> None:
-    """Delete every file a distribution recorded, then its dist-info."""
+def _log_fn(on_line):
     def log(msg: str) -> None:
         if on_line is not None:
             try:
                 on_line(msg)
             except Exception:
                 pass
+    return log
 
+
+def _remove_one_dist_info(target: str, info: str, log) -> None:
+    """Delete every file `info`'s RECORD lists, then the dist-info dir itself."""
+    record = os.path.join(info, "RECORD")
+    removed_dirs: set[str] = set()
+    if os.path.isfile(record):
+        with open(record, "r", encoding="utf-8") as f:
+            for raw in f:
+                rel = raw.split(",", 1)[0].strip()
+                if not rel:
+                    continue
+                abs_path = os.path.normpath(os.path.join(target, rel))
+                # Stay inside target — never follow a stray absolute/.. entry.
+                if not abs_path.startswith(os.path.abspath(target)):
+                    continue
+                try:
+                    if os.path.isfile(abs_path) or os.path.islink(abs_path):
+                        os.remove(abs_path)
+                        removed_dirs.add(os.path.dirname(abs_path))
+                except OSError:
+                    pass
+    # Best-effort prune of now-empty dirs (deepest first), then the dist-info.
+    for d in sorted(removed_dirs, key=len, reverse=True):
+        try:
+            os.removedirs(d)
+        except OSError:
+            pass
+    shutil.rmtree(info, ignore_errors=True)
+    log(f"removed {os.path.basename(info)}")
+
+
+def _remove_distribution(target: str, pkg: str, on_line) -> None:
+    """Delete every file a distribution recorded, then its dist-info."""
+    log = _log_fn(on_line)
     info_dirs = _dist_info_dirs(target, pkg)
     if not info_dirs:
         log(f"[skip] {pkg}: not installed in py-extra")
         return
     for info in info_dirs:
-        record = os.path.join(info, "RECORD")
-        removed_dirs: set[str] = set()
-        if os.path.isfile(record):
-            with open(record, "r", encoding="utf-8") as f:
-                for raw in f:
-                    rel = raw.split(",", 1)[0].strip()
-                    if not rel:
-                        continue
-                    abs_path = os.path.normpath(os.path.join(target, rel))
-                    # Stay inside target — never follow a stray absolute/.. entry.
-                    if not abs_path.startswith(os.path.abspath(target)):
-                        continue
-                    try:
-                        if os.path.isfile(abs_path) or os.path.islink(abs_path):
-                            os.remove(abs_path)
-                            removed_dirs.add(os.path.dirname(abs_path))
-                    except OSError:
-                        pass
-        # Best-effort prune of now-empty dirs (deepest first), then the dist-info.
-        for d in sorted(removed_dirs, key=len, reverse=True):
-            try:
-                os.removedirs(d)
-            except OSError:
-                pass
-        shutil.rmtree(info, ignore_errors=True)
-        log(f"removed {os.path.basename(info)}")
+        _remove_one_dist_info(target, info, log)
+
+
+def _prune_stale_versions(target: str, pkg: str, on_line) -> None:
+    """After a successful install, remove every dist-info for `pkg` except the
+    one pip just wrote.
+
+    ``pip install --target --upgrade`` has no upgrade-in-place bookkeeping — it
+    never deletes a superseded version's dist-info, so a second upgrade leaves
+    the old and new dist-info side by side. importlib.metadata then has two
+    candidates for the same project and does not reliably resolve the newest
+    one (observed picking the stale dist-info in practice), which is what
+    env.detect_all's displayed version reads. The dist-info pip just wrote is
+    always the newest by mtime — installs are sequential, never concurrent for
+    the same package — so keep that one and remove the rest.
+    """
+    log = _log_fn(on_line)
+    info_dirs = _dist_info_dirs(target, pkg)
+    if len(info_dirs) <= 1:
+        return
+    newest = max(info_dirs, key=lambda p: os.path.getmtime(p))
+    for info in info_dirs:
+        if info != newest:
+            _remove_one_dist_info(target, info, log)

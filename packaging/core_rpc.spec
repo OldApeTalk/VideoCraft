@@ -76,6 +76,19 @@ a = Analysis(
         "transformers",
         "tkinter",
     ],
+    # yt-dlp is the one bundled package the env dashboard's "update" button must
+    # actually be able to shadow (it's the only dep that must track upstream —
+    # packaging-design.md §5.3). Default collection zips pure-Python deps into
+    # PYZ, loaded via PyInstaller's own sys.meta_path frozen importer — which
+    # CPython consults BEFORE sys.path, so prepending py-extra there can never
+    # shadow it (a runtime "upgrade" would report success and even show the new
+    # version, while every `import yt_dlp` still silently got the frozen old
+    # copy — the release-can't-update bug). 'py' collects it as loose source
+    # files instead, resolved through the normal sys.path PathFinder like any
+    # on-disk package, so py-extra's copy — prepended at sys.path[0] — wins for
+    # real, including its own submodule imports (setting propagates to the
+    # whole yt_dlp.* subtree, see PyInstaller's _get_module_collection_mode).
+    module_collection_mode={"yt_dlp": "py"},
     noarchive=False,
 )
 

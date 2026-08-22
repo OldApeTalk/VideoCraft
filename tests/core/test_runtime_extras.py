@@ -98,6 +98,61 @@ def test_is_installed_checks_py_extra_dist_info():
     assert rx.is_installed(["nvidia-cublas-cu12", "missing-pkg"]) is False
 
 
+def test_install_prunes_stale_dist_info_on_success(monkeypatch):
+    """pip --target --upgrade leaves a superseded version's dist-info behind
+    (reproduced against a real pip run — see the yt-dlp version-display bug);
+    a successful install() must prune it so importlib.metadata resolves the
+    version pip just installed, not whichever dist-info sorts/scans first."""
+    target = rx.py_extra_dir()
+    _make_dist(target, "yt-dlp", "2026.7.4", ["yt_dlp/__init__.py"])
+    old_info = os.path.join(target, "yt_dlp-2026.7.4.dist-info")
+    os.utime(old_info, (1_000_000, 1_000_000))
+    _make_dist(target, "yt-dlp", "2026.8.19", ["yt_dlp/__init__.py"])
+    new_info = os.path.join(target, "yt_dlp-2026.8.19.dist-info")
+    os.utime(new_info, (2_000_000, 2_000_000))
+    assert len(rx._dist_info_dirs(target, "yt-dlp")) == 2
+
+    monkeypatch.setattr(rx, "_stream", lambda cmd, on_line, cancel_token: 0)
+    rc = rx.install(["yt-dlp"])
+
+    assert rc == 0
+    assert rx._dist_info_dirs(target, "yt-dlp") == [new_info]
+
+
+def test_install_leaves_stale_dist_info_on_failure(monkeypatch):
+    """A failed pip run must not touch anything already on disk — the
+    previously-working version stays fully intact, not just its dist-info."""
+    target = rx.py_extra_dir()
+    _make_dist(target, "yt-dlp", "2026.7.4", ["yt_dlp/__init__.py"])
+    old_info = os.path.join(target, "yt_dlp-2026.7.4.dist-info")
+    os.utime(old_info, (1_000_000, 1_000_000))
+    _make_dist(target, "yt-dlp", "2026.8.19", ["yt_dlp/__init__.py"])
+
+    monkeypatch.setattr(rx, "_stream", lambda cmd, on_line, cancel_token: 1)
+    rc = rx.install(["yt-dlp"])
+
+    assert rc == 1
+    assert len(rx._dist_info_dirs(target, "yt-dlp")) == 2
+
+
+def test_install_prune_strips_version_pin(monkeypatch):
+    """embedded_ai_install / gpu_install pass pinned specs ("pkg==1.2.1") —
+    pruning must match on the bare project name, not the raw spec string."""
+    target = rx.py_extra_dir()
+    _make_dist(target, "faster-whisper", "1.2.0", ["faster_whisper/__init__.py"])
+    old_info = os.path.join(target, "faster_whisper-1.2.0.dist-info")
+    os.utime(old_info, (1_000_000, 1_000_000))
+    _make_dist(target, "faster-whisper", "1.2.1", ["faster_whisper/__init__.py"])
+    new_info = os.path.join(target, "faster_whisper-1.2.1.dist-info")
+    os.utime(new_info, (2_000_000, 2_000_000))
+
+    monkeypatch.setattr(rx, "_stream", lambda cmd, on_line, cancel_token: 0)
+    rc = rx.install(["faster-whisper==1.2.1"])
+
+    assert rc == 0
+    assert rx._dist_info_dirs(target, "faster-whisper") == [new_info]
+
+
 def test_uninstall_removes_recorded_files():
     target = rx.py_extra_dir()
     _make_dist(target, "faster-whisper", "1.2.1",
