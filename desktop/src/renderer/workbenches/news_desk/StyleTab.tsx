@@ -465,10 +465,16 @@ export function StyleTab(props: {
         onBound={onMaterialBound}
       />
 
-      <div style={{ display: "flex", gap: 16, padding: 16, alignItems: "flex-start", flex: 1, overflow: "auto" }}>
-      {/* Left: full-source preview + component manager (list order = z-order). */}
-      <div style={{ flex: "0 0 auto", minWidth: 360 }}>
-        <div style={{ marginBottom: 12 }}>
+      {/* alignItems: stretch (not flex-start) — the two columns below need the
+          row's full bounded height so each can scroll its OWN overflow
+          independently, instead of one shared scrollbar dragging the video
+          preview around with the properties panel (the layout bug this fixes). */}
+      <div style={{ display: "flex", gap: 16, padding: 16, alignItems: "stretch", flex: 1, overflow: "hidden" }}>
+      {/* Left: full-source preview (pinned, never scrolls) + component manager
+          (list order = z-order) — the list scrolls on its own below the preview
+          when it overflows. */}
+      <div style={{ flex: "0 0 auto", minWidth: 360, display: "flex", flexDirection: "column" }}>
+        <div style={{ marginBottom: 12, flexShrink: 0 }}>
           <div style={{ fontSize: 11, color: "#888", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
             {tr("news_desk.style.preview_heading")}
           </div>
@@ -494,6 +500,9 @@ export function StyleTab(props: {
           )}
         </div>
 
+        {/* Scrolls on its own (bounded by the preview above taking its fixed
+            share of the column) — the video never moves when this overflows. */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         <div
           style={{
             display: "flex",
@@ -609,10 +618,13 @@ export function StyleTab(props: {
             })}
           </ul>
         )}
+        </div>
       </div>
 
-      {/* Right: selected component's property panel. */}
-      <div style={{ flex: 1, minWidth: 220, borderLeft: "1px solid #222", paddingLeft: 16 }}>
+      {/* Right: selected component's property panel — scrolls independently
+          from the left column, so a long property list never drags the
+          preview or the component list with it. */}
+      <div style={{ flex: 1, minWidth: 220, borderLeft: "1px solid #222", paddingLeft: 16, overflowY: "auto" }}>
         <div
           style={{
             fontSize: 11,

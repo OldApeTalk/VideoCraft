@@ -133,7 +133,12 @@ export function NewsDeskWorkbench(props: {
 
       {error && <p style={{ color: "#ff6b6b", padding: "8px 16px 0" }}>✗ {error}</p>}
 
-      <div style={{ flex: 1, overflow: "auto" }}>
+      {/* overflow: hidden, not auto — this level must NOT scroll (that dragged
+          the video preview up/down with it). Each tab manages its own internal
+          scroll regions; hidden here just keeps this flex item's height bounded
+          (an overflow value other than visible is what makes flex:1 actually
+          shrink to the available space instead of growing to content size). */}
+      <div style={{ flex: 1, overflow: "hidden" }}>
         {visited.has("style") && (
           <div style={{ display: tab === "style" ? "contents" : "none" }}>
             <StyleTab
