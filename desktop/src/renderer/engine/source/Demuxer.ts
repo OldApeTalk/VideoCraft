@@ -47,6 +47,9 @@ interface HvcSampleEntryLike {
 interface Av1SampleEntryLike {
   av1C?: { write: (s: DataStream) => void } | null;
 }
+interface VpcCSampleEntryLike {
+  vpcC?: { write: (s: DataStream) => void } | null;
+}
 
 export function isSupportedCodec(codec: string): boolean {
   return (
@@ -54,7 +57,9 @@ export function isSupportedCodec(codec: string): boolean {
     codec.startsWith("avc3") ||
     codec.startsWith("hvc1") ||
     codec.startsWith("hev1") ||
-    codec.startsWith("av01")
+    codec.startsWith("av01") ||
+    codec.startsWith("vp09") ||
+    codec.startsWith("vp08")
   );
 }
 
@@ -89,6 +94,14 @@ function buildDescription(
     // av1C is optional; Chromium accepts AV1 with in-band OBU sequence headers.
     const e = entry as unknown as Av1SampleEntryLike;
     return e.av1C ? writeBoxPayload(e.av1C) : undefined;
+  }
+  if (codec.startsWith("vp09") || codec.startsWith("vp08")) {
+    // Same story as AV1: VP8/VP9 don't carry parameter sets the way AVC/HEVC
+    // do — the codec string alone (profile.level.bitDepth, already how mp4box
+    // reports it) is enough for WebCodecs to configure. vpcC just mirrors it
+    // redundantly, so treat it as optional rather than a hard DEMUX_FAILED.
+    const e = entry as unknown as VpcCSampleEntryLike;
+    return e.vpcC ? writeBoxPayload(e.vpcC) : undefined;
   }
   throw new EngineError(`Codec ${codec} not supported`, "UNSUPPORTED_CODEC");
 }
