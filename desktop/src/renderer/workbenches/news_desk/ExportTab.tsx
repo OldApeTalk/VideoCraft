@@ -25,7 +25,7 @@ import type { NewsDeskComponentConfig } from "@creations/news_desk/types.js";
 import { centerCropRect, parseAspect, targetDimsForAspect, type CropRect } from "@composition/crop.js";
 import { Backend } from "../../engine/gpu/Backend";
 import { MediaSource } from "../../engine/source/MediaSource";
-import { ClipReader } from "../../engine/source/ClipReader";
+import { ClipReader, EXPORT_RING_CAPACITY } from "../../engine/source/ClipReader";
 import { AudioReader } from "../../engine/source/AudioReader";
 import type { DecodedAudio } from "../../engine/source/sample-types";
 import { preloadImageOverlay } from "../../engine/overlay/canvas2d";
@@ -189,7 +189,7 @@ export function ExportTab(props: {
       const canvas = hiddenCanvasRef.current;
       if (!canvas) throw new Error("no render canvas");
       const ms = await MediaSource.open(window.vc.mediaUrl(data.srcPath));
-      reader = new ClipReader(ms);
+      reader = new ClipReader(ms, undefined, undefined, EXPORT_RING_CAPACITY);
       backend = new Backend();
       await backend.init(canvas);
 

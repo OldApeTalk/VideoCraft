@@ -46,7 +46,21 @@ function yieldToEventLoop(): Promise<void> {
   });
 }
 
-const RING_CAPACITY = 8;
+/**
+ * Default ring/in-flight capacity — small enough to bound how many decoded
+ * VideoFrames (GPU surfaces) preview keeps pinned at once. Export passes a
+ * much larger EXPORT_RING_CAPACITY: measured directly (real file, real
+ * pipeline, freezedetect-verified) that once an encoder shares the main
+ * thread with decode, decoder output arrives in irregular bursts spanning up
+ * to ~1.5s instead of a steady ~1-frame-apart cadence — a small ring can hold
+ * only a sliver of a burst, silently drops the rest in the output callback,
+ * and frameAtExact() then settles for whatever stale frame survived. Export
+ * isn't real-time and doesn't need to bound GPU-surface pinning as tightly,
+ * so a ring big enough to hold a full burst fixes it directly.
+ */
+const DEFAULT_RING_CAPACITY = 8;
+/** Ring/in-flight capacity for export's frameAtExact() — see DEFAULT_RING_CAPACITY. */
+export const EXPORT_RING_CAPACITY = 64;
 /** How far past the buffer's latest frame still counts as in-range before a seek. */
 const FORWARD_LOOKAHEAD_US = 1_000_000; // 1s
 /** Soft trim threshold: drop frames more than this far behind current target. */
@@ -76,9 +90,10 @@ export class ClipReader implements VideoSource {
   private readonly sourceInUs: TimeUs;
   private readonly sourceOutUs: TimeUs;
 
+  private readonly ringCapacity: number;
   private decoder: VideoDecoder | null = null;
   private decoderError: Error | null = null;
-  private buffer = new FrameRingBuffer(RING_CAPACITY);
+  private buffer: FrameRingBuffer;
 
   private seek: SeekState | null = null;
   private pumpRunning = false;
@@ -106,7 +121,12 @@ export class ClipReader implements VideoSource {
   private frameAvailableSubs = new Set<() => void>();
   private disposed = false;
 
-  constructor(mediaSource: MediaSource, sourceInUs?: TimeUs, sourceOutUs?: TimeUs) {
+  constructor(
+    mediaSource: MediaSource,
+    sourceInUs?: TimeUs,
+    sourceOutUs?: TimeUs,
+    ringCapacity: number = DEFAULT_RING_CAPACITY,
+  ) {
     this.mediaSource = mediaSource;
     this.sourceInUs = clamp(sourceInUs ?? 0, 0, mediaSource.durationUs);
     this.sourceOutUs = clamp(
@@ -117,6 +137,8 @@ export class ClipReader implements VideoSource {
     this.width = mediaSource.width;
     this.height = mediaSource.height;
     this.durationUs = this.sourceOutUs - this.sourceInUs;
+    this.ringCapacity = ringCapacity;
+    this.buffer = new FrameRingBuffer(ringCapacity);
   }
 
   async frameAt(clipTimeUs: TimeUs): Promise<VideoFrame | null> {
@@ -166,6 +188,18 @@ export class ClipReader implements VideoSource {
     if (this.decoderError) throw this.decoderError;
     const mediaTime = this.sourceInUs + clamp(clipTimeUs, 0, this.durationUs);
 
+    // Forward-only export never re-reads earlier times — evict everything
+    // before the target UP FRONT (not just what the previous call's returned
+    // candidate covered) so the ring has maximum free capacity for whatever
+    // the pump delivers next. Decoder output can arrive in bursts rather than
+    // steadily one-frame-at-a-time (e.g. when an encoder shares the main
+    // thread with decode during export, starving the decoder's own output
+    // callback until the thread frees up) — if stale leftover content is
+    // still occupying ring slots when that burst lands, the overflow gets
+    // silently dropped in the output callback, and this call ends up settling
+    // for whatever stale frame survived instead of the target's own frame.
+    this.buffer.trimBefore(mediaTime);
+
     if (this.needsRepositionFor(mediaTime)) this.beginSeek(mediaTime);
     this.startPumpIfIdle();
 
@@ -181,14 +215,13 @@ export class ClipReader implements VideoSource {
       // has space to decode FORWARD toward the target — otherwise a full buffer
       // of sub-target frames deadlocks the pump and we'd spin to the budget.
       this.buffer.trimBefore(mediaTime - TRIM_BEHIND_US);
-      // High-fps sources pack more frames into the TRIM_BEHIND_US history window
-      // than the ring can hold (200ms × 60fps = 12 > RING_CAPACITY 8), so the
-      // time-based trim above frees nothing and the pump deadlocks here — every
-      // frameAtExact then crawls to EXACT_WAIT_BUDGET_MS (~3s/frame). The loop
-      // condition guarantees latestPts() < mediaTime, so every buffered frame is
-      // behind the target (the floor frame we'll pick is still undecoded); drop
-      // the oldest to let the pump decode toward the target. Robust to any source
-      // fps (unlike bumping RING_CAPACITY, which only moves the threshold).
+      // High-fps sources can pack more frames into the TRIM_BEHIND_US history
+      // window than the ring can hold, so the time-based trim above frees
+      // nothing and the pump deadlocks here — every frameAtExact then crawls
+      // to EXACT_WAIT_BUDGET_MS (~3s/frame). Drop the oldest (only once
+      // nothing usable is buffered yet) to let the pump decode toward the
+      // target. Robust to any source fps (unlike bumping ring capacity, which
+      // only moves the threshold).
       if (!this.buffer.hasSpace() && this.buffer.latestPts() < mediaTime) {
         this.buffer.dropOldest();
       }
@@ -281,13 +314,13 @@ export class ClipReader implements VideoSource {
   }
 
   /**
-   * True while fewer than RING_CAPACITY decodes are outstanding (submitted to
+   * True while fewer than ringCapacity decodes are outstanding (submitted to
    * the decoder but not yet resolved via its output callback). This is the
    * pump's real backpressure signal — see the `inFlight` field comment for
    * why `buffer.hasSpace()` alone can't do this job.
    */
   private hasInFlightSpace(): boolean {
-    return this.inFlight < RING_CAPACITY;
+    return this.inFlight < this.ringCapacity;
   }
 
   private awaitInFlightSpace(): Promise<void> {
