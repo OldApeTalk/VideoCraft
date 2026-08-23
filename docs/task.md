@@ -5,7 +5,20 @@
 
 ---
 
-## ✅ 当前状态(2026-08-22) = v0.3.9 已发布（yt-dlp 打包态升级 bug 修复）
+## ✅ 当前状态(2026-08-23) = v0.3.11 已发布（News Desk 播放/导出稳定性专项）
+
+> 本轮(2026-08-22~23)：排查用户报告「News Desk 预览卡顿丢帧、导出画面卡顿」，连环挖出 4 个独立叠加的 bug（每修一个都暴露下一层，全程用真实文件 + `freezedetect` 实测验证，非猜测）：
+> ① **重新定位死循环**（`ClipReader.needsRepositionFor`）——目标时间稍微超前/落后缓冲区就无脑重新定位，哪怕还在同一个关键帧区间内，导致解码进度反复被打断重来 → 画面「往前走几帧、猛地弹回去」。修法：只有目标真的换了 GOP 才重新定位。
+> ② **解码泵缺失真实背压**——`buffer.hasSpace()` 只反映已解码入队的帧数，不反映「已提交但异步解码器还没吐出来」的数量，①修好后泵终于能不被打断地跑，结果第一次把这个更深的坑跑穿：环形队列瞬间填满，多出来的解码结果在回调里被无声丢弃。修法：加 in-flight 计数器做真背压。
+> ③ **导出截图抢跑 GPU**（`webcodecsSink.ts`）——`queue.submit()` 只是把命令排队不等执行完，紧接着 `new VideoFrame(canvas)` 经常截到 GPU 还没画完的上一帧内容（真实解码帧走 `importExternalTexture` 比合成画布重，实测 35% 命中这个竞态）。修法：改用已有但导出没用上的 `renderOffscreenToBytes`（`mapAsync` 真同步）。
+> ④ **导出环形缓冲区太小扛不住突发交付**——真实编码器接入后跟解码器抢主线程，解码器输出变成「攒一堆突发交付」而不是稳定的逐帧节奏，8 帧的环形队列只能装下突发的一角，实测卡帧率 70%~97%；扩到 64 帧后降到 ~1%（对应源 29.97fps 采到 30fps 网格的正常误差）。导出单独给大容量，预览维持 8 帧（不会碰到这个突发模式，没必要多占显存）。
+> ⑤ 顺带发现并修：预览 `tick()` 每次 rAF 回调都无条件重绘，没有节流到内容帧率——高刷屏上变成每秒 200 次重绘同一帧，纯浪费资源；改为按 1/FPS 节流，播放条本身仍每帧更新。
+> ⑥ 另加 News Desk 样式页「章节手工编辑」功能（点击章节展开编辑区，改完自动存进该 news_desk 实例的 `schedule` 快照，不碰源 `analysis.json`——重新导入即撤销）。
+> **切发布 v0.3.11**（PATCH）——版本号三处对齐 + `uv lock` 同步；`pytest tests` 全绿、desktop `tsc`/`vitest`（258）全绿；CI run `32602642283` 绿；tag `v0.3.11` → 草稿 Release 双语 notes → 用户手工装包测试通过 → **已 publish**（2026-08-23 19:39 UTC，<https://github.com/dosmoon/VideoCraft/releases/tag/v0.3.11>）。⏸ 真签名仍 deferred（需证书）。
+
+---
+
+## 📦 上轮(2026-08-22) = v0.3.9 已发布（yt-dlp 打包态升级 bug 修复）
 
 > 本轮(2026-08-22)：① 排查用户报告「打包版 yt-dlp 更新无效」——根因是 PyInstaller 把 yt-dlp 打进 PYZ 归档走 `sys.meta_path` 冻结 importer，CPython 解析永远先查 meta_path 再查 sys.path，py-extra prepend 拦不住；修法 = `core_rpc.spec` 加 `module_collection_mode={"yt_dlp": "py"}` 让它以松散源码文件形式落盘，走标准 PathFinder。② 连带发现并修复第二个独立 bug：`pip install --target --upgrade` 不清理旧 dist-info，连续升级后版本号显示可能卡在旧值（`importlib.metadata` 挑中哪份不保证最新）；修法 = `runtime_extras.install()` 成功后才清理旧 dist-info，失败不动任何文件。两处修复 + 3 个新测试详见 [`design/packaging-design.md`](design/packaging-design.md) §5.3 的 🐛 记录。③ **切发布 v0.3.9**（PATCH）——yt-dlp bump 到 `2026.8.19`；版本号三处对齐；`uv lock` 同步。④ 验证：`pytest tests` = 167 passed（本会话未跑 desktop typecheck / 本地 build:win，只走了 CI）；CI run `32563664057` 绿。⑤ tag `v0.3.9` → 草稿 Release 双语 notes → **已 publish**（2026-08-22 09:31 UTC，<https://github.com/dosmoon/VideoCraft/releases/tag/v0.3.9>）。⏸ 真签名仍 deferred（需证书）。README.markdown 未改——版本徽章走 `releases/latest` 动态解析，历史上从未在切版本时改动过。
 
